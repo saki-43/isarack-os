@@ -8963,7 +8963,7 @@ function capacidadVigaCarga(nombre){
  const m=u.match(/(\d+)\s*"?\s*X\s*([0-9]+(?:\.[0-9]+)?)/);
  if(!m)return null;
  const L=parseInt(m[1],10),H=parseFloat(m[2]);
- const fila=VIGA_CAP[L];if(!fila)return null;
+ const fila=(typeof VIGA_CAP!=='undefined'&&VIGA_CAP[L])?VIGA_CAP[L]:null;if(!fila)return null;
  const lbs=fila[H];if(lbs===undefined)return null;
  const kg=Math.round(lbs*0.45359237);
  return 'Capacidad: '+lbs.toLocaleString('en-US')+' lbs / '+kg.toLocaleString('en-US')+' kg';
