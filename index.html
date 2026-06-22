@@ -8694,7 +8694,7 @@ function _gvAgregar(){
   if(typeof showToast==='function')showToast('\u2713 G\u00f3ndola agregada','#3B6D11');
 }
 
-function addLineaVenta(){vtaLineas.push({producto:'',desc:'',cantidad:1,precio:0,impuesto:8,descuento:0});renderLineas();setTimeout(()=>{const inputs=document.querySelectorAll('#vta-lineas .ac-input');if(inputs.length){const ultimo=inputs[inputs.length-1];ultimo.focus();}},50);}
+function addLineaVenta(){vtaLineas.push({producto:'',desc:'',cantidad:1,precio:0,impuesto:8,descuento:0});renderLineas();setTimeout(()=>{const inputs=[...document.querySelectorAll('#vta-lineas .ac-input')];const nueva=inputs.reverse().find(el=>!(el.value||'').trim());if(nueva){nueva.focus();}},50);}
 function addSeccionVenta(){vtaLineas.push({tipo:'seccion',texto:'Nueva sección'});renderLineas();}
 function addNotaVenta(){vtaLineas.push({tipo:'nota',texto:''});renderLineas();}
 function cargarCatalogoInv(){document.getElementById('cat-buscar').value='';renderCatalogo();document.getElementById('ov-catalogo').classList.add('open');}
@@ -8912,7 +8912,7 @@ function obtenerMarcosVirtuales(fondoFiltro){
   });
   return marcosVirt;
 }
-function acShow(inputEl,lineIdx){const q=(inputEl.value||'').toLowerCase();if(q.length<1){acHide();return;}
+function acShow(inputEl,lineIdx){const _lnF=vtaLineas[lineIdx];if(_lnF&&(_lnF._fleteAuto||/^SERVICIO DE FLETE/i.test((_lnF.producto||'').trim()))){acHide();return;}const q=(inputEl.value||'').toLowerCase();if(q.length<1){acHide();return;}
 window._acLineIdx=lineIdx;window._acQuery=q;acRender();}
 function acRender(){const q=(window._acQuery||'').toLowerCase();const lineIdx=window._acLineIdx;const searchQ=(window._acSearchQuery||'').toLowerCase();const combined=searchQ||q;
 const todosProductos=[...obtenerMarcosVirtuales(),...inventario];
@@ -10176,6 +10176,27 @@ function cloudSyncComision(v){
   supabaseClient.from('ventas').update({comision:v.comision||null,updated_at:new Date().toISOString()}).eq('num',v.num)
     .then(({error})=>{if(error){console.error('cloudSyncComision',error);showToast('⚠ Nube: falta columna "comision" en ventas (ejecuta el SQL)','#c62828');}});
 }
+function comEfeToggleCell(num,on,can){
+  const bg=on?'#1D9E75':'#d3d1c7';
+  const knob=on?'right:2px':'left:2px';
+  if(can){
+    return '<span onclick="comToggleEfectivo(\''+num+'\')" title="'+(on?'Pagada en efectivo — clic para quitar':'Marcar pagada en efectivo')+'" style="display:inline-block;width:40px;height:22px;border-radius:11px;cursor:pointer;vertical-align:middle;position:relative;background:'+bg+'"><span style="position:absolute;top:2px;'+knob+';width:16px;height:16px;border-radius:50%;background:#fff"></span></span>';
+  }
+  return '<span style="font-size:11px;color:#888" title="'+(on?'Pagada en efectivo':'')+'">'+(on?'efectivo':'—')+'</span>';
+}
+function comToggleEfectivo(num){
+  const u=getCurrentUser();
+  const v=ventas.find(x=>x&&x.num===num);if(!v)return;
+  const esAdmin=u&&(u.rol==='admin'||u.rol==='ceo');
+  const puede=esAdmin||(typeof comNombreMatch==='function'&&u&&comNombreMatch(u.nombre)===comNombreMatch(v.comercial));
+  if(!puede){showToast('Solo el admin o el comercial dueño puede marcar efectivo','#BA7517');return;}
+  const d=comGetData(v);
+  d.efectivo=!(d.efectivo===true);
+  guardarLS(VTA_KEY,ventas);
+  if(typeof cloudSyncComision==='function')cloudSyncComision(v);
+  showToast(d.efectivo?'💵 Pagada en efectivo — fuera de la comisión a pagar':'Quitada de efectivo','#0F6E56');
+  renderComisiones();
+}
 /* ── Abrir el PRESUPUESTO desde la tabla de comisiones (visor, NO la cotización editable) ── */
 function comAbrirVenta(num){
   // Las comisiones van ligadas a las ventas que están en Seguimiento: usar el mismo visor que ahí
@@ -10254,8 +10275,9 @@ function renderComisiones(){
   if(!opcionesBim.includes(comFiltroBim))comFiltroBim=hoy;
   const filas=comFilas(comFiltroBim);
   const tc=(typeof TC_DOF==='number'&&TC_DOF>0)?TC_DOF:17.2623;
-  let libUSD=0,libMXN=0,pendUSD=0,pendMXN=0,nLib=0,nPend=0,nArr=0;
+  let libUSD=0,libMXN=0,pendUSD=0,pendMXN=0,efeUSD=0,efeMXN=0,nLib=0,nPend=0,nArr=0,nEfe=0;
   filas.forEach(f=>{
+    if(comGetData(f.v).efectivo===true){nEfe++;if(f.mon==='USD')efeUSD+=f.comTot;else efeMXN+=f.comTot;return;}
     if(f.estado==='LIB'){nLib++;if(f.mon==='USD')libUSD+=f.comTot;else libMXN+=f.comTot;if(f.arrastre)nArr++;}
     else{nPend++;if(f.mon==='USD')pendUSD+=f.comTot;else pendMXN+=f.comTot;}
   });
@@ -10278,6 +10300,7 @@ function renderComisiones(){
     const _ent=String((_ord&&_ord.entregado)||'').toLowerCase();
     const entregado=!!_ord&&(_ent==='si'||_ent==='sí'||_ord.estatus==='Completado');
     const puedeEditar=esAdmin||comNombreMatch(u.nombre)===comNombreMatch(f.v.comercial);
+    const efe=comGetData(f.v).efectivo===true;
     const pagosHTML=f.data.pagos.map((p,i)=>{
       const tiene=(Number(p.pct)||0)>0;
       const fechaTxt=p.fecha?p.fecha.slice(5).replace('-','/'):'—';
@@ -10290,17 +10313,18 @@ function renderComisiones(){
     else if(f.estado==='LIBOTRA'){estadoHTML=`<span class="com-badge com-bgris">→ lib. en ${comBimLabel(f.ordLib)}</span>`;comHTML=`<span style="font-weight:700;color:#bbb;white-space:nowrap">${money(f.comTot)} ${f.mon}</span>`;}
     else{estadoHTML='';comHTML=`<span style="font-weight:700;color:#aaa;white-space:nowrap">${money(f.comTot)} ${f.mon}*</span>`;}
     const arr=f.arrastre&&f.estado==='LIB'?`<span style="font-size:10px;color:#BA7517;font-weight:700;display:block">↩ venta de ${comBimLabel(f.ordV)}</span>`:'';
-    return `<tr style="${entregado?'background:#e8f5e0':''}">
-      <td style="font-weight:700"><a href="javascript:void(0)" onclick="comAbrirVenta('${num}')" title="Abrir venta ${num}" style="color:#1a1a1a;text-decoration:none;font-weight:700;cursor:pointer">${num||'—'}</a>${arr}</td>
+    return `<tr style="${efe?'background:#E1F5EE':(entregado?'background:#e8f5e0':'')}">
+      <td style="font-weight:700"><a href="javascript:void(0)" onclick="comAbrirVenta('${num}')" title="Abrir venta ${num}" style="color:#1a1a1a;text-decoration:none;font-weight:700;cursor:pointer">${num||'—'}</a>${arr}${efe?'<span style="display:block;font-size:10px;color:#0F6E56;font-weight:700">💵 pagada en efectivo</span>':''}</td>
       <td>${f.v.cliente||'—'}</td>
       <td>${f.v.fecha||'—'}</td>
       <td style="white-space:nowrap">${money(f.base)} ${f.mon}</td>
       <td><span style="display:inline-block;background:#f0f0ee;border-radius:4px;padding:2px 7px;font-size:12px;font-weight:700">${f.desc}%</span></td>
       <td><span class="com-pctfix">${f.pcom.toFixed(2)}%</span></td>
-      <td style="min-width:160px">${pagosHTML}${ptotal}</td>
-      <td>${comHTML}</td>
+      <td style="min-width:160px">${efe?'<span style="font-size:11px;color:#0F6E56">— (efectivo)</span>':pagosHTML+ptotal}</td>
+      <td>${efe?('<span style="font-weight:700;color:#0F6E56;text-decoration:line-through;white-space:nowrap">'+money(f.comTot)+' '+f.mon+'</span>'):comHTML}</td>
+      <td style="text-align:center">${comEfeToggleCell(num,efe,puedeEditar)}</td>
     </tr>`;
-  }).join(''):`<tr><td colspan="8" style="text-align:center;color:#999;padding:24px">Sin ventas en este bimestre</td></tr>`;
+  }).join(''):`<tr><td colspan="9" style="text-align:center;color:#999;padding:24px">Sin ventas en este bimestre</td></tr>`;
   cont.innerHTML=`
     <div style="flex-shrink:0">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
@@ -10314,6 +10338,7 @@ function renderComisiones(){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="com-kpi"><div class="lab">Liberadas · ${comBimLabel(comFiltroBim)}</div><div class="val" style="color:#3B6D11">${money(libUSD)} USD</div><div class="val2" style="color:#3B6D11">${money(libMXN)} MXN</div><div class="sub">${nLib} ventas cobradas al 100%${nArr?` · ${nArr} de arrastre ↩`:''}</div></div>
       <div class="com-kpi"><div class="lab">Pendientes (se arrastran)</div><div class="val" style="color:#BA7517">${money(pendUSD)} USD</div><div class="val2" style="color:#BA7517">${money(pendMXN)} MXN</div><div class="sub">${nPend} ventas sin 100%</div></div>
+      <div class="com-kpi"><div class="lab">💵 Pagada en efectivo</div><div class="val" style="color:#0F6E56">${money(efeUSD)} USD</div><div class="val2" style="color:#0F6E56">${money(efeMXN)} MXN</div><div class="sub">${nEfe} ventas liquidadas aparte</div></div>
       <div class="com-kpi"><div class="lab">Equivalente liberado en MXN</div><div class="val">${money(libUSD*tc+libMXN)} MXN</div><div class="sub">USD × TC DOF + MXN · solo referencia</div></div>
     </div>
     <div style="background:#fff;border:1px solid #e5e5e0;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
@@ -10327,7 +10352,7 @@ function renderComisiones(){
     </div>
     </div>
     <div style="flex:1;min-height:0;overflow:auto;padding-bottom:70px"><table class="com-table">
-      <thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha venta</th><th>Base s/IVA</th><th>Desc.</th><th>% Com.</th><th>Pagos</th><th>Comisión</th></tr></thead>
+      <thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha venta</th><th>Base s/IVA</th><th>Desc.</th><th>% Com.</th><th>Pagos</th><th>Comisión</th><th>Efectivo</th></tr></thead>
       <tbody>${filasHTML}</tbody>
       
     </table></div>
