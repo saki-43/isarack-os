@@ -954,7 +954,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.06.22.11';
+const APP_VERSION='2026.06.22.13';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -2123,7 +2123,7 @@ async function abrirPanelDeficit(){
   document.getElementById('deficit-body').innerHTML=html;
 }
 
-function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='comisiones')renderComisiones();}
+function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='comisiones')renderComisiones();}
 
 // ── PEDIDOS ──
 function loadOrders(){const keys=['isarack-v3','isarack-v2','isarack_pedidos_v2'];let found=[];for(const k of keys){try{const d=localStorage.getItem(k);if(d){const p=JSON.parse(d);if(Array.isArray(p)&&p.length>found.length)found=p;}}catch(e){}}orders=found;if(orders.length)saveOrders();render();}
@@ -3395,11 +3395,22 @@ if(noEncontrados.length){msg+=' · '+noEncontrados.length+' no encontrados';cons
 showToast(msg,restaurados>0?'#3B6D11':'#c62828');}
 function render(){renderStats();renderTable();document.getElementById('date-str').textContent=new Date().toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).toUpperCase();}
 // ── AUTO-CREAR FACTURAS PARA PEDIDOS SIN FACTURA (silencioso) ──
+var facturasExcluidas=[];
+async function cargarFacturasExcluidas(){
+  try{
+    if(typeof supabaseClient==='undefined'||!supabaseClient)return;
+    const {data}=await supabaseClient.from('empresa_config').select('valor').eq('clave','facturas_excluidas').maybeSingle();
+    if(data&&data.valor){var v=(typeof data.valor==='string')?JSON.parse(data.valor):data.valor;if(Array.isArray(v))facturasExcluidas=v.map(String);}
+    var tab=document.getElementById('tab-facturacion');
+    if(tab&&tab.classList.contains('active')&&typeof renderFacturas==='function')renderFacturas();
+  }catch(e){console.warn('facturas_excluidas:',e);}
+}
 function autoCrearFacturasFaltantes(){
   let creadas=0;
   if(!orders||!orders.length||!Array.isArray(facturas))return 0;
   orders.forEach(o=>{
     if(!o||!o.num)return;
+    if(typeof facturasExcluidas!=='undefined'&&facturasExcluidas.indexOf(o.num)>=0)return;
     if(o.archivadoCotizacion)return;
     if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;
     const ya=facturas.some(f=>f.pedido===o.num);
@@ -4090,7 +4101,7 @@ function renderFacturas(){
   if(!window._filtroEjecInit){window._filtroEjecInit=true;const _d=_miComercialDefault();if(_d!=='todos'&&facturas.some(f=>_normalizaEjecutivo(f.ejecutivo)===_d)){filtroEjec=_d;if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();}}
   const _arch=_numsArchivados();
   // Aplicar filtro por ejecutivo (excluyendo facturas de pedidos archivados/presupuesto)
-  let fl=(filtroEjec==='todos'?facturas.slice():facturas.filter(f=>_normalizaEjecutivo(f.ejecutivo)===filtroEjec)).filter(f=>!_arch.has(f.pedido)&&_pedidoVendido(f.pedido));
+  let fl=(filtroEjec==='todos'?facturas.slice():facturas.filter(f=>_normalizaEjecutivo(f.ejecutivo)===filtroEjec)).filter(f=>!_arch.has(f.pedido)&&_pedidoVendido(f.pedido)&&(typeof facturasExcluidas==='undefined'||facturasExcluidas.indexOf(f.pedido)<0));
   // Aplicar filtro de búsqueda (texto libre)
   const searchEl=document.getElementById('fact-search');
   const q=searchEl?(searchEl.value||'').trim().toLowerCase():'';
@@ -6257,6 +6268,7 @@ async function testCloudConnection(){
     setTimeout(()=>{if(typeof cargarPermisosPestanasNube==='function')cargarPermisosPestanasNube();},3000);
     // Cargar lista de pedidos eliminados (para que no resuciten)
     setTimeout(()=>{if(typeof cargarPedidosEliminadosNube==='function')cargarPedidosEliminadosNube();},3200);
+    setTimeout(()=>{if(typeof cargarFacturasExcluidas==='function')cargarFacturasExcluidas();},3600);
     setTimeout(()=>{if(typeof mostrarResumenDiario==='function')mostrarResumenDiario();},6500);
     return true;
   }catch(e){
