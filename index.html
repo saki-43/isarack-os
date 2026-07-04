@@ -955,7 +955,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.06.22.40';
+const APP_VERSION='2026.06.22.41';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -6375,6 +6375,7 @@ async function procesarCloudQueue(){
   guardarLS('isarack_cloud_queue',cloudQueue);
   let ok=0,fail=0;
   for(const item of queue){
+    if(item&&item.tabla==='inventario'&&item.fecha&&(Date.now()-item.fecha)>7200000){console.warn('⛔ Descartada subida de inventario con '+((Date.now()-item.fecha)/3600000).toFixed(1)+'h de antigüedad (candado anti-pisotón)');continue;}
     let exito=false;
     if(item.op==='upsert')exito=await cloudUpsert(item.tabla,item.data,item.extra);
     else if(item.op==='delete')exito=await cloudDelete(item.tabla,item.data.col,item.data.val);
@@ -6387,12 +6388,28 @@ async function procesarCloudQueue(){
 // ── ADAPTADORES POR TABLA ──
 // Convierten los objetos locales (con todas las propiedades JS) a estructuras compatibles con Supabase
 
-function cloudSyncInventarioTodo(skus){
-  try{(Array.isArray(skus)&&skus.length?inventario.filter(p=>skus.includes(p.sku)):inventario).forEach(p=>cloudSyncInventario(p));}catch(e){console.warn('cloudSyncInventarioTodo:',e);}
+async function cloudSyncInventarioTodo(skus){
+  try{
+    const lista=(Array.isArray(skus)&&skus.length?inventario.filter(p=>skus.includes(p.sku)):inventario);
+    let _tsMap={},_tiene=false;
+    try{if(supabaseClient&&cloudStatus==='online'){const {data}=await supabaseClient.from('inventario').select('sku,updated_at');(data||[]).forEach(r=>{if(r&&r.sku)_tsMap[r.sku]=r.updated_at||null;});_tiene=true;}}catch(_e){}
+    let _saltados=0;
+    for(const p of lista){const _ok=await cloudSyncInventario(p,_tiene?((p.sku in _tsMap)?_tsMap[p.sku]:null):undefined);if(_ok===false)_saltados++;}
+    if(_saltados>0)console.warn('⛔ Candado inventario: '+_saltados+' SKU(s) no se subieron (la nube estaba más nueva)');
+  }catch(e){console.warn('cloudSyncInventarioTodo:',e);}
 }
-function cloudSyncInventario(p){
+async function cloudSyncInventario(p,_tsNubeSabido){
   if(window._appBloqueada)return;
   if(!p||!p.sku)return; // requiere SKU
+  // ── CANDADO: si la nube tiene una versión MÁS NUEVA de este SKU que la última bajada de este equipo, NO pisar ──
+  try{
+    if(supabaseClient&&cloudStatus==='online'){
+      let _nubeTs=_tsNubeSabido;
+      if(_nubeTs===undefined){const _r=await supabaseClient.from('inventario').select('updated_at').eq('sku',p.sku).maybeSingle();_nubeTs=(_r&&_r.data&&_r.data.updated_at)||null;}
+      const _visto=_invNubeTs[p.sku]||null;
+      if(_nubeTs&&_visto&&String(_nubeTs)>String(_visto)){console.warn('⛔ Candado inventario: la nube tiene versión más nueva de '+p.sku+' — subida bloqueada');return false;}
+    }
+  }catch(_e){}
   _marcarTocado('inventario',p.sku);
   const _ip={
     sku:p.sku,
@@ -6408,7 +6425,9 @@ function cloudSyncInventario(p){
   // No pisar con vacío: el baseline (cantidad_inicial) y la foto solo se suben si el local los trae.
   if(p.cantidad_inicial!==undefined&&p.cantidad_inicial!==null&&p.cantidad_inicial!==''&&!isNaN(Number(p.cantidad_inicial)))_ip.cantidad_inicial=Number(p.cantidad_inicial);
   if(p.foto)_ip.foto_url=p.foto;
-  cloudUpsert('inventario',_ip,'sku');
+  const _okU=await cloudUpsert('inventario',_ip,'sku');
+  if(_okU){_invNubeTs[p.sku]=_ip.updated_at;try{guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}}
+  return _okU;
 }
 
 function cloudSyncContacto(c){
@@ -7388,6 +7407,7 @@ function nubeToLocalModulo(r){
 let _ultimoUpdatedVisto=cargarLS('isarack_ultimo_updated_nube')||null;
 let _ultimoUpdatedTabla=cargarLS('isarack_ultimo_updated_tablas')||{};
 let _pendienteWatermark=null;
+let _invNubeTs=cargarLS('isarack_inv_nube_ts')||{};
 try{if((cargarLS('isarack_wm_version')||'')!==APP_VERSION){_ultimoUpdatedTabla={};try{localStorage.removeItem('isarack_ultimo_updated_tablas');}catch(_e){}guardarLS('isarack_wm_version',APP_VERSION);}}catch(_e){}
 async function hayCambiosEnNube(){
   if(!supabaseClient||cloudStatus!=='online')return false;
@@ -7446,7 +7466,7 @@ async function bajarCambiosDeNube(){
   try{
     // Tablas ligeras: completas (cubre eliminaciones de facturas/contactos)
     const inv=await cloudFetchAll('inventario');
-    if(inv){inventario=_mergeConGracia('inventario',inv.map(nubeToLocalInventario),inventario,'sku');guardarLS('isarack_inventario_v4',inventario);}
+    if(inv){try{inv.forEach(r=>{if(r&&r.sku)_invNubeTs[r.sku]=r.updated_at||'';});guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}inventario=_mergeConGracia('inventario',inv.map(nubeToLocalInventario),inventario,'sku');guardarLS('isarack_inventario_v4',inventario);}
     const ct=await cloudFetchAll('contactos');
     if(ct){contactos=ct.map(nubeToLocalContacto);guardarLS(CT_KEY,contactos);}
     const vt=await cloudFetchAll('ventas');
@@ -7522,6 +7542,7 @@ async function bajarTodoDeNube(silencioso){
     // Inventario
     const inv=await cloudFetchAll('inventario');
     if(inv){
+      try{inv.forEach(r=>{if(r&&r.sku)_invNubeTs[r.sku]=r.updated_at||'';});guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}
       inventario=inv.map(nubeToLocalInventario);
       guardarLS('isarack_inventario_v4',inventario);
     }
