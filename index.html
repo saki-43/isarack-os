@@ -955,7 +955,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.06.22.41';
+const APP_VERSION='2026.06.22.42';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -3178,6 +3178,8 @@ function descontarInventarioPedido(orderObj,lineas){
   orderObj.fechaDescuento=Date.now();
   if(descuentos.length>0||bomDescontados.length>0){
     guardarLS('isarack_inventario_v4',inventario);
+    // KARDEX: registrar cada descuento por venta
+    try{lineas.forEach(l=>{if(!l||l.tipo)return;const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
     // FIX: usar _skusTocados (lista real de SKUs) en vez de intentar extraer de strings
     if(typeof cloudSyncInventarioTodo==='function'&&_skusTocados.length)cloudSyncInventarioTodo([...new Set(_skusTocados)]);
     saveOrders();
@@ -6191,13 +6193,140 @@ function guardarStockInline(ri,inp){
   renderInventario();
   showToast('✓ '+p.producto+': '+v+' pz','#3B6D11');
 }
+
+// ══ KARDEX / MOVIMIENTOS DE INVENTARIO ══
+async function _kardexRegistrar(mov){
+  try{
+    if(!mov||!mov.sku)return;
+    const p=inventario.find(x=>x.sku===mov.sku);
+    const usr=(typeof usuarioActual!=='undefined'&&usuarioActual&&(usuarioActual.nombre||usuarioActual.email))||'—';
+    const payload={
+      fecha:new Date().toISOString(),
+      sku:mov.sku,
+      producto:(p&&p.producto)||mov.producto||'',
+      tipo:mov.tipo||'ajuste',
+      motivo:mov.motivo||null,
+      cantidad:Number(mov.cantidad||0),
+      saldo:(p?Number(p.cantidad||0):null),
+      ref_tipo:mov.ref_tipo||null,
+      ref_num:mov.ref_num||null,
+      usuario:usr,
+      nota:mov.nota||null
+    };
+    if(typeof supabaseClient!=='undefined'&&supabaseClient&&cloudStatus==='online'){
+      await supabaseClient.from('inv_movimientos').insert(payload);
+    }
+  }catch(e){console.warn('kardex insert:',e);}
+}
+function _kardexRegistrarLote(movs){try{(movs||[]).forEach(m=>_kardexRegistrar(m));}catch(e){}}
+function _comprometidoSKU(sku){
+  try{
+    let c=0;
+    (orders||[]).forEach(o=>{
+      if(!o||o.inventarioDescontado!==true)return;
+      const est=(o.estatus||'').toLowerCase();
+      if(est==='cancelado'||est==='completado'||o.entregado==='Si')return;
+      const lin=(o.cotData&&o.cotData.lineas)||[];
+      lin.forEach(l=>{if(l&&!l.tipo&&(l.sku===sku||(l.producto&&inventario.find(p=>p.sku===sku)&&p.producto===l.producto)))c+=Number(l.cantidad||0);});
+    });
+    return c;
+  }catch(e){return 0;}
+}
+async function abrirKardex(sku){
+  const p=inventario.find(x=>x.sku===sku); if(!p){alert('Producto no encontrado');return;}
+  const fis=Number(p.cantidad||0), comp=_comprometidoSKU(sku), disp=fis-comp, min=Number(p.min||p.minimo||0);
+  const wrap=document.createElement('div');
+  wrap.id='kardex-modal-overlay';
+  wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding:24px 12px;overflow:auto';
+  const dispCol=disp<0?'#A32D2D':(disp<=min?'#BA7517':'#3B6D11');
+  const dispBg=disp<0?'#FCEBEB':(disp<=min?'#FAEEDA':'#EAF3DE');
+  wrap.innerHTML=`
+    <div style="background:#fff;border-radius:12px;max-width:900px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,.15);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#D85A30;color:#fff">
+        <div style="font-weight:700;font-size:14px">📋 Kardex — ${p.sku} · ${p.producto}</div>
+        <button onclick="document.getElementById('kardex-modal-overlay').remove()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div style="padding:16px 18px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+          <div style="background:#EAF3DE;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#3B6D11">Físico</div><div style="font-size:22px;font-weight:700;color:#173404">${fis.toLocaleString()}</div></div>
+          <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#854F0B">Comprometido</div><div style="font-size:22px;font-weight:700;color:#412402">${comp.toLocaleString()}</div></div>
+          <div style="background:${dispBg};border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:${dispCol}">Disponible</div><div style="font-size:22px;font-weight:700;color:${dispCol}">${disp.toLocaleString()}</div>${disp<0?'<div style="font-size:10px;color:#A32D2D">⚠ Sobreventa</div>':''}</div>
+          <div style="background:#E6F1FB;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#185FA5">Mínimo</div><div style="font-size:22px;font-weight:700;color:#042C53">${min.toLocaleString()}</div></div>
+        </div>
+
+        <div style="margin-top:14px;background:#faf9f5;border:1px dashed #d9d5c9;border-radius:8px;padding:12px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">± Ajustar stock (queda registrado en el kardex)</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end">
+            <div><label style="font-size:10px;color:#555">Motivo</label>
+              <select id="kx-motivo" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px">
+                <option value="conteo_fisico">Conteo físico</option>
+                <option value="merma">Merma / dañado</option>
+                <option value="correccion">Corrección de captura</option>
+                <option value="devolucion">Devolución de cliente</option>
+                <option value="otro">Otro</option>
+              </select></div>
+            <div><label style="font-size:10px;color:#555">Cantidad (+/−)</label>
+              <input id="kx-cant" type="number" value="0" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
+            <div style="grid-column:span 2"><label style="font-size:10px;color:#555">Nota (opcional)</label>
+              <input id="kx-nota" type="text" placeholder="Ej: conté físico en bodega" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button onclick="_kardexGuardarAjuste('${sku}')" style="background:#D85A30;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer">Guardar ajuste</button>
+          </div>
+        </div>
+
+        <div id="kx-hist" style="margin-top:14px;max-height:400px;overflow:auto">
+          <div style="text-align:center;color:#888;font-size:12px;padding:20px">Cargando movimientos…</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  await _kardexCargarHist(sku);
+}
+async function _kardexCargarHist(sku){
+  const cont=document.getElementById('kx-hist'); if(!cont)return;
+  try{
+    if(typeof supabaseClient==='undefined'||!supabaseClient||cloudStatus!=='online'){cont.innerHTML='<div style="text-align:center;color:#BA7517;font-size:12px;padding:20px">Sin conexión — no se puede cargar el historial</div>';return;}
+    const {data,error}=await supabaseClient.from('inv_movimientos').select('*').eq('sku',sku).order('fecha',{ascending:false}).limit(200);
+    if(error)throw error;
+    if(!data||!data.length){cont.innerHTML='<div style="text-align:center;color:#888;font-size:12px;padding:20px">Sin movimientos registrados. Los movimientos futuros se irán registrando aquí automáticamente.</div>';return;}
+    const tag=(t)=>{const m={venta:['VENTA','#FCEBEB','#A32D2D'],compra:['COMPRA','#EAF3DE','#3B6D11'],ajuste:['AJUSTE','#FAEEDA','#854F0B'],conteo:['CONTEO','#E6F1FB','#185FA5'],devolucion:['DEVOLUCIÓN','#EEEDFE','#534AB7'],reintegro:['REINTEGRO','#EEEDFE','#534AB7'],inicial:['INICIAL','#F1EFE8','#5F5E5A']}[t]||[t.toUpperCase(),'#F1EFE8','#5F5E5A'];return `<span style="background:${m[1]};color:${m[2]};font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">${m[0]}</span>`;};
+    let html='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1a1a1a;color:#fff"><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Fecha</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Tipo</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Referencia</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Usuario</th><th style="text-align:right;padding:7px 8px;font-size:10px;font-weight:600">Cant.</th><th style="text-align:right;padding:7px 8px;font-size:10px;font-weight:600">Saldo</th></tr></thead><tbody>';
+    data.forEach(m=>{
+      const f=new Date(m.fecha);const fs=('0'+f.getDate()).slice(-2)+'/'+('0'+(f.getMonth()+1)).slice(-2)+' '+('0'+f.getHours()).slice(-2)+':'+('0'+f.getMinutes()).slice(-2);
+      const cant=Number(m.cantidad||0);const cc=cant>0?'#3B6D11':(cant<0?'#A32D2D':'#555');const sig=cant>0?'+':'';
+      let ref=m.ref_num||'';if(ref&&m.ref_tipo==='pedido')ref='<span style="color:#534AB7;font-weight:600">'+ref+'</span>';
+      if(!ref&&m.motivo)ref='<i style="color:#888;font-size:11px">'+m.motivo.replace(/_/g,' ')+'</i>';
+      if(m.nota)ref+=(ref?' · ':'')+'<span style="color:#888;font-size:11px">'+m.nota+'</span>';
+      html+='<tr style="border-bottom:1px solid #f0f0ee"><td style="padding:7px 8px;color:#666">'+fs+'</td><td style="padding:7px 8px">'+tag(m.tipo||'')+'</td><td style="padding:7px 8px">'+ref+'</td><td style="padding:7px 8px">'+(m.usuario||'—')+'</td><td style="padding:7px 8px;text-align:right;color:'+cc+';font-weight:600">'+sig+cant.toLocaleString()+'</td><td style="padding:7px 8px;text-align:right;font-weight:600">'+(m.saldo!=null?Number(m.saldo).toLocaleString():'—')+'</td></tr>';
+    });
+    html+='</tbody></table>';
+    cont.innerHTML=html;
+  }catch(e){console.warn('kardex hist:',e);cont.innerHTML='<div style="text-align:center;color:#A32D2D;font-size:12px;padding:20px">Error cargando historial</div>';}
+}
+async function _kardexGuardarAjuste(sku){
+  const p=inventario.find(x=>x.sku===sku); if(!p)return;
+  const motivo=document.getElementById('kx-motivo').value;
+  const cant=Number(document.getElementById('kx-cant').value||0);
+  const nota=document.getElementById('kx-nota').value.trim();
+  if(!cant){showToast('Ingresa una cantidad distinta de 0','#BA7517');return;}
+  p.cantidad=Number(p.cantidad||0)+cant;
+  guardarLS('isarack_inventario_v4',inventario);
+  if(typeof cloudSyncInventario==='function')cloudSyncInventario(p);
+  await _kardexRegistrar({sku,tipo:'ajuste',motivo,cantidad:cant,nota,ref_tipo:'ajuste'});
+  document.getElementById('kardex-modal-overlay').remove();
+  if(typeof renderInventario==='function')renderInventario();
+  showToast('✓ Ajuste guardado en Kardex','#3B6D11');
+  setTimeout(()=>abrirKardex(sku),100);
+}
+
 function renderInventario(){
 aplicarPermisosInventarioUI();
 const q=(document.getElementById('inv-buscar')?.value||'').toLowerCase(),fs=document.getElementById('inv-filtro-sis')?.value||'',fe=document.getElementById('inv-filtro-estado')?.value||'';const fl=inventario.filter(p=>{if(q&&!(p.producto.toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)))return false;if(fs&&p.sistema!==fs)return false;if(fe){const e=estInv(p);if(fe==='ok'&&e.l!=='Normal')return false;if(fe==='bajo'&&e.l!=='Stock bajo')return false;if(fe==='cero'&&e.l!=='Sin stock')return false;if(fe==='deficit'&&!(deficitCache&&deficitCache.find(d=>(d.sku&&d.sku===p.sku)||d.nombre===p.producto)))return false;}return true;});let ok=0,bj=0,cr=0;inventario.forEach(p=>{const e=estInv(p);if(e.l==='Normal')ok++;else if(e.l==='Stock bajo')bj++;else cr++;});document.getElementById('inv-total').textContent=inventario.length;document.getElementById('inv-ok').textContent=ok;document.getElementById('inv-bajo').textContent=bj;document.getElementById('inv-cero').textContent=cr;const _ic=document.getElementById('inv-count');if(_ic)_ic.textContent=fl.length+' productos';const _im={'':0,'ok':1,'bajo':2,'cero':3};document.querySelectorAll('#tab-inventario .stats .stat').forEach((s,i)=>s.classList.toggle('active',i===_im[fe]));const tb=document.getElementById('tbody-inv');if(!fl.length){tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin productos</td></tr>';return;}
 // Build deficit lookup
 const defLookup={};
 if(deficitCache){deficitCache.forEach(d=>{const key=d.sku||d.nombre;defLookup[key]=d;});}
-fl.sort((a,b)=>{const sa=(a.sistema||'').toUpperCase(),sb=(b.sistema||'').toUpperCase();if(sa!==sb)return sa<sb?-1:1;const pa=(a.producto||'').toUpperCase(),pb=(b.producto||'').toUpperCase();return pa<pb?-1:pa>pb?1:0;});let ls='';const puedeEdit=puedeEditarInventario();const _puedeFoto=puedeFotosInventario();tb.innerHTML=fl.map(p=>{const ri=inventario.indexOf(p),e=estInv(p);const defKey=p.sku||p.producto;const def=defLookup[defKey]||defLookup[p.producto];let sep='';if(p.sistema!==ls){ls=p.sistema;sep=`<tr><td colspan="8" style="background:#f0f0ee;font-size:11px;font-weight:700;color:#D85A30;padding:6px 10px;text-transform:uppercase">${p.sistema}</td></tr>`;}const rowBg=def?'background:#fdecea':'';const defBadge=def?` <span style="background:#c62828;color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:4px;cursor:pointer" onclick="abrirPanelDeficit()" title="Faltan ${def.faltante} pz para ${def.pedidos.length} pedido(s)">⚠ -${def.faltante}</span>`:'';const acciones=puedeEdit?`<button class="act-btn" onclick="editarProducto(${ri})" style="color:#185FA5;border-color:#185FA5" title="Editar">✏</button>`:'<span style="color:#aaa;font-size:11px;font-style:italic">solo lectura</span>';
+fl.sort((a,b)=>{const sa=(a.sistema||'').toUpperCase(),sb=(b.sistema||'').toUpperCase();if(sa!==sb)return sa<sb?-1:1;const pa=(a.producto||'').toUpperCase(),pb=(b.producto||'').toUpperCase();return pa<pb?-1:pa>pb?1:0;});let ls='';const puedeEdit=puedeEditarInventario();const _puedeFoto=puedeFotosInventario();tb.innerHTML=fl.map(p=>{const ri=inventario.indexOf(p),e=estInv(p);const defKey=p.sku||p.producto;const def=defLookup[defKey]||defLookup[p.producto];let sep='';if(p.sistema!==ls){ls=p.sistema;sep=`<tr><td colspan="8" style="background:#f0f0ee;font-size:11px;font-weight:700;color:#D85A30;padding:6px 10px;text-transform:uppercase">${p.sistema}</td></tr>`;}const rowBg=def?'background:#fdecea':'';const defBadge=def?` <span style="background:#c62828;color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:4px;cursor:pointer" onclick="abrirPanelDeficit()" title="Faltan ${def.faltante} pz para ${def.pedidos.length} pedido(s)">⚠ -${def.faltante}</span>`:'';const btnKardex=`<button class="act-btn" onclick="abrirKardex('${p.sku||''}')" style="color:#534AB7;border-color:#534AB7;margin-right:4px" title="Kardex">📋</button>`;const acciones=(puedeEdit?`<button class="act-btn" onclick="editarProducto(${ri})" style="color:#185FA5;border-color:#185FA5" title="Editar">✏</button>`:'<span style="color:#aaa;font-size:11px;font-style:italic">solo lectura</span>');const accionesFinal=btnKardex+acciones;
 // Calcular fabricables si aplica (paneles chicos, marcos chicos 42")
 const disp=typeof calcularDisponiblesFabricables==='function'?calcularDisponiblesFabricables(p):null;
 const stockInner=puedeEdit
@@ -6205,7 +6334,7 @@ const stockInner=puedeEdit
   :`<span style="font-weight:700;color:${e.cl}">${p.cantidad.toLocaleString()}</span>`;
 const cantidadHtml=(disp&&disp.fabricable>0)?`<div>${stockInner}<span style="color:#185FA5;font-size:10px;font-weight:600"> + ${disp.fabricable.toLocaleString()} fab.</span></div>`:stockInner;
 const fotoCell=p.foto?'<td style="text-align:center"><img loading="lazy" src="'+p.foto+'" onclick="verFotoProducto('+ri+')" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #e0e0d8;cursor:pointer" title="Ver foto">'+(_puedeFoto?'<div style="font-size:9px;margin-top:1px;line-height:1.2"><span onclick="subirFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer">cambiar</span> · <span onclick="quitarFotoProducto('+ri+')" style="color:#c62828;cursor:pointer">quitar</span></div>':'')+'</td>':(_puedeFoto?'<td style="text-align:center"><div onclick="subirFotoProducto('+ri+')" style="width:38px;height:38px;border-radius:6px;border:1.4px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#bbb;cursor:pointer;font-size:15px" title="Subir foto">📷</div></td>':'<td style="text-align:center;color:#ccc">—</td>');
-return sep+`<tr style="${rowBg}"><td style="font-family:monospace;font-size:11px;color:#D85A30;font-weight:700;white-space:nowrap">${p.sku||'—'}</td>`+fotoCell+`<td style="font-size:11px;color:#888">${p.sistema}</td><td style="font-weight:500">${e.l==='Sin stock'?'🔴 ':e.l==='Stock bajo'?'🟡 ':''}${p.producto}${defBadge}</td><td style="text-align:right;font-weight:600;color:#3B6D11">${p.precio?'$ '+p.precio.toFixed(2):'—'}</td><td style="text-align:right">${cantidadHtml}</td><td><span class="inv-estado ${e.c}">${e.l}</span></td><td style="white-space:nowrap">${acciones}</td></tr>`}).join('');
+return sep+`<tr style="${rowBg}"><td style="font-family:monospace;font-size:11px;color:#D85A30;font-weight:700;white-space:nowrap">${p.sku||'—'}</td>`+fotoCell+`<td style="font-size:11px;color:#888">${p.sistema}</td><td style="font-weight:500">${e.l==='Sin stock'?'🔴 ':e.l==='Stock bajo'?'🟡 ':''}${p.producto}${defBadge}</td><td style="text-align:right;font-weight:600;color:#3B6D11">${p.precio?'$ '+p.precio.toFixed(2):'—'}</td><td style="text-align:right">${cantidadHtml}</td><td><span class="inv-estado ${e.c}">${e.l}</span></td><td style="white-space:nowrap">${accionesFinal}</td></tr>`}).join('');
 // Trigger background deficit calculation if not cached
 if(!deficitCache){obtenerDeficit().then(()=>{renderInventario();}).catch(e=>console.error(e));}}
 
@@ -8448,6 +8577,7 @@ function restaurarInventarioDeLineas(lineas){
       const prev=prod.cantidad||0;
       prod.cantidad=prev+cant;
       if(typeof cloudSyncInventario==='function')cloudSyncInventario(prod);
+      try{_kardexRegistrar({sku:prod.sku,producto:prod.producto,tipo:'reintegro',cantidad:cant,ref_tipo:'ajuste',nota:'Restauración por edición/cancelación de venta'});}catch(_ke){}
       restaurados++;
       detalles.push(prod.producto+': '+prev+' → '+prod.cantidad);
     }else{
