@@ -955,7 +955,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.06.22.43';
+const APP_VERSION='2026.06.22.44';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -6222,16 +6222,26 @@ async function _kardexRegistrar(mov){
 function _kardexRegistrarLote(movs){try{(movs||[]).forEach(m=>_kardexRegistrar(m));}catch(e){}}
 function _comprometidoSKU(sku){
   try{
+    if(!sku)return 0;
     let c=0;
+    const _prod=(inventario||[]).find(p=>p&&p.sku===sku);
+    const _nombre=_prod?((''+_prod.producto).toLowerCase().trim()):'';
     (orders||[]).forEach(o=>{
       if(!o||o.inventarioDescontado!==true)return;
-      const est=(o.estatus||'').toLowerCase();
-      if(est==='cancelado'||est==='completado'||o.entregado==='Si')return;
+      const est=((o.estatus||'')+'').toLowerCase();
+      if(est==='cancelado'||est==='completado')return;
+      const ent=((o.entregado||'')+'').toLowerCase();
+      if(ent==='si')return;
       const lin=(o.cotData&&o.cotData.lineas)||[];
-      lin.forEach(l=>{if(l&&!l.tipo&&(l.sku===sku||(l.producto&&inventario.find(p=>p.sku===sku)&&p.producto===l.producto)))c+=Number(l.cantidad||0);});
+      lin.forEach(l=>{
+        if(!l||l.tipo)return;
+        const cnt=Number(l.cantidad||0); if(!cnt)return;
+        if(l.sku===sku){c+=cnt;return;}
+        if(_nombre&&l.producto&&((''+l.producto).toLowerCase().trim())===_nombre){c+=cnt;}
+      });
     });
     return c;
-  }catch(e){return 0;}
+  }catch(e){console.warn('_comprometidoSKU error:',e);return 0;}
 }
 async function abrirKardex(sku){
   const p=inventario.find(x=>x.sku===sku); if(!p){alert('Producto no encontrado');return;}
