@@ -842,6 +842,20 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
         <div id="chips-recepcion"></div>
       </div>
 
+      <!-- ═══════ SURTIDO (Almacén) ═══════ -->
+      <div id="surtido-box" style="background:linear-gradient(135deg,#FEF9EF,#FEEFC9);border:1.5px solid #EFC77B;border-radius:10px;padding:14px;margin-top:12px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+          <div style="font-size:10px;color:#854F0B;font-weight:700;letter-spacing:1px">📦 SURTIDO — Almacén</div>
+          <span id="surtido-pill" style="font-size:10px;font-weight:600;padding:3px 9px;border-radius:10px;background:#fff;border:1px solid #EFC77B;color:#854F0B">⏳ Sin surtir</span>
+        </div>
+        <div style="font-size:10px;color:#a67e40;margin-bottom:10px">Preparación del material por almacén (foto y confirmación)</div>
+        <div id="surtido-meta" style="font-size:11px;color:#6b4d24;margin-bottom:8px;display:none;padding:6px 10px;background:#fff;border:1px solid #EFC77B;border-radius:6px"></div>
+        <div id="chips-surtido" style="margin-top:4px"></div>
+        <div id="surtido-vacia" style="text-align:center;padding:14px 10px;color:#a67e40;font-size:11px">
+          <span style="opacity:0.7">Se llena automáticamente cuando el almacén tome fotos desde el PWA</span>
+        </div>
+      </div>
+
       <!-- ═══════ ARCHIVOS DE ENTREGA (material) ═══════ -->
       <div style="background:linear-gradient(135deg,#FFF6F2,#FFF0E8);border:1.5px solid #f0c9b5;border-radius:10px;padding:14px;margin-top:12px">
         <div style="font-size:10px;color:#B8431C;font-weight:700;letter-spacing:1px;margin-bottom:3px">🚛 ARCHIVOS DE ENTREGA</div>
@@ -974,7 +988,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.07.01';
+const APP_VERSION='2026.07.07.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -1687,7 +1701,7 @@ window.addEventListener('load',function(){
   else{aplicarPermisos();setTimeout(()=>{if(typeof renderDashboard==='function')renderDashboard();},300);}
 });
 const eC={'Pendiente':'b-pendiente','En proceso':'b-proceso','Completado':'b-completado','Cancelado':'b-cancelado'},rC={'C/ REPSE':'b-repse','S/ REPSE':'b-srepse','S/ IMSS':'b-simss','Solo Entrega':'b-soloentrega'};
-let orders=[],editId=null,filter='todos',pdfPresupuesto=[],pdfRecepcion=[],planosOrder=[],fotosAvanceOrder=[],fotosTerminOrder=[],fotosEntregaOrder=[],firmaEntregaOrder=[],currentOrderId=null,sortAsc=false;
+let orders=[],editId=null,filter='todos',pdfPresupuesto=[],pdfRecepcion=[],planosOrder=[],fotosAvanceOrder=[],fotosTerminOrder=[],fotosEntregaOrder=[],firmaEntregaOrder=[],fotosSurtidoOrder=[],currentOrderId=null,sortAsc=false;
 
 // ── UTIL ──
 function showToast(m,c){const t=document.getElementById('toast');t.textContent=m;t.style.background=c||'#1a1a1a';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
@@ -2391,13 +2405,13 @@ function setSegActive(g,v){document.querySelectorAll('#'+g+' .seg-btn').forEach(
 function setMultiActive(g,v){document.querySelectorAll('#'+g+' .seg-btn').forEach(b=>b.classList.toggle('active',(v||[]).includes(b.dataset.val)));}
 function markAuto(f,b){const el=document.getElementById(f);if(el)el.classList.add('auto-filled');const bl=document.getElementById(b);if(bl)bl.style.display='inline';}
 function _marcarBorradoModal(p){try{if(!Array.isArray(window._borradosModal))window._borradosModal=[];var k=p&&(p.path||p.url||p.name);if(k)window._borradosModal.push(k);}catch(e){}}
-function resetModal(){window._borradosModal=[];pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
+function resetModal(){window._borradosModal=[];pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];fotosSurtidoOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega','chips-surtido'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const _sbx=document.getElementById('surtido-box');if(_sbx)_sbx.style.display='none';const _sm=document.getElementById('surtido-meta');if(_sm){_sm.style.display='none';_sm.innerHTML='';}const _sv=document.getElementById('surtido-vacia');if(_sv)_sv.style.display='block';const _sp=document.getElementById('surtido-pill');if(_sp){_sp.textContent='⏳ Sin surtir';_sp.style.color='#854F0B';}const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
 function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectChofer();if(id!=null){editId=id;const o=orders.find(x=>x.id===id);document.getElementById('modal-title').textContent='Modificar pedido';document.getElementById('f-num').value=o.num||'';document.getElementById('f-fecha').value=o.fecha||'';document.getElementById('f-cliente').value=o.cliente||'';document.getElementById('f-comercial').value=o.comercial||'';
 // LOCK comercial field if user is comercial
 const usrEdit=getCurrentUser();
 const selComEd=document.getElementById('f-comercial');
 if(usrEdit&&usrEdit.rol==='comercial'){selComEd.disabled=true;selComEd.style.background='#f0f0ee';selComEd.style.cursor='not-allowed';selComEd.title='Solo el admin puede cambiar el comercial';}else{selComEd.disabled=false;selComEd.style.background='';selComEd.style.cursor='';selComEd.title='';}
-document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}currentOrderId=o.id;
+document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
 // SNAPSHOT DEL MODAL: foto silenciosa de los campos críticos al abrir.
 // Sirve para detectar qué tocó el usuario realmente: si un campo estaba vacío al abrir
 // y sigue vacío al guardar, el usuario NO lo tocó → no debe sobreescribir lo que tenga la nube.
@@ -7087,6 +7101,56 @@ async function handleFotoEntregaUpload(input){
   if(exitos>0)showToast('✓ '+exitos+' foto(s) de entrega subida(s)','#3B6D11');
   else if(errores>0)showToast('⚠ No se pudo subir','#c62828');
 }
+// Sección SURTIDO — solo lectura (el almacén sube desde PWA)
+function renderChipsSurtido(o){
+  const box=document.getElementById('surtido-box');
+  const cont=document.getElementById('chips-surtido');
+  const vacia=document.getElementById('surtido-vacia');
+  const meta=document.getElementById('surtido-meta');
+  const pill=document.getElementById('surtido-pill');
+  if(!box||!cont)return;
+  box.style.display='block';
+  // Estado del pill
+  if(o&&o.surtido==='Si'){
+    pill.textContent='✓ Surtido';
+    pill.style.color='#27500A';
+    pill.style.background='#EAF3DE';
+    pill.style.borderColor='#97C459';
+  }else if(fotosSurtidoOrder&&fotosSurtidoOrder.length){
+    pill.textContent='📸 Con fotos';
+    pill.style.color='#854F0B';
+    pill.style.background='#FEF9EF';
+    pill.style.borderColor='#EFC77B';
+  }else{
+    pill.textContent='⏳ Sin surtir';
+    pill.style.color='#854F0B';
+    pill.style.background='#fff';
+    pill.style.borderColor='#EFC77B';
+  }
+  // Meta info: fecha y quién surtió
+  if(o&&(o.fechaSurtido||o.surtidoPor)){
+    let txt='';
+    if(o.surtidoPor)txt+='<strong>Surtido por:</strong> '+o.surtidoPor;
+    if(o.fechaSurtido){
+      const d=new Date(o.fechaSurtido);
+      const fmt=d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+      txt+=(txt?' &nbsp;·&nbsp; ':'')+'<strong>Fecha:</strong> '+fmt;
+    }
+    meta.innerHTML=txt;
+    meta.style.display='block';
+  }else{
+    meta.style.display='none';
+  }
+  // Galería de fotos
+  if(!fotosSurtidoOrder||!fotosSurtidoOrder.length){
+    cont.innerHTML='';
+    vacia.style.display='block';
+    return;
+  }
+  vacia.style.display='none';
+  cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosSurtidoOrder.map((p,i)=>`<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#FEF9EF;border:1px solid #EFC77B"><img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${p.url}','_blank')" onerror="this.style.display='none';var ph=this.parentNode.querySelector('.foto-rota');if(ph)ph.style.display='flex'"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div></div>`).join('')+'</div>';
+}
+
 function renderChipsFotoEntrega(){
   const cont=document.getElementById('chips-fotoentrega');if(!cont)return;
   if(!fotosEntregaOrder||!fotosEntregaOrder.length){cont.innerHTML='';return;}
