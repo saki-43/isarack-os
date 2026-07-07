@@ -29,6 +29,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nav-tab{background:none;border:none;border-bottom:3px solid transparent;color:#888;padding:9px 16px;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s}
 .nav-tab:hover{color:#D85A30;background:rgba(216,90,48,.06)}
 .nav-tab.active{color:#D85A30;border-bottom-color:#D85A30;background:rgba(216,90,48,.08)}
+/* ===== Asistente 🤖 ===== */
+.asi-sugerencia{background:#fff;border:1px solid #ECECE7;color:#555;padding:9px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;text-align:left;transition:all .15s}
+.asi-sugerencia:hover{border-color:#EFC77B;background:#fef8f4;color:#854F0B}
+.asi-msg{max-width:82%;padding:10px 14px;border-radius:16px;font-size:13.5px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
+.asi-msg.user{background:#D85A30;color:#fff;border-bottom-right-radius:4px;align-self:flex-end}
+.asi-msg.bot{background:#fff;border:1px solid #ECECE7;color:#222;border-bottom-left-radius:4px;align-self:flex-start}
+.asi-msg.bot.pensando{color:#888;font-style:italic}
+.asi-msg-time{font-size:10px;color:#aaa;margin-top:3px}
+#asi-mic-btn.grabando{background:#fee2e2;color:#c62828;animation:pulseAsi 1s ease-in-out infinite}
+@keyframes pulseAsi{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 .tab-content{display:none;flex:1;flex-direction:column;min-height:0}
 .tab-content.active{display:flex}
 .tab-body{flex:1;display:flex;flex-direction:column;padding:0.6rem 1rem;background:#f4f4f2;min-height:0;overflow:hidden}
@@ -276,6 +286,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
     <button class="nav-tab" onclick="cambiarTab('contactos',this)">👥 Contactos</button>
     <button class="nav-tab" id="nav-web" onclick="cambiarTab('web',this)" style="display:none">🌐 Web <span id="badge-web-count" style="background:#c62828;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
     <button class="nav-tab" id="nav-almacen" onclick="cambiarTab('almacen',this)" style="display:none">🏭 Almacén</button>
+    <button class="nav-tab" id="nav-asistente" onclick="cambiarTab('asistente',this)" style="display:none">🤖 Asistente</button>
     <button class="nav-tab" id="nav-config" onclick="cambiarTab('config',this)" style="display:none">⚙ Configuración</button>
   </div>
 
@@ -543,6 +554,55 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
         <button id="alm-tab-todos" onclick="setAlmTab('todos')" style="padding:9px 18px;background:#fff;color:#555;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Todos <span id="alm-cnt-todos" style="background:#eee;padding:1px 7px;border-radius:10px;margin-left:4px">0</span></button>
       </div>
       <div id="alm-lista" style="overflow-y:auto;flex:1;min-height:0"></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB ASISTENTE 🤖 ══ -->
+  <div class="tab-content" id="tab-asistente">
+    <div class="tab-body">
+      <div style="max-width:900px;margin:0 auto;width:100%;display:flex;flex-direction:column;height:100%;min-height:0;padding:12px">
+        <!-- Header con status -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#fef8f4,#faeece);border:1px solid #EFC77B;border-radius:12px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:#D85A30;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">SK</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;color:#854F0B">SAKI · Asistente ISA-OS</div>
+              <div style="font-size:11px;color:#a67e40"><span id="asi-conn-dot" style="display:inline-block;width:6px;height:6px;background:#22c55e;border-radius:50%;margin-right:4px"></span>Conectado a inventario y pedidos · Haiku 4.5</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#854F0B;cursor:pointer">
+              <input type="checkbox" id="asi-voz-toggle" checked style="cursor:pointer">
+              🔊 Leer en voz
+            </label>
+            <button onclick="asiLimpiar()" title="Nueva conversación" style="background:#fff;border:1px solid #EFC77B;color:#854F0B;padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer;font-weight:600">🗑 Nueva</button>
+          </div>
+        </div>
+
+        <!-- Chat area -->
+        <div id="asi-chat" style="flex:1;min-height:300px;overflow-y:auto;background:#fafaf7;border:1px solid #ECECE7;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
+          <div id="asi-vacio" style="text-align:center;padding:24px 12px;color:#888">
+            <div style="font-size:38px;margin-bottom:6px">🤖</div>
+            <div style="font-weight:600;font-size:14px;color:#555;margin-bottom:14px">Hola Isaac, ¿en qué te ayudo?</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px;max-width:640px;margin:0 auto">
+              <button class="asi-sugerencia" onclick="asiPreguntar('¿Cuánto tengo de tope tarima 96?')">📦 Cuánto tengo de tope tarima 96</button>
+              <button class="asi-sugerencia" onclick="asiPreguntar('¿Qué productos están en negativo?')">⚠ Productos en negativo</button>
+              <button class="asi-sugerencia" onclick="asiPreguntar('¿Qué pedidos tiene Daniel?')">📋 Pedidos de Daniel</button>
+              <button class="asi-sugerencia" onclick="asiPreguntar('¿Qué pedidos salen esta semana?')">📅 Pedidos de esta semana</button>
+              <button class="asi-sugerencia" onclick="asiPreguntar('Detalle del pedido S07216')">🔎 Detalle S07216</button>
+              <button class="asi-sugerencia" onclick="asiPreguntar('¿Cuánto tengo de vigas 96x4?')">📦 Vigas 96x4</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input area -->
+        <div style="display:flex;gap:6px;align-items:center;background:#fff;border:1.5px solid #ECECE7;border-radius:26px;padding:6px 6px 6px 14px">
+          <input type="text" id="asi-input" placeholder="Pregúntame por inventario o pedidos..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();asiEnviar();}" style="flex:1;border:none;outline:none;font-size:14px;font-family:inherit;padding:8px 0;background:transparent">
+          <button id="asi-mic-btn" onclick="asiToggleMic()" title="Hablar (mantén presionado)" style="width:38px;height:38px;border-radius:50%;background:#f0ebfa;border:none;color:#7c5cbf;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">🎤</button>
+          <button id="asi-send-btn" onclick="asiEnviar()" title="Enviar" style="width:38px;height:38px;border-radius:50%;background:#D85A30;border:none;color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">➤</button>
+        </div>
+        <div id="asi-hint" style="text-align:center;font-size:10px;color:#999;margin-top:6px">Haz clic 🎤 para dictar por voz · Enter para enviar</div>
+      </div>
     </div>
   </div>
 
@@ -988,7 +1048,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.07.02';
+const APP_VERSION='2026.07.07.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -1218,6 +1278,7 @@ function aplicarPermisos(){
     let visible;
     if(tabName==='config'){visible=(u.rol==='admin');} // config solo admin
     else if(tabName==='web'){visible=(u.rol==='admin');} // web (cotizaciones sitio) solo admin
+    else if(tabName==='asistente'){visible=(u.rol==='admin');} // asistente 🤖 solo admin por ahora
     else if(tabName==='comisiones'){visible=(typeof esUsuarioComisiones==='function'&&esUsuarioComisiones(u));} // comisiones: solo admin + ejecutivos
     else{visible=permitidas.includes(tabName);} // comisiones incluida: se rige por la tabla de permisos
     tab.style.display=visible?'':'none';
@@ -1228,7 +1289,7 @@ function aplicarPermisos(){
     const activa=document.querySelector('.tab-content.active');
     const idActiva=activa?activa.id.replace('tab-',''):'';
     const permitidasAhora=getPestanasDeUsuario(getCurrentUser()||u);
-    const okActiva=(idActiva==='config'&&u.rol==='admin')||permitidasAhora.includes(idActiva);
+    const okActiva=(idActiva==='config'&&u.rol==='admin')||(idActiva==='asistente'&&u.rol==='admin')||permitidasAhora.includes(idActiva);
     if(!okActiva&&u.rol!=='almacen'){
       const destino=permitidasAhora.includes('pedidos')?'pedidos':(permitidasAhora[0]||'pedidos');
       const btn=Array.from(document.querySelectorAll('.nav-tab')).find(t=>(t.getAttribute('onclick')||'').includes("'"+destino+"'"));
@@ -2163,7 +2224,7 @@ async function abrirPanelDeficit(){
   document.getElementById('deficit-body').innerHTML=html;
 }
 
-function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();}
+function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
 
 // ── PEDIDOS ──
 function loadOrders(){const keys=['isarack-v3','isarack-v2','isarack_pedidos_v2'];let found=[];for(const k of keys){try{const d=localStorage.getItem(k);if(d){const p=JSON.parse(d);if(Array.isArray(p)&&p.length>found.length)found=p;}}catch(e){}}orders=found;if(orders.length)saveOrders();render();}
@@ -11290,6 +11351,193 @@ function comExportarExcel(){
   XLSX.utils.book_append_sheet(wb,ws,comBimLabel(comFiltroBim).replace(/[\\/?*\[\]]/g,'-'));
   XLSX.writeFile(wb,'comisiones_'+comBimLabel(comFiltroBim).replace(' ','_')+(comFiltroComercial?'_'+comFiltroComercial.split(' ')[0]:'')+'.xlsx');
   showToast('✓ Excel generado','#3B6D11');
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// 🤖 ASISTENTE SAKI · Chat de texto + dictado por voz + respuesta hablada
+// ═══════════════════════════════════════════════════════════════════════════
+const ASI_ENDPOINT='https://zjvuugslnfrivlyvzlei.supabase.co/functions/v1/asistente';
+const ASI_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqdnV1Z3NsbmZyaXZseXZ6bGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjQ2ODcwODAsImV4cCI6MjA0MDI2MzA4MH0.gzAG_MW02z5tOSpQxk7yBIw52qUUEsFPfMB3sqSKMug';
+let asiHistorial=[]; // Guarda mensajes anteriores para contexto
+let asiEnEnvio=false;
+let asiRecog=null;
+let asiVoces=[];
+
+function inicializarAsistente(){
+  cargarVocesAsi();
+  const inp=document.getElementById('asi-input');
+  if(inp)setTimeout(()=>inp.focus(),100);
+  // Preferencia voz on/off desde localStorage
+  const tog=document.getElementById('asi-voz-toggle');
+  if(tog){
+    const guardado=localStorage.getItem('asi-voz-on');
+    if(guardado!==null)tog.checked=guardado==='1';
+    tog.onchange=()=>localStorage.setItem('asi-voz-on',tog.checked?'1':'0');
+  }
+}
+
+function cargarVocesAsi(){
+  if(!window.speechSynthesis)return;
+  asiVoces=speechSynthesis.getVoices().filter(v=>v.lang.startsWith('es'));
+  if(!asiVoces.length){
+    speechSynthesis.onvoiceschanged=()=>{asiVoces=speechSynthesis.getVoices().filter(v=>v.lang.startsWith('es'));};
+  }
+}
+
+// Convierte texto para lectura por voz: folios S07205 → S 7205, SKUs SEL-0335 → S E L 335, 96x4 → 96 por 4
+function asiParaVoz(txt){
+  let out=txt;
+  out=out.replace(/\*\*([^*]+)\*\*/g,'$1'); // Quitar markdown bold
+  out=out.replace(/\*([^*]+)\*/g,'$1'); // Quitar markdown italic
+  out=out.replace(/\b([A-Z]{1,4})-?0*(\d+)\b/g,(_,letras,num)=>{
+    const l=letras.length===1?letras:letras.split('').join(' ');
+    return l+' '+num;
+  });
+  out=out.replace(/(\d+)"?\s*[xX]\s*(\d+)"?/g,'$1 por $2');
+  out=out.replace(/(\d+)"/g,'$1 pulgadas');
+  return out;
+}
+
+function asiHablar(txt){
+  const tog=document.getElementById('asi-voz-toggle');
+  if(!tog||!tog.checked)return;
+  if(!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(asiParaVoz(txt));
+  const mx=asiVoces.find(v=>v.lang==='es-MX')||asiVoces[0];
+  if(mx)u.voice=mx;
+  u.rate=1.05;
+  u.pitch=1;
+  u.lang='es-MX';
+  speechSynthesis.speak(u);
+}
+
+function asiPreguntar(pregunta){
+  const inp=document.getElementById('asi-input');
+  if(inp)inp.value=pregunta;
+  asiEnviar();
+}
+
+async function asiEnviar(){
+  if(asiEnEnvio)return;
+  const inp=document.getElementById('asi-input');
+  const pregunta=(inp.value||'').trim();
+  if(!pregunta)return;
+  inp.value='';
+  asiRenderMensaje('user',pregunta);
+  asiEnEnvio=true;
+  document.getElementById('asi-send-btn').style.opacity='0.5';
+  const pensandoEl=asiRenderMensaje('bot','⌛ Pensando...',true);
+  try{
+    const r=await fetch(ASI_ENDPOINT,{
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+ASI_ANON_KEY,
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({pregunta,historial:asiHistorial})
+    });
+    if(!r.ok){
+      const t=await r.text();
+      pensandoEl.remove();
+      asiRenderMensaje('bot','⚠ Error del servidor: '+r.status+'\n'+t.substring(0,200));
+      return;
+    }
+    const data=await r.json();
+    pensandoEl.remove();
+    if(data.error){
+      asiRenderMensaje('bot','⚠ '+data.error+(data.detalle?'\n'+String(data.detalle).substring(0,300):''));
+      return;
+    }
+    const respuesta=data.respuesta||'(sin respuesta)';
+    asiRenderMensaje('bot',respuesta);
+    asiHablar(respuesta);
+    // Guardar historial para próxima pregunta (contexto)
+    if(Array.isArray(data.historial))asiHistorial=data.historial;
+  }catch(e){
+    pensandoEl.remove();
+    asiRenderMensaje('bot','⚠ Error de conexión: '+(e.message||e));
+  }finally{
+    asiEnEnvio=false;
+    document.getElementById('asi-send-btn').style.opacity='1';
+  }
+}
+
+function asiRenderMensaje(tipo,texto,esPensando){
+  const chat=document.getElementById('asi-chat');
+  if(!chat)return null;
+  const vacio=document.getElementById('asi-vacio');
+  if(vacio)vacio.style.display='none';
+  const div=document.createElement('div');
+  div.className='asi-msg '+tipo+(esPensando?' pensando':'');
+  div.textContent=texto;
+  chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+  return div;
+}
+
+function asiLimpiar(){
+  if(!confirm('¿Iniciar nueva conversación? Se borrará el historial.'))return;
+  asiHistorial=[];
+  const chat=document.getElementById('asi-chat');
+  if(!chat)return;
+  // Quitar mensajes
+  Array.from(chat.querySelectorAll('.asi-msg')).forEach(e=>e.remove());
+  // Volver a mostrar sugerencias
+  const vacio=document.getElementById('asi-vacio');
+  if(vacio)vacio.style.display='block';
+  if(window.speechSynthesis)speechSynthesis.cancel();
+}
+
+// ═══ MICRÓFONO — dictado con SpeechRecognition (gratis del navegador) ═══
+function asiToggleMic(){
+  const btn=document.getElementById('asi-mic-btn');
+  if(asiRecog){asiPararMic();return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    alert('Tu navegador no soporta dictado por voz. Usa Chrome o Edge.');
+    return;
+  }
+  const recog=new SR();
+  recog.lang='es-MX';
+  recog.continuous=false;
+  recog.interimResults=true;
+  recog.maxAlternatives=1;
+  let finalTxt='';
+  recog.onresult=(e)=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      if(r.isFinal)finalTxt+=r[0].transcript;
+      else interim+=r[0].transcript;
+    }
+    const inp=document.getElementById('asi-input');
+    inp.value=(finalTxt+interim).trim();
+  };
+  recog.onerror=(e)=>{
+    console.error('SpeechRecognition error:',e.error);
+    asiPararMic();
+    if(e.error==='not-allowed')alert('Necesito permiso de micrófono. Abre el candado 🔒 del navegador y actívalo.');
+  };
+  recog.onend=()=>{
+    asiRecog=null;
+    btn.classList.remove('grabando');
+    btn.textContent='🎤';
+    // Auto enviar si hay texto capturado
+    const inp=document.getElementById('asi-input');
+    if(inp.value.trim())setTimeout(()=>asiEnviar(),200);
+  };
+  try{
+    recog.start();
+    asiRecog=recog;
+    btn.classList.add('grabando');
+    btn.textContent='⏹';
+  }catch(e){console.error(e);}
+}
+
+function asiPararMic(){
+  if(asiRecog){try{asiRecog.stop();}catch(e){}asiRecog=null;}
+  const btn=document.getElementById('asi-mic-btn');
+  if(btn){btn.classList.remove('grabando');btn.textContent='🎤';}
 }
 </script>
 
