@@ -1048,7 +1048,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.07.09';
+const APP_VERSION='2026.07.07.10';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -2142,48 +2142,53 @@ function _avisarStorageLleno(e){
 }
 
 function abrirLimpiezaStorage(){
-  // Calcular qué se puede limpiar
-  const stats={pdfsCompletados:0,fotosCompletados:0,totalBytesLiberables:0,pedidosAfectados:0};
+  // Calcular qué se puede limpiar CON SEGURIDAD
+  const stats={seguros:0,seguroBytes:0,arriesgados:0,arriesgadoBytes:0,pedidosSeguros:0};
   const pedidosCompletados=[];
+  const camposArchivos=['pdfsPresupuesto','pdfsRecepcion','planosOrder','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega','fotosSurtido'];
   if(typeof orders!=='undefined'&&Array.isArray(orders)){
     orders.forEach(o=>{
       if(o.estatus!=='Completado')return;
-      let liberableDePedido=0;
-      ['pdfsPresupuesto','pdfsRecepcion'].forEach(k=>{
+      let liberableEste=0,arriesgadoEste=0;
+      camposArchivos.forEach(k=>{
         if(Array.isArray(o[k])){
-          o[k].forEach(p=>{if(p&&p.data){stats.pdfsCompletados++;liberableDePedido+=(p.data.length||0);}});
+          o[k].forEach(p=>{
+            if(!p||!p.data)return;
+            const enNube=!!(p.url||p.publicUrl||p.storagePath||p.path);
+            if(enNube){stats.seguros++;stats.seguroBytes+=(p.data.length||0);liberableEste+=(p.data.length||0);}
+            else{stats.arriesgados++;stats.arriesgadoBytes+=(p.data.length||0);arriesgadoEste+=(p.data.length||0);}
+          });
         }
       });
-      ['planosOrder','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega','fotosSurtido'].forEach(k=>{
-        if(Array.isArray(o[k])){
-          o[k].forEach(p=>{if(p&&p.data){stats.fotosCompletados++;liberableDePedido+=(p.data.length||0);}});
-        }
-      });
-      if(liberableDePedido>0){
-        stats.pedidosAfectados++;
-        stats.totalBytesLiberables+=liberableDePedido;
-        pedidosCompletados.push(o.num);
-      }
+      if(liberableEste>0){stats.pedidosSeguros++;pedidosCompletados.push(o.num);}
     });
   }
-  const mbLiberables=(stats.totalBytesLiberables/1024/1024).toFixed(1);
+  const mbSeguros=(stats.seguroBytes/1024/1024).toFixed(1);
+  const mbArriesgados=(stats.arriesgadoBytes/1024/1024).toFixed(1);
   const lsMB=(new Blob([Object.keys(localStorage).map(k=>k+localStorage[k]).join('')]).size/1024/1024).toFixed(1);
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const arriesgadosHTML=stats.arriesgados>0?
+    `<div style="background:#fff3cd;color:#664d03;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;line-height:1.5;border-left:3px solid #BA7517">
+       <strong>⚠ ${stats.arriesgados} archivo(s) NO están en la nube (${mbArriesgados} MB).</strong><br>Esos NO se van a tocar. Solo se liberan los ${stats.seguros} que ya están respaldados.
+     </div>`:'';
   ov.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:500px;width:100%;padding:24px;font-family:inherit;box-shadow:0 8px 32px rgba(0,0,0,.3)">
     <div style="font-size:20px;font-weight:700;color:#c62828;margin-bottom:6px">💾 Storage local lleno</div>
-    <div style="color:#666;font-size:13px;margin-bottom:18px">Estás usando <strong>${lsMB} MB</strong> de tu navegador. Los datos están seguros en la nube (Supabase); esto solo libera espacio local.</div>
-    <div style="background:#f8f6f0;border-radius:10px;padding:14px;margin-bottom:16px">
-      <div style="font-size:12px;color:#666;text-transform:uppercase;font-weight:600;letter-spacing:.05em;margin-bottom:8px">Se puede liberar:</div>
-      <div style="font-size:26px;font-weight:700;color:#3B6D11">${mbLiberables} MB</div>
-      <div style="font-size:11px;color:#888;margin-top:4px">${stats.pdfsCompletados} PDFs + ${stats.fotosCompletados} fotos, de ${stats.pedidosAfectados} pedido(s) Completado(s)</div>
+    <div style="color:#666;font-size:13px;margin-bottom:18px">Estás usando <strong>${lsMB} MB</strong> del navegador.</div>
+    <div style="background:#f0f7ee;border-radius:10px;padding:14px;margin-bottom:12px;border-left:3px solid #3B6D11">
+      <div style="font-size:12px;color:#3B6D11;text-transform:uppercase;font-weight:600;letter-spacing:.05em;margin-bottom:8px">✓ Se puede liberar sin riesgo:</div>
+      <div style="font-size:26px;font-weight:700;color:#3B6D11">${mbSeguros} MB</div>
+      <div style="font-size:11px;color:#5b8b3c;margin-top:4px">${stats.seguros} archivo(s) — todos respaldados en Supabase</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">De ${stats.pedidosSeguros} pedido(s) con estatus <strong>Completado</strong></div>
     </div>
+    ${arriesgadosHTML}
     <div style="background:#e3f2fd;color:#0d47a1;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:16px;line-height:1.5">
-      <strong>Nota:</strong> Los archivos siguen en la nube. Si necesitas verlos después, se descargan solos al abrir el pedido.
+      <strong>Qué se libera:</strong> solo las copias en tu navegador. Los archivos siguen en la nube y se descargan al abrir el pedido.<br>
+      <strong>Qué NO se toca:</strong> datos del pedido, ventas, facturas, contactos, inventario. Solo archivos ya respaldados.
     </div>
     <div style="display:flex;gap:8px">
       <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:12px;background:#f0f0f0;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#666">Cancelar</button>
-      <button onclick="ejecutarLimpiezaStorage();this.closest('div[style*=fixed]').remove()" style="flex:2;padding:12px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🗑 Liberar ${mbLiberables} MB</button>
+      <button onclick="ejecutarLimpiezaStorage();this.closest('div[style*=fixed]').remove()" style="flex:2;padding:12px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"${stats.seguros===0?' disabled style="flex:2;padding:12px;background:#ccc;color:#666;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:not-allowed"':''}>${stats.seguros===0?'Nada que liberar':'🗑 Liberar '+mbSeguros+' MB seguros'}</button>
     </div>
   </div>`;
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
@@ -2192,13 +2197,21 @@ function abrirLimpiezaStorage(){
 
 function ejecutarLimpiezaStorage(){
   if(typeof orders==='undefined'||!Array.isArray(orders)){showToast('No hay pedidos cargados','#c62828');return;}
-  let liberados=0;
+  const camposArchivos=['pdfsPresupuesto','pdfsRecepcion','planosOrder','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega','fotosSurtido'];
+  let liberados=0,protegidos=0;
   orders.forEach(o=>{
     if(o.estatus!=='Completado')return;
-    ['pdfsPresupuesto','pdfsRecepcion','planosOrder','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega','fotosSurtido'].forEach(k=>{
+    camposArchivos.forEach(k=>{
       if(Array.isArray(o[k])){
         o[k].forEach(p=>{
-          if(p&&p.data){delete p.data;liberados++;}
+          if(!p||!p.data)return;
+          const enNube=!!(p.url||p.publicUrl||p.storagePath||p.path);
+          if(enNube){
+            delete p.data; // Libero solo la copia base64, url queda para re-descarga
+            liberados++;
+          }else{
+            protegidos++; // Este NO se toca porque no está en nube
+          }
         });
       }
     });
@@ -2206,8 +2219,9 @@ function ejecutarLimpiezaStorage(){
   try{
     if(typeof K!=='undefined')localStorage.setItem(K,JSON.stringify(orders));
     else{const kOrders=Object.keys(localStorage).find(k=>k.includes('orders')||k.includes('pedidos'));if(kOrders)localStorage.setItem(kOrders,JSON.stringify(orders));}
-    showToast('✓ Liberados '+liberados+' archivos · Recarga la página','#3B6D11');
-    setTimeout(()=>{if(confirm('Se liberó espacio. ¿Recargar la página ahora para aplicar los cambios?'))location.reload();},1500);
+    const msg='✓ Liberados '+liberados+' archivos respaldados'+(protegidos>0?' · '+protegidos+' protegidos (no estaban en nube)':'');
+    showToast(msg,'#3B6D11');
+    setTimeout(()=>{if(confirm('Se liberó espacio de forma segura. ¿Recargar la página?'))location.reload();},1500);
   }catch(e){
     console.error(e);
     showToast('⚠ Error al guardar','#c62828');
