@@ -1048,7 +1048,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.07.07';
+const APP_VERSION='2026.07.07.08';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -3589,7 +3589,8 @@ if(isNew){const yaExiste=facturas.some(f=>f.pedido===num);if(!yaExiste){
       if(result&&result.faltantes&&result.faltantes.length>0)mensajeInv+=' · ⚠ '+result.faltantes.length+' faltante(s)';
     }
   }
-  const nuevaFactura={pedido:num,fecha:o.fecha,cliente:cli,ejecutivo:_normalizaEjecutivo(o.comercial)||'—',monto:monto,anticipo:0,finiquito:0,rfc:'',cfdi:'',factura:'',poNum:'',pagado:false};
+  const _csfCli2=_obtenerCSFDelContacto(cli);
+  const nuevaFactura={pedido:num,fecha:o.fecha,cliente:cli,ejecutivo:_normalizaEjecutivo(o.comercial)||'—',monto:monto,anticipo:0,finiquito:0,rfc:(_csfCli2&&_csfCli2.rfc)||'',cfdi:'',factura:'',poNum:'',pagado:false,pdfRfc:(_csfCli2&&_csfCli2.csf)?{data:_csfCli2.csf.url,name:_csfCli2.csf.nombre||'CSF.pdf',url:_csfCli2.csf.url,fromContacto:true}:null};
   facturas.push(nuevaFactura);guardarFacturasLS();actualizarFiltrosEjec();renderFacturas();renderInventario();showToast('✓ Pedido + Factura creados'+(monto>0?' ($'+monto.toFixed(2)+')':'')+mensajeInv,'#3B6D11');closeModal();render();return;
 }}
 // ── Si no es nuevo pero se cambió el PDF, actualizar monto si está en 0 ──
@@ -3705,6 +3706,7 @@ function autoCrearFacturasFaltantes(){
       });
       monto=sub+iva;
     }
+    const _csfCli=_obtenerCSFDelContacto(o.cliente);
     const nuevaFactura={
       pedido:o.num,
       fecha:o.fecha||'',
@@ -3713,11 +3715,12 @@ function autoCrearFacturasFaltantes(){
       monto:monto,
       anticipo:0,
       finiquito:0,
-      rfc:'',
+      rfc:(_csfCli&&_csfCli.rfc)||'',
       cfdi:'',
       factura:'',
       poNum:'',
-      pagado:false
+      pagado:false,
+      pdfRfc:(_csfCli&&_csfCli.csf)?{data:_csfCli.csf.url,name:_csfCli.csf.nombre||'CSF.pdf',url:_csfCli.csf.url,fromContacto:true}:null
     };
     facturas.push(nuevaFactura);
     if(typeof cloudSyncFactura==='function')cloudSyncFactura(nuevaFactura);
@@ -3752,6 +3755,7 @@ function crearFacturaDesdePedido(orderId){
     });
     monto=sub+iva;
   }
+  const _csfCli=_obtenerCSFDelContacto(o.cliente);
   const nuevaFactura={
     pedido:o.num,
     fecha:o.fecha||'',
@@ -3760,11 +3764,12 @@ function crearFacturaDesdePedido(orderId){
     monto:monto,
     anticipo:0,
     finiquito:0,
-    rfc:'',
+    rfc:(_csfCli&&_csfCli.rfc)||'',
     cfdi:'',
     factura:'',
     poNum:'',
-    pagado:false
+    pagado:false,
+    pdfRfc:(_csfCli&&_csfCli.csf)?{data:_csfCli.csf.url,name:_csfCli.csf.nombre||'CSF.pdf',url:_csfCli.csf.url,fromContacto:true}:null
   };
   facturas.push(nuevaFactura);
   guardarFacturasLS();
@@ -10218,6 +10223,15 @@ function verCSFCliente(){
   if(!c||!c.csf||!c.csf.url)return showToast('Sin CSF','#BA7517');
   abrirVisorStorage(c.csf.url,'CSF — '+(c.nombre||''));
 }
+// ── Helper: obtener CSF (Constancia de Situación Fiscal) del contacto por nombre del cliente ──
+function _obtenerCSFDelContacto(nombreCliente){
+  if(!nombreCliente||typeof contactos==='undefined'||!Array.isArray(contactos))return null;
+  const nombreLimpio=String(nombreCliente).trim().toLowerCase().replace(/^#h\s+/i,'');
+  const contacto=contactos.find(c=>c&&c.nombre&&c.nombre.trim().toLowerCase().replace(/^#h\s+/i,'')===nombreLimpio);
+  if(!contacto)return null;
+  return {rfc:contacto.rfc||'',csf:contacto.csf||null};
+}
+
 function subirCSFCliente(){
   const nombre=(document.getElementById('vf-cliente')?.value||'').trim();
   if(!nombre)return showToast('Primero escribe o elige el cliente','#BA7517');
@@ -10250,8 +10264,26 @@ function subirCSFCliente(){
       }
       guardarLS(CT_KEY,contactos);
       if(typeof cloudSyncContacto==='function')cloudSyncContacto(contactos[idx]);
+      // ═══ NUEVO: propagar la CSF a las facturas existentes de este cliente que no tengan CSF ═══
+      const nombreLimpio=String(nombre).trim().toLowerCase().replace(/^#h\s+/i,'');
+      let propagadas=0;
+      (facturas||[]).forEach(f=>{
+        if(!f)return;
+        const fCli=String(f.cliente||'').trim().toLowerCase().replace(/^#h\s+/i,'');
+        if(fCli!==nombreLimpio)return;
+        // Si ya tiene CSF cargada manualmente (no fromContacto), no la sobrescribo
+        if(f.pdfRfc&&f.pdfRfc.data&&!f.pdfRfc.fromContacto)return;
+        f.pdfRfc={data:csfObj.url,name:csfObj.nombre||'CSF.pdf',url:csfObj.url,fromContacto:true};
+        if(!f.rfc&&contactos[idx].rfc)f.rfc=contactos[idx].rfc;
+        if(typeof cloudSyncFactura==='function')cloudSyncFactura(f);
+        propagadas++;
+      });
+      if(propagadas>0){
+        guardarFacturasLS();
+        if(typeof renderFacturas==='function')renderFacturas();
+      }
       refrescarBotonCSF();
-      showToast('✓ CSF guardada para '+nombre,'#3B6D11');
+      showToast('✓ CSF guardada para '+nombre+(propagadas>0?' · '+propagadas+' factura(s) actualizada(s)':''),'#3B6D11');
     }catch(ex){console.error(ex);alert('⚠ Error al subir CSF:\n\n'+(ex.message||ex));}
   };
   document.body.appendChild(inp);
