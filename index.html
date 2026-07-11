@@ -1048,7 +1048,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.07.10';
+const APP_VERSION='2026.07.07.11';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -9788,10 +9788,42 @@ drop.style.display='flex';
 const showSearch=matches.length>6||searchQ;
 drop.innerHTML=`${showSearch?`<div style="padding:8px;border-bottom:1px solid #eee;background:#fafafa;flex-shrink:0"><input id="ac-search-input" type="text" placeholder="🔍 Buscar producto, SKU o sistema..." value="${searchQ}" oninput="window._acSearchQuery=this.value;acRender();setTimeout(function(){const el=document.getElementById('ac-search-input');if(el)el.focus();},0)" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;outline:none;box-sizing:border-box"></div>`:''}
 <div style="flex:1;overflow-y:auto;max-height:360px">
-${matches.length===0?'<div style="padding:20px;text-align:center;color:#888;font-size:12px">Sin resultados</div>':matches.slice(0,100).map((p)=>{const isVirt=p.esVirtual===true;const ri=isVirt?-1:inventario.indexOf(p);const dispP=(!isVirt&&typeof calcularDisponiblesFabricables==='function')?calcularDisponiblesFabricables(p):null;const stockTxt=(dispP&&dispP.fabricable>0)?`Stock: ${p.cantidad.toLocaleString()} <span style="color:#185FA5;font-weight:600">+${dispP.fabricable.toLocaleString()} fab.</span>`:(isVirt?'Disponibles: '+p.cantidad.toLocaleString():'Stock: '+p.cantidad.toLocaleString());return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #f5f5f5;${isVirt?'background:linear-gradient(90deg,#fff8f5,#fff)':''}" onmousedown="${isVirt?`acSelectVirtual(${lineIdx},'${p.sku}')`:`acSelect(${lineIdx},${ri})`}" onmouseenter="this.style.background='#fff8f5'" onmouseleave="this.style.background='${isVirt?'linear-gradient(90deg,#fff8f5,#fff)':'#fff'}'"><div style="width:8px;height:8px;border-radius:50%;background:${(p.cantidad>0||(dispP&&dispP.fabricable>0))?'#4caf50':'#ccc'};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isVirt?'📐 ':''}${p.producto}</div><div style="font-size:11px;color:#888"><span style="font-family:monospace;color:#D85A30">${p.sku||''}</span> · ${stockTxt}${p.precio?' · $'+p.precio.toFixed(2):''}${isVirt?' <span style="background:#fbeae3;color:#D85A30;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600">KIT BOM</span>':''}</div></div></div>`}).join('')}
+${matches.length===0?'<div style="padding:20px;text-align:center;color:#888;font-size:12px">Sin resultados</div>':matches.slice(0,100).map((p)=>{const isVirt=p.esVirtual===true;const ri=isVirt?-1:inventario.indexOf(p);const dispP=(!isVirt&&typeof calcularDisponiblesFabricables==='function')?calcularDisponiblesFabricables(p):null;
+// ═══ Cálculo Disponible (Físico − Apartado + Fabricable) ═══
+const _fisAC=Number(p.cantidad||0);
+const _compAC=(!isVirt&&typeof _comprometidoSKU==='function'&&p.sku)?_comprometidoSKU(p.sku):0;
+const _fabAC=(dispP&&dispP.fabricable)||0;
+const _dispAC=(_fisAC-_compAC)+_fabAC;
+const _sinDisp=_dispAC<=0&&!isVirt;
+const _bajo=_dispAC>0&&_dispAC<=Number(p.alerta_minimo||0);
+const _dotColor=isVirt?(p.cantidad>0?'#4caf50':'#ccc'):(_sinDisp?'#c62828':(_bajo?'#EF9F27':'#4caf50'));
+const _dispTxt=isVirt?('Disponibles: '+p.cantidad.toLocaleString()):(_compAC>0
+  ? `<span style="color:${_sinDisp?'#c62828':(_bajo?'#EF6C00':'#3B6D11')};font-weight:600">${_sinDisp?'⚠ ':''}Disp: ${_dispAC.toLocaleString()}</span> <span style="color:#999;font-size:10px">· fís: ${_fisAC.toLocaleString()} · apart: ${_compAC.toLocaleString()}</span>`
+  : `<span style="color:${_sinDisp?'#c62828':'#3B6D11'};font-weight:600">${_sinDisp?'⚠ ':''}Disp: ${_dispAC.toLocaleString()}</span>`);
+const _fabTxt=(!isVirt&&_fabAC>0)?` <span style="color:#185FA5;font-weight:600;font-size:10px">+${_fabAC.toLocaleString()} fab.</span>`:'';
+const stockTxt=_dispTxt+_fabTxt;
+const _bgRow=_sinDisp?'background:#fef2f2;':(isVirt?'background:linear-gradient(90deg,#fff8f5,#fff)':'');
+return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #f5f5f5;${_bgRow}" onmousedown="${isVirt?`acSelectVirtual(${lineIdx},'${p.sku}')`:`acSelect(${lineIdx},${ri})`}" onmouseenter="this.style.background='#fff8f5'" onmouseleave="this.style.background='${_sinDisp?'#fef2f2':(isVirt?'linear-gradient(90deg,#fff8f5,#fff)':'#fff')}'"><div style="width:8px;height:8px;border-radius:50%;background:${_dotColor};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isVirt?'📐 ':''}${p.producto}</div><div style="font-size:11px;color:#888"><span style="font-family:monospace;color:#D85A30">${p.sku||''}</span> · ${stockTxt}${p.precio?' · $'+p.precio.toFixed(2):''}${isVirt?' <span style="background:#fbeae3;color:#D85A30;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600">KIT BOM</span>':''}</div></div></div>`}).join('')}
 ${matches.length>100?`<div style="padding:8px 14px;text-align:center;color:#888;font-size:11px;border-top:1px solid #eee">Mostrando 100 de ${matches.length} resultados. Refina tu búsqueda.</div>`:''}
 </div>`;}
-function acSelect(lineIdx,invIdx){const p=inventario[invIdx];vtaLineas[lineIdx].producto=p.producto;vtaLineas[lineIdx].desc=p.medida;vtaLineas[lineIdx].precio=_precioEnMonedaActual(p.precio||0);window._acSearchQuery='';acHide();renderLineas();showToast('✓ '+p.producto+(vtaMonedaOrig==='MXN'?' (MXN)':''),'#3B6D11');}
+function acSelect(lineIdx,invIdx){
+  const p=inventario[invIdx];
+  // Verificar disponibilidad
+  const _comp=(typeof _comprometidoSKU==='function'&&p.sku)?_comprometidoSKU(p.sku):0;
+  const _fab=(typeof _fabricableDesdePadre==='function')?_fabricableDesdePadre(p.sku):0;
+  const _disp=(Number(p.cantidad||0)-_comp)+_fab;
+  if(_disp<=0){
+    const seguir=confirm(`⚠ SIN DISPONIBLE\n\n${p.producto}\nFísico: ${p.cantidad}\nApartado: ${_comp}\nDisponible: ${_disp}${_fab>0?'\nFabricable: '+_fab:''}\n\nEste producto ya está apartado en otras ventas.\n\n¿Aún así agregarlo? (se generará sobreventa)`);
+    if(!seguir)return;
+  }
+  vtaLineas[lineIdx].producto=p.producto;
+  vtaLineas[lineIdx].desc=p.medida;
+  vtaLineas[lineIdx].precio=_precioEnMonedaActual(p.precio||0);
+  window._acSearchQuery='';
+  acHide();
+  renderLineas();
+  showToast('✓ '+p.producto+(vtaMonedaOrig==='MXN'?' (MXN)':'')+(_disp<=0?' ⚠ sobreventa':''),_disp<=0?'#c62828':'#3B6D11');
+}
 function acSelectVirtual(lineIdx,sku){const virt=obtenerMarcosVirtuales().find(v=>v.sku===sku);if(!virt)return;vtaLineas[lineIdx].producto=virt.producto;vtaLineas[lineIdx].desc=virt.medida;vtaLineas[lineIdx].precio=_precioEnMonedaActual(virt.precio||0);window._acSearchQuery='';acHide();renderLineas();showToast('📐 '+virt.producto+' (kit BOM)'+(vtaMonedaOrig==='MXN'?' (MXN)':''),'#185FA5');}
 function acHide(){document.getElementById('ac-drop').style.display='none';window._acSearchQuery='';}
 document.addEventListener('click',function(e){if(!e.target.closest('#ac-drop')&&!e.target.classList.contains('ac-input'))acHide();});
