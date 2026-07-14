@@ -2594,7 +2594,7 @@ function inlineFecha(e,id,cur){e.stopPropagation();openPop(e.currentTarget,`<div
 function abrirWA(fid){const n=(document.getElementById(fid).value||'').replace(/\D/g,'');if(!n)return alert('Ingresa número');window.open(`https://wa.me/52${n}`,'_blank');}
 function verMapa(){const d=document.getElementById('f-ubicacion').value.trim();if(!d)return alert('Ingresa dirección');const m=document.getElementById('map-preview');m.style.display='block';m.innerHTML=`<iframe width="100%" height="200" style="border:none" src="https://maps.google.com/maps?q=${encodeURIComponent(d)}&output=embed&z=15"></iframe>`;}
 function verMapaInline(e,id){e.stopPropagation();const o=orders.find(x=>x.id==id);if(!o||!o.ubicacion)return showToast('Sin ubicación','#BA7517');const m=document.createElement('div');m.id='mapa-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem';m.innerHTML=`<div style="background:#fff;border-radius:14px;overflow:hidden;width:100%;max-width:680px"><div style="display:flex;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:2px solid #D85A30"><span style="color:#1a1a1a;font-size:14px;font-weight:600">🗺 ${o.ubicacion}</span><button onclick="document.getElementById('mapa-modal').remove()" style="padding:5px 12px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">✕</button></div><iframe src="https://maps.google.com/maps?q=${encodeURIComponent(o.ubicacion)}&output=embed&z=15" width="100%" height="420" style="border:none;display:block"></iframe></div>`;m.onclick=e=>{if(e.target===m)m.remove()};document.body.appendChild(m);}
-function inlineSave(id,field,val){const i=orders.findIndex(o=>o.id===id);if(i<0)return;const _prevVal=orders[i][field];orders[i][field]=val;try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}}catch(e){}saveOrders();closePop();
+function inlineSave(id,field,val){const i=orders.findIndex(o=>o.id===id);if(i<0)return;const _prevVal=orders[i][field];orders[i][field]=val;try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}if(_esEnt&&!_wasEnt){descontarAlEntregar(orders[i]);}}catch(e){}saveOrders();closePop();
 // Comercial editado en Seguimiento → propagar a la venta (Comisiones lee de ahí)
 try{if(field==='comercial'){
   const _num=orders[i].num;
@@ -3584,10 +3584,31 @@ function descontarInventarioPedido(orderObj,lineas){
   return{descuentos,bomDescontados,faltantes,total:descuentos.length+bomDescontados.length};
 }
 
-// ── FUNCIÓN CENTRAL: Regresa inventario al cancelar/eliminar pedido ──
-function regresarInventarioPedido(orderObj,lineas){
-  if(orderObj.inventarioDescontado!==true)return{noEraDescontado:true};
-  if(!lineas||!lineas.length)return{nodata:true};
+// ── Descuenta el inventario cuando un pedido se marca ENTREGADO/COMPLETADO y nunca se descontó ──
+// Cierra el hueco que causaba el descuadre: pedidos entregados que nunca bajaron del físico.
+// No hace nada si el pedido ya tenía inventarioDescontado=true (evita doble descuento).
+function descontarAlEntregar(orderObj){
+  try{
+    if(!orderObj||orderObj.inventarioDescontado===true)return null;
+    // Buscar las líneas: primero cotData del pedido, luego la venta correspondiente
+    let lineas=(orderObj.cotData&&Array.isArray(orderObj.cotData.lineas)&&orderObj.cotData.lineas.length)?orderObj.cotData.lineas:null;
+    if(!lineas&&typeof ventas!=='undefined'&&Array.isArray(ventas)){
+      const v=ventas.find(x=>x&&x.num===orderObj.num);
+      if(v&&Array.isArray(v.lineas)&&v.lineas.length)lineas=v.lineas;
+    }
+    if(!lineas||!lineas.length)return null;
+    const r=descontarInventarioPedido(orderObj,lineas);
+    if(r&&(r.total>0)){
+      if(typeof cloudSyncPedido==='function')cloudSyncPedido(orderObj);
+      else if(typeof cloudSyncOrder==='function')cloudSyncOrder(orderObj);
+      if(typeof renderInventario==='function')renderInventario();
+      let msg='📦 Inventario descontado por entrega de '+orderObj.num;
+      if(r.faltantes&&r.faltantes.length)msg+=' ⚠ '+r.faltantes.length+' faltante(s)';
+      if(typeof showToast==='function')showToast(msg,'#3B6D11');
+    }
+    return r;
+  }catch(e){console.warn('descontarAlEntregar:',e);return null;}
+}
   let regresos=[];
   lineas.forEach(l=>{
     if(typeof _esLineaServicio==='function'?_esLineaServicio(l):l.tipo)return;
@@ -3651,6 +3672,8 @@ if(isNew&&(!o.pdfsPresupuesto||o.pdfsPresupuesto.length===0)&&!o.cotData){
   if(!seguir)return;
 }
 if(editId!=null){const i=orders.findIndex(x=>x.id===editId);if(i>=0){const prev=orders[i];if(prev.cotHTML&&!o.cotHTML)o.cotHTML=prev.cotHTML;if(prev.cotData&&!o.cotData)o.cotData=prev.cotData;if(prev.cotVersion)o.cotVersion=prev.cotVersion;orders[i]=o;}}else orders.unshift(o);saveOrders();
+// Si el pedido pasó a entregado/completado y nunca descontó inventario, descontar ahora
+try{if(_entA&&!_entB&&typeof descontarAlEntregar==='function'){const _oRef=orders.find(x=>x.id===o.id)||o;descontarAlEntregar(_oRef);}}catch(e){console.warn('descuento al entregar (saveOrder):',e);}
 // ── Si cambió el comercial del pedido, la factura sigue al nuevo comercial (Comisiones) ──
 if(editId!=null&&existing&&typeof _normalizaEjecutivo==='function'){
   const _comAnt=_normalizaEjecutivo(existing.comercial||'');
