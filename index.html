@@ -3904,8 +3904,19 @@ function autoCrearFacturasFaltantes(){
     if(typeof facturasExcluidas!=='undefined'&&facturasExcluidas.indexOf(o.num)>=0)return;
     if(o.archivadoCotizacion)return;
     if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;
-    const ya=facturas.some(f=>f.pedido===o.num);
-    if(ya)return;
+    const _facExist=facturas.find(f=>f.pedido===o.num);
+    if(_facExist){
+      // La factura ya existe: si le FALTA la CSF pero el contacto sí la tiene, rellenarla (sin pisar nada más)
+      const _csfC=_obtenerCSFDelContacto(o.cliente);
+      const _tieneCsf=_facExist.pdfRfc&&(_facExist.pdfRfc.data||_facExist.pdfRfc.url);
+      if(!_tieneCsf&&!_facExist.rfc_na&&_csfC&&_csfC.csf){
+        _facExist.pdfRfc={data:_csfC.csf.url,name:_csfC.csf.nombre||'CSF.pdf',url:_csfC.csf.url,fromContacto:true};
+        if(!_facExist.rfc&&_csfC.rfc)_facExist.rfc=_csfC.rfc;
+        if(typeof cloudSyncFactura==='function')cloudSyncFactura(_facExist);
+        creadas++;
+      }
+      return;
+    }
     // Calcular monto desde cotData si existe
     let monto=0;
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length){
@@ -7375,60 +7386,61 @@ async function cloudSyncFactura(f){
   if(!f||!f.pedido)return; // requiere pedido para evitar conflictos UNIQUE
   // ── CANDADO: si la nube tiene una versión MÁS NUEVA de esta factura que la última bajada
   // por este equipo, NO pisar. Evita que un equipo con datos viejos borre pagos/PDFs de otro. ──
+  // ── FUSIÓN SEGURA: leer la nube y combinar. Tu cambio local gana para lo que tocaste;
+  // lo que no tocaste se conserva de la nube. Nunca bloquea tu edición ni borra datos de otro. ──
+  let _nube=null;
   try{
     if(supabaseClient&&cloudStatus==='online'){
-      const _r=await supabaseClient.from('facturas').select('updated_at').eq('pedido',f.pedido).maybeSingle();
-      const _nubeTs=(_r&&_r.data&&_r.data.updated_at)||null;
-      const _visto=_factNubeTs[f.pedido]||null;
-      if(_nubeTs&&_visto&&String(_nubeTs)>String(_visto)){
-        console.warn('⛔ Candado facturas: la nube tiene versión más nueva de '+f.pedido+' — subida bloqueada. Baja los cambios antes de editar.');
-        return false;
-      }
+      const _r=await supabaseClient.from('facturas').select('*').eq('pedido',f.pedido).maybeSingle();
+      if(_r&&_r.data)_nube=_r.data;
     }
-  }catch(_e){}
+  }catch(_e){_nube=null;}
   _marcarTocado('facturas',f.pedido);
   const _fpay={
     pedido:f.pedido,
     updated_at:new Date().toISOString()
   };
-  // PROTECCIÓN: campos de texto/monto solo se suben si tienen valor real.
-  // Así un cliente con copia vieja NUNCA borra con null/0 lo que ya está bueno en la nube.
-  if(f.cliente)_fpay.cliente=f.cliente;
-  if(f.ejecutivo)_fpay.ejecutivo=f.ejecutivo;
-  if(f.razon)_fpay.razon=f.razon;
-  if(f.rfc)_fpay.rfc=f.rfc;
-  if(Number(f.monto)>0)_fpay.monto=Number(f.monto);
+  // Texto/monto: usa el local si tiene valor; si no, conserva lo que haya en la nube.
+  _fpay.cliente=f.cliente||(_nube&&_nube.cliente)||null;
+  _fpay.ejecutivo=f.ejecutivo||(_nube&&_nube.ejecutivo)||null;
+  _fpay.razon=f.razon||(_nube&&_nube.razon)||null;
+  _fpay.rfc=f.rfc||(_nube&&_nube.rfc)||null;
+  _fpay.monto=(Number(f.monto)>0)?Number(f.monto):((_nube&&Number(_nube.monto))||0);
   if(f.factura)_fpay.factura=f.factura;
   if(f.cfdi)_fpay.cfdi=f.cfdi;
-  if(f.fecha)_fpay.fecha=f.fecha;
-  if(f.estado)_fpay.estado=f.estado;
-  if(f.poNum)_fpay.po_num=f.poNum;
-  // Flags "no aplica": siempre reflejan la decisión del usuario (booleanos, sin riesgo de borrado de archivos)
+  _fpay.fecha=f.fecha||(_nube&&_nube.fecha)||null;
+  _fpay.estado=f.estado||(_nube&&_nube.estado)||null;
+  _fpay.factura=f.factura||(_nube&&_nube.factura)||null;
+  _fpay.cfdi=(f.cfdi&&String(f.cfdi).trim()!=='')?f.cfdi:((_nube&&_nube.cfdi)||null);
+  _fpay.po_num=f.poNum||(_nube&&_nube.po_num)||null;
+  // Flags "no aplica": reflejan la decisión del usuario local (booleanos). Es tu acción directa, gana el local.
   _fpay.po_na=!!f.poNum_na;
   _fpay.factura_na=!!f.factura_na;
   _fpay.rfc_na=!!f.rfc_na;
   _fpay.anticipo_na=!!f.anticipo_na;
   _fpay.finiquito_na=!!f.finiquito_na;
   _fpay.complemento_na=!!f.complemento_na;
-  if(f.formaPagoNF)_fpay.forma_pago_nf=f.formaPagoNF;
-  if(f.fechaPago)_fpay.fecha_pago=f.fechaPago;
-  // PROTECCIÓN: montos de pago solo se suben si son > 0 (nunca degradar a 0 por sync).
-  if(Number(f.anticipo)>0)_fpay.anticipo=Number(f.anticipo);
-  if(Number(f.finiquito)>0)_fpay.finiquito=Number(f.finiquito);
-  // PROTECCIÓN: pagado solo se sube cuando es true (nunca mandar false → no degrada el de la nube).
-  if(f.pagado)_fpay.pagado=true;
-  // ADJUNTOS PESADOS: solo se suben si el local los tiene. Si están vacíos NO se mandan,
-  // así el upsert NUNCA pisa con null el PDF/XML que ya está en la nube (evita perder archivos).
-  if(f.pdfFactNum)_fpay.pdf_fact_num=f.pdfFactNum;
-  if(f.pdfFactura)_fpay.pdf_factura=f.pdfFactura;
-  if(f.pdfRfc)_fpay.pdf_rfc=f.pdfRfc;
-  if(f.pdfPo)_fpay.pdf_po=f.pdfPo;
-  if(f.pdfAnticipo)_fpay.pdf_anticipo=f.pdfAnticipo;
-  if(f.pdfFiniquito)_fpay.pdf_finiquito=f.pdfFiniquito;
-  if(f.pdfComplemento)_fpay.pdf_complemento=f.pdfComplemento;
-  if(f.xmlComplemento)_fpay.xml_complemento=f.xmlComplemento;
-  if(Array.isArray(f.pagosExtra)&&f.pagosExtra.length)_fpay.pagos_extra=f.pagosExtra;
-  if(f.xmlCfdi)_fpay.xml_cfdi=f.xmlCfdi;
+  _fpay.forma_pago_nf=f.formaPagoNF||(_nube&&_nube.forma_pago_nf)||null;
+  _fpay.fecha_pago=f.fechaPago||(_nube&&_nube.fecha_pago)||null;
+  // Montos de pago: no degradar a 0 si la nube ya tenía un monto mayor.
+  _fpay.anticipo=Math.max(Number(f.anticipo)||0,(_nube&&Number(_nube.anticipo))||0);
+  _fpay.finiquito=Math.max(Number(f.finiquito)||0,(_nube&&Number(_nube.finiquito))||0);
+  // Pagado: nunca degradar true→false por sync. Si la nube ya está pagada, se conserva.
+  _fpay.pagado=!!f.pagado||!!(_nube&&_nube.pagado);
+  // ADJUNTOS: subir el local si lo tiene; si no, CONSERVAR el de la nube (nunca pisar con null).
+  _fpay.pdf_fact_num=f.pdfFactNum||(_nube&&_nube.pdf_fact_num)||null;
+  _fpay.pdf_factura=f.pdfFactura||(_nube&&_nube.pdf_factura)||null;
+  _fpay.pdf_rfc=f.pdfRfc||(_nube&&_nube.pdf_rfc)||null;
+  _fpay.pdf_po=f.pdfPo||(_nube&&_nube.pdf_po)||null;
+  _fpay.pdf_anticipo=f.pdfAnticipo||(_nube&&_nube.pdf_anticipo)||null;
+  _fpay.pdf_finiquito=f.pdfFiniquito||(_nube&&_nube.pdf_finiquito)||null;
+  _fpay.pdf_complemento=f.pdfComplemento||(_nube&&_nube.pdf_complemento)||null;
+  _fpay.xml_complemento=f.xmlComplemento||(_nube&&_nube.xml_complemento)||null;
+  _fpay.xml_cfdi=f.xmlCfdi||(_nube&&_nube.xml_cfdi)||null;
+  // Pagos extra: conservar el arreglo con más elementos (no perder pagos de otro lado).
+  const _peL=Array.isArray(f.pagosExtra)?f.pagosExtra:null;
+  const _peN=(_nube&&Array.isArray(_nube.pagos_extra))?_nube.pagos_extra:null;
+  if(_peL&&_peN)_fpay.pagos_extra=(_peL.length>=_peN.length)?_peL:_peN;else _fpay.pagos_extra=_peL||_peN||[];
   cloudUpsert('facturas',_fpay,'pedido');
   // Registrar que ESTE equipo dejó esta versión como la más nueva (evita auto-bloqueo posterior)
   try{_factNubeTs[f.pedido]=_fpay.updated_at;guardarLS('isarack_fact_nube_ts',_factNubeTs);}catch(_e){}
