@@ -1069,7 +1069,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.02';
+const APP_VERSION='2026.07.21.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -12167,13 +12167,15 @@ function comFilas(selOrd){
     const data=comGetData(v);
     const _fac=(typeof facturas!=='undefined'&&Array.isArray(facturas))?facturas.find(x=>x&&x.pedido===v.num):null;
     const pct100=!!(_fac&&_fac.pagado);
-    const _esHist=(v._historica===true);
+    const _esHist=(v._historica===true); // se conserva por si se necesita distinguir en la vista; ya no libera
     const _esEfeVenta=_comEsEfectivo(v);
     const _esTransfNF=_comEsTransferenciaNF(v);
-    // Se liberan de una vez (verde) sin esperar pago: HISTÓRICAS, EFECTIVO y TRANSFERENCIA (no requiere factura).
+    // Se liberan sin esperar pago SOLO: EFECTIVO y TRANSFERENCIA (no requiere factura).
     // Diferencia: efectivo NO suma al total (se filtra con _esEfe); transferencia SÍ suma (se le debe al vendedor).
-    const _cobroFecha=pct100?((_fac&&(_fac.fechaPago||_fac.fecha))||''):((_esHist||_esEfeVenta||_esTransfNF)?(v.fecha||''):'');
-    const ordLib=(pct100||_esHist||_esEfeVenta||_esTransfNF)?(_cobroFecha?comBimDe(_cobroFecha):ordV):null;
+    // Las HISTÓRICAS ya NO se liberan solas (jul 2026): esperan a que su factura se marque Pagada, igual que
+    // cualquier venta, y mientras tanto se arrastran. Antes se daban por cobradas y generaban comisión sin respaldo.
+    const _cobroFecha=pct100?((_fac&&(_fac.fechaPago||_fac.fecha))||''):((_esEfeVenta||_esTransfNF)?(v.fecha||''):'');
+    const ordLib=(pct100||_esEfeVenta||_esTransfNF)?(_cobroFecha?comBimDe(_cobroFecha):ordV):null;
     const desc=comDescPromedio(v);
     const _match=comNombreMatch(v.comercial);
     const pcom=(typeof COM_PCT_FIJO[_match]==='number')?COM_PCT_FIJO[_match]:comPctFromDesc(desc);
