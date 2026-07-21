@@ -1069,7 +1069,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.04';
+const APP_VERSION='2026.07.21.05';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11371,6 +11371,24 @@ let empresaCfg=cargarEmpresaConfig();
 // Desde esta versión, Configuración → Instaladores es la ÚNICA fuente de la lista.
 // Este seed evita perder a los que ya existían. Corre una sola vez (bandera en localStorage);
 // después el admin agrega/edita/borra libremente sin que reaparezcan los originales.
+// Códigos de login FIJOS en la PWA (espejo de INSTALADORES_BASE de isarack-instaladores).
+// Estos 7 NO usan los últimos 4 del teléfono; los que no están aquí sí.
+// Si cambias uno, cámbialo TAMBIÉN en la PWA o el instalador no podrá entrar.
+const PWA_CODIGOS_FIJOS={
+  '6123090644':'1234', // Brayan Alexis
+  '6563549469':'5678', // Jonas Sanudo
+  '6642323708':'2323', // Gilberto Rodriguez
+  '6642271617':'2271', // Oscar Ochoa
+  '6646705293':'7052', // Israel Mendez
+  '6644211088':'2110', // Isaac Romero
+  '6635223207':'5232'  // Samuel A. Gomez
+};
+function codigoPWA(tel){
+  const t=String(tel||'').replace(/\D/g,'');
+  if(!t)return {cod:'',fijo:false};
+  if(PWA_CODIGOS_FIJOS[t])return {cod:PWA_CODIGOS_FIJOS[t],fijo:true};
+  return {cod:t.slice(-4),fijo:false};
+}
 function seedInstaladoresUnaVez(){
   try{
     const FLAG='isarack_instaladores_seed_v1';
@@ -11555,7 +11573,7 @@ function cfgRenderTabla(tipo){
   }
   let h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8f8f6;border-bottom:2px solid #e5e5e5">';
   cols.forEach(c=>h+='<th style="text-align:left;padding:10px;font-size:11px;color:#888;text-transform:uppercase;font-weight:600">'+c.label+'</th>');
-  if(tipo==='instaladores')h+='<th style="text-align:left;padding:10px;font-size:11px;color:#888;text-transform:uppercase;font-weight:600" title="Login en la PWA (últimos 4 del teléfono)">Código</th>';
+  if(tipo==='instaladores')h+='<th style="text-align:left;padding:10px;font-size:11px;color:#888;text-transform:uppercase;font-weight:600" title="Login en la PWA. Los marcados fijo tienen codigo propio; el resto usa los ultimos 4 del telefono">Código</th>';
   h+='<th style="width:90px"></th></tr></thead><tbody>';
   items.forEach((it,i)=>{
     h+='<tr style="border-bottom:1px solid #eee">';
@@ -11564,8 +11582,9 @@ function cfgRenderTabla(tipo){
       h+='<td style="padding:10px;font-size:13px">'+(v||'<span style="color:#bbb">—</span>')+'</td>';
     });
     if(tipo==='instaladores'){
-      const _cod=String(it.tel||'').replace(/\D/g,'').slice(-4);
-      h+='<td style="padding:10px;font-size:13px;font-weight:700;letter-spacing:1px;color:#185FA5">'+(_cod||'<span style="color:#bbb;font-weight:400;letter-spacing:0">—</span>')+'</td>';
+      const _c=codigoPWA(it.tel);
+      const _fijoTag=_c.fijo?'<span style="display:block;font-size:9px;color:#BA7517;font-weight:600;letter-spacing:0" title="Codigo fijo en la PWA; no son los ultimos 4 del telefono">fijo</span>':'';
+      h+='<td style="padding:10px;font-size:13px;font-weight:700;letter-spacing:1px;color:#185FA5">'+(_c.cod?(_c.cod+_fijoTag):'<span style="color:#bbb;font-weight:400;letter-spacing:0">—</span>')+'</td>';
     }
     h+='<td style="padding:10px;text-align:right;white-space:nowrap"><button onclick="cfgEditarItem(\''+tipo+'\','+i+')" class="act-btn" style="color:#185FA5;border-color:#185FA5">✏</button> <button onclick="cfgEliminarItem(\''+tipo+'\','+i+')" class="act-btn" style="color:#c62828">✕</button></td>';
     h+='</tr>';
