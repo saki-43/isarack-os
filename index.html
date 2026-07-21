@@ -287,6 +287,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
     <button class="nav-tab" id="nav-web" onclick="cambiarTab('web',this)" style="display:none">🌐 Web <span id="badge-web-count" style="background:#c62828;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
     <button class="nav-tab" id="nav-almacen" onclick="cambiarTab('almacen',this)" style="display:none">🏭 Almacén</button>
     <button class="nav-tab" id="nav-asistente" onclick="cambiarTab('asistente',this)" style="display:none">🤖 Asistente</button>
+    <button class="nav-tab" id="nav-diagnostico" onclick="cambiarTab('diagnostico',this)" style="display:none">🩺 Diagnóstico</button>
     <button class="nav-tab" id="nav-config" onclick="cambiarTab('config',this)" style="display:none">⚙ Configuración</button>
   </div>
 
@@ -602,6 +603,29 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
           <button id="asi-send-btn" onclick="asiEnviar()" title="Enviar" style="width:38px;height:38px;border-radius:50%;background:#D85A30;border:none;color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">➤</button>
         </div>
         <div id="asi-hint" style="text-align:center;font-size:10px;color:#999;margin-top:6px">Haz clic 🎤 para dictar por voz · Enter para enviar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB DIAGNÓSTICO ══ -->
+  <div class="tab-content" id="tab-diagnostico">
+    <div class="tab-body">
+      <div style="max-width:1100px;margin:0 auto;width:100%;overflow-y:auto;flex:1;min-height:0">
+        <div style="background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:18px 22px;margin-bottom:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+            <div>
+              <div style="font-size:16px;font-weight:700;color:#1a1a1a">🩺 Diagnóstico del sistema</div>
+              <div style="font-size:12px;color:#666">Cada revisión se queda encendida hasta que la atiendes</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span id="diag-hora" style="font-size:12px;color:#888"></span>
+              <button onclick="correrDiagnostico()" style="padding:8px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↻ Revisar ahora</button>
+            </div>
+          </div>
+          <div id="diag-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0"></div>
+          <div id="diag-lista"><div style="text-align:center;padding:24px;color:#999;font-size:13px">Corriendo revisiones…</div></div>
+          <div id="diag-detalle" style="margin-top:14px"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1079,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.08';
+const APP_VERSION='2026.07.21.09';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -1310,6 +1334,7 @@ function aplicarPermisos(){
     const tabName=m[1];
     let visible;
     if(tabName==='config'){visible=(u.rol==='admin');} // config solo admin
+    if(tabName==='diagnostico'){visible=(u.rol==='admin');} // diagnostico solo admin
     else if(tabName==='web'){visible=(u.rol==='admin');} // web (cotizaciones sitio) solo admin
     else if(tabName==='asistente'){visible=(u.rol==='admin');} // asistente 🤖 solo admin por ahora
     else if(tabName==='comisiones'){visible=(typeof esUsuarioComisiones==='function'&&esUsuarioComisiones(u));} // comisiones: solo admin + ejecutivos
@@ -1322,7 +1347,7 @@ function aplicarPermisos(){
     const activa=document.querySelector('.tab-content.active');
     const idActiva=activa?activa.id.replace('tab-',''):'';
     const permitidasAhora=getPestanasDeUsuario(getCurrentUser()||u);
-    const okActiva=(idActiva==='config'&&u.rol==='admin')||(idActiva==='asistente'&&u.rol==='admin')||permitidasAhora.includes(idActiva);
+    const okActiva=(idActiva==='config'&&u.rol==='admin')||(idActiva==='diagnostico'&&u.rol==='admin')||(idActiva==='asistente'&&u.rol==='admin')||permitidasAhora.includes(idActiva);
     if(!okActiva&&u.rol!=='almacen'){
       const destino=permitidasAhora.includes('pedidos')?'pedidos':(permitidasAhora[0]||'pedidos');
       const btn=Array.from(document.querySelectorAll('.nav-tab')).find(t=>(t.getAttribute('onclick')||'').includes("'"+destino+"'"));
@@ -2696,7 +2721,7 @@ async function abrirPanelDeficit(){
   document.getElementById('deficit-body').innerHTML=html;
 }
 
-function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
+function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='diagnostico')correrDiagnostico();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
 
 // ── PEDIDOS ──
 function loadOrders(){const keys=['isarack-v3','isarack-v2','isarack_pedidos_v2'];let found=[];for(const k of keys){try{const d=localStorage.getItem(k);if(d){const p=JSON.parse(d);if(Array.isArray(p)&&p.length>found.length)found=p;}}catch(e){}}orders=found;if(orders.length){window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}render();}
@@ -11882,6 +11907,188 @@ function desbloquearFolioManual(num){
   if(typeof showToast==='function')showToast('OK '+num+' desbloqueado','#3B6D11');
   renderFoliosBloqueados();
 }
+// ══ DIAGNÓSTICO DEL SISTEMA (solo admin) ══
+// Corre las mismas verificaciones que antes se hacían a mano en SQL. Cada chequeo
+// devuelve {id,titulo,detalle,nivel,filas[]}. nivel: 'alarma' | 'aviso' | 'ok'.
+// Filosofía tipo PLC: la falla se engancha y se ve, no pasa callada.
+let _diagUltimo=null;
+
+function _diagChequeos(){
+  const R=[];
+  const _ventas=Array.isArray(window.ventas)?ventas:[];
+  const _orders=Array.isArray(window.orders)?orders:[];
+  const _facturas=Array.isArray(window.facturas)?facturas:[];
+  const _inv=Array.isArray(window.inventario)?inventario:[];
+
+  // 1 · Folios bloqueados que tienen venta confirmada
+  const bloq=(typeof getPedidosEliminados==='function')?getPedidosEliminados().map(String):[];
+  const f1=[];
+  bloq.forEach(n=>{
+    const v=_ventas.find(x=>x&&String(x.num)===n);
+    if(!v||v._historica)return;
+    const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada';
+    if(esVenta)f1.push({folio:n,cliente:v.cliente||'',nota:'bloqueado con venta confirmada',accion:'desbloquear'});
+  });
+  R.push({id:'bloqueados',titulo:'Folios bloqueados con venta confirmada',detalle:'El pedido existe en la nube pero se borra de la app en cada sincronización',filas:f1});
+
+  // 2 · Facturas marcadas pagadas sin monto de cobro capturado
+  const f2=[];
+  _facturas.forEach(f=>{
+    if(!f||!f.pagado)return;
+    const m=Number(f.monto)||0;
+    const cob=(Number(f.anticipo)||0)+(Number(f.finiquito)||0);
+    if(m>0&&cob<=0)f2.push({folio:f.pedido||'',cliente:f.cliente||'',nota:'pagada por $'+m.toLocaleString('es-MX',{maximumFractionDigits:2})+' sin anticipo ni finiquito',accion:'factura'});
+  });
+  R.push({id:'pagadas-sin-monto',titulo:'Facturas pagadas sin monto capturado',detalle:'Liberan comisión sin respaldo de cobro',filas:f2});
+
+  // 3 · Referencias de archivo que ya no existen en Storage
+  const CAMPOS=['fotosAvance','fotosTerminacion','fotosEntrega','planos','pdfsRecepcion','pdfsPresupuesto'];
+  const f3=[];
+  _orders.forEach(o=>{
+    if(!o)return;
+    CAMPOS.forEach(c=>{
+      if(!Array.isArray(o[c]))return;
+      o[c].forEach(a=>{
+        if(!a||typeof a!=='object')return;
+        const rota=(a._roto===true)||(a.path&&!a.data&&!a.url&&!a._enNube);
+        if(rota)f3.push({folio:o.num||'',cliente:o.cliente||'',nota:c+' · '+(a.name||'sin nombre'),accion:'pedido'});
+      });
+    });
+  });
+  R.push({id:'archivos-rotos',titulo:'Archivos con referencia rota',detalle:'La referencia sigue en el pedido pero el archivo ya no está',filas:f3});
+
+  // 4 · Pedidos completados sin firma del cliente
+  const f4=[];
+  _orders.forEach(o=>{
+    if(!o||o.estatus!=='Completado')return;
+    const hayFirma=(o.firmaEntrega&&(o.firmaEntrega.data||o.firmaEntrega.url))||(Array.isArray(o.pdfsRecepcion)&&o.pdfsRecepcion.length>0);
+    if(!hayFirma)f4.push({folio:o.num||'',cliente:o.cliente||'',nota:'entregado sin respaldo firmado',accion:'pedido'});
+  });
+  R.push({id:'sin-firma',titulo:'Pedidos completados sin firma',detalle:'Se marcaron entregados sin el documento que lo respalda',filas:f4});
+
+  // 5 · Ventas confirmadas que nunca generaron pedido
+  const f5=[];
+  _ventas.forEach(v=>{
+    if(!v||!v.num||v._historica)return;
+    const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada';
+    if(!esVenta)return;
+    if(_orders.some(o=>o&&o.num===v.num))return;
+    f5.push({folio:v.num,cliente:v.cliente||'',nota:'venta confirmada sin pedido en Seguimiento',accion:'venta'});
+  });
+  R.push({id:'ventas-sin-pedido',titulo:'Ventas confirmadas sin pedido',detalle:'No aparecen en Seguimiento ni en Almacén',filas:f5});
+
+  // 6 · Inventario en negativo (consumo fantasma)
+  const f6=[];
+  _inv.forEach(p=>{
+    if(!p)return;
+    const c=Number(p.cantidad);
+    if(!isNaN(c)&&c<0)f6.push({folio:p.sku||'',cliente:p.producto||'',nota:'existencia en '+c,accion:'inventario'});
+  });
+  f6.sort((a,b)=>parseFloat(a.nota.replace(/[^\-\d.]/g,''))-parseFloat(b.nota.replace(/[^\-\d.]/g,'')));
+  R.push({id:'inv-negativo',titulo:'Inventario en negativo',detalle:'Se descontó material de pedidos que después se borraron o duplicaron',filas:f6});
+
+  // 7 · Instalador capturado con teléfono u otro texto en vez de nombre
+  const f7=[];
+  _orders.forEach(o=>{
+    if(!o)return;
+    const n=String(o.instaladorNombre||'').trim();
+    if(!n)return;
+    if(/^\d[\d\s\-()]{6,}$/.test(n))f7.push({folio:o.num||'',cliente:o.cliente||'',nota:'instalador capturado como "'+n+'"',accion:'pedido'});
+  });
+  R.push({id:'instalador-sucio',titulo:'Instaladores con nombre inválido',detalle:'Quedó el teléfono en vez del nombre',filas:f7});
+
+  R.forEach(c=>{
+    c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo'].includes(c.id)?'alarma':'aviso');
+  });
+  return R;
+}
+
+function correrDiagnostico(){
+  const lista=document.getElementById('diag-lista');
+  if(!lista)return;
+  lista.innerHTML='<div style="text-align:center;padding:24px;color:#999;font-size:13px">Corriendo revisiones…</div>';
+  const det=document.getElementById('diag-detalle');if(det)det.innerHTML='';
+  setTimeout(()=>{
+    let res;
+    try{res=_diagChequeos();}
+    catch(e){lista.innerHTML='<div style="padding:16px;color:#c62828;font-size:13px">No se pudo correr el diagnóstico: '+(e&&e.message?e.message:'error')+'</div>';return;}
+    _diagUltimo=res;
+    const nAlarmas=res.filter(c=>c.nivel==='alarma').length;
+    const nAvisos=res.filter(c=>c.nivel==='aviso').length;
+    const nOk=res.filter(c=>c.nivel==='ok').length;
+    const nReg=res.reduce((s,c)=>s+c.filas.length,0);
+    const kpi=(v,t,bg,bd,col)=>'<div style="background:'+bg+';border:1px solid '+bd+';border-radius:8px;padding:12px"><div style="font-size:22px;font-weight:700;color:'+col+'">'+v+'</div><div style="font-size:12px;color:'+col+'">'+t+'</div></div>';
+    const kc=document.getElementById('diag-kpis');
+    if(kc)kc.innerHTML=kpi(nAlarmas,'alarmas activas','#FCEBEB','#F09595','#791F1F')
+      +kpi(nAvisos,'avisos','#FAEEDA','#EF9F27','#633806')
+      +kpi(nReg,'registros afectados','#f4f3ed','#ddd','#444')
+      +kpi(nOk,'chequeos en orden','#EAF3DE','#C0DD97','#27500A');
+    const hr=document.getElementById('diag-hora');
+    if(hr){const d=new Date(),p=n=>String(n).padStart(2,'0');hr.textContent='Última revisión: '+p(d.getHours())+':'+p(d.getMinutes());}
+    const orden={alarma:0,aviso:1,ok:2};
+    const cfg={alarma:{bd:'#F09595',ic:'⚠',col:'#791F1F',bg:'#FCEBEB'},aviso:{bd:'#EF9F27',ic:'●',col:'#633806',bg:'#FAEEDA'},ok:{bd:'#e5e5e0',ic:'✓',col:'#27500A',bg:'#EAF3DE'}};
+    let h='<div style="display:flex;flex-direction:column;gap:8px">';
+    res.slice().sort((a,b)=>orden[a.nivel]-orden[b.nivel]||b.filas.length-a.filas.length).forEach(c=>{
+      const k=cfg[c.nivel];
+      h+='<div style="border:1px solid '+k.bd+';border-radius:8px;background:#fff;padding:11px 13px;display:flex;align-items:center;gap:10px">'
+        +'<span style="font-size:15px;color:'+k.col+'">'+k.ic+'</span>'
+        +'<div style="flex:1;min-width:0"><div style="font-size:13px;color:#1a1a1a;font-weight:600">'+c.titulo+'</div>'
+        +'<div style="font-size:11px;color:#666">'+c.detalle+'</div></div>'
+        +(c.filas.length
+          ?'<span style="font-size:13px;font-weight:700;color:'+k.col+';background:'+k.bg+';border-radius:20px;padding:3px 11px">'+c.filas.length+'</span>'
+           +'<button onclick="verDetalleDiag(\''+c.id+'\')" style="padding:4px 12px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Ver</button>'
+          :'<span style="font-size:11px;color:#27500A">en orden</span>')
+        +'</div>';
+    });
+    h+='</div>';
+    lista.innerHTML=h;
+  },30);
+}
+
+function verDetalleDiag(id){
+  const det=document.getElementById('diag-detalle');
+  if(!det||!_diagUltimo)return;
+  const c=_diagUltimo.find(x=>x.id===id);
+  if(!c)return;
+  if(!c.filas.length){det.innerHTML='';return;}
+  let h='<div style="border:1px solid #e5e5e0;border-radius:8px;background:#fafaf7;padding:12px 14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<div style="font-size:13px;font-weight:700;color:#1a1a1a">'+c.titulo+' — '+c.filas.length+'</div>'
+    +'<button onclick="document.getElementById(\'diag-detalle\').innerHTML=\'\'" style="padding:3px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#666">Cerrar</button></div>'
+    +'<div style="display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto">';
+  c.filas.forEach(f=>{
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#fff;border:1px solid #eee;border-radius:8px">'
+      +'<div style="font-weight:700;color:#D85A30;font-size:12px;min-width:78px">'+(f.folio||'—')+'</div>'
+      +'<div style="flex:1;font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(f.cliente||'')+'</div>'
+      +'<div style="font-size:11px;color:#777;white-space:nowrap">'+(f.nota||'')+'</div>'
+      +_diagBotonAccion(f)
+      +'</div>';
+  });
+  h+='</div></div>';
+  det.innerHTML=h;
+  det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function _diagBotonAccion(f){
+  const b=(txt,fn)=>'<button onclick="'+fn+'" style="padding:3px 10px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">'+txt+'</button>';
+  const q=String(f.folio||'').replace(/"/g,'');
+  if(f.accion==='desbloquear')return b('Desbloquear','desbloquearFolioManual(&quot;'+q+'&quot;)');
+  if(f.accion==='factura')return b('Ir a factura','diagIrA(&quot;facturacion&quot;,&quot;'+q+'&quot;)');
+  if(f.accion==='venta')return b('Ir a venta','diagIrA(&quot;ventas&quot;,&quot;'+q+'&quot;)');
+  if(f.accion==='inventario')return b('Ir a inventario','diagIrA(&quot;inventario&quot;,&quot;'+q+'&quot;)');
+  return b('Ir al pedido','diagIrA(&quot;dashboard&quot;,&quot;'+q+'&quot;)');
+}
+
+function diagIrA(tab,folio){
+  const btn=document.getElementById('nav-'+(tab==='dashboard'?'dashboard':tab));
+  if(btn&&typeof cambiarTab==='function'){cambiarTab(tab,btn);}
+  setTimeout(()=>{
+    const ids={facturacion:'buscar-fact',ventas:'buscar-venta',inventario:'buscar-inv',dashboard:'buscar'};
+    const el=document.getElementById(ids[tab]);
+    if(el){el.value=folio;el.dispatchEvent(new Event('input',{bubbles:true}));}
+  },220);
+}
+
 function _syncPedidosEliminados(arr){
   if(typeof supabaseClient!=='undefined'&&supabaseClient){
     try{
