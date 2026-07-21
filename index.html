@@ -1069,7 +1069,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.03';
+const APP_VERSION='2026.07.21.04';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -12583,7 +12583,7 @@ function renderComisiones(){
   // Conteos para las pestañas
   const _cTodas=filas.length,_cLib=filas.filter(f=>f.estado==='LIB'&&!_esEfe(f)).length,_cPend=filas.filter(f=>f.estado!=='LIB'&&!_esEfe(f)).length,_cEfe=filas.filter(_esEfe).length,_cArr=filas.filter(f=>f.arrastre&&f.estado==='LIB').length;
   const _chip=(id,lbl,n)=>{const on=comFiltroEstado===id;return `<span onclick="comSetEstado('${id}')" style="cursor:pointer;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:${on?'700':'500'};${on?'background:#fff;border:2px solid #D85A30;color:#993C1D':'background:#f7f6f2;border:1px solid #e5e5e0;color:#666'}">${lbl} <span style="opacity:.6">${n}</span></span>`;};
-  const chipsHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${_chip('todas','Todas',_cTodas)}${_chip('lib','Liberadas',_cLib)}${_chip('pend','Por cobrar',_cPend)}${_chip('efe','Efectivo',_cEfe)}${_chip('arr','Arrastre',_cArr)}</div>`;
+  const chipsHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${_chip('todas','Todas',_cTodas)}${_chip('lib','Pagadas',_cLib)}${_chip('pend','Por cobrar',_cPend)}${_chip('efe','Efectivo',_cEfe)}${_chip('arr','Arrastre',_cArr)}</div>`;
   const filasHTML=filasVista.length?filasVista.map(f=>{
     const num=f.v.num;
     // Color del folio según entrega del pedido en Seguimiento: verde = ya entregado
@@ -12595,7 +12595,7 @@ function renderComisiones(){
     const pagosHTML=comPagosFacturaHTML(f.fac);
     const ptotal='';
     let estadoHTML,comHTML;
-    if(f.estado==='LIB'){estadoHTML=`<span class="com-badge com-blib">LIBERADA</span>`;comHTML=`<span style="font-weight:800;color:#3B6D11;white-space:nowrap">${money(f.comTot)} ${f.mon}</span>`;}
+    if(f.estado==='LIB'){estadoHTML=`<span class="com-badge com-blib">PAGADA</span>`;comHTML=`<span style="font-weight:800;color:#3B6D11;white-space:nowrap">${money(f.comTot)} ${f.mon}</span>`;}
     else if(f.estado==='LIBOTRA'){estadoHTML=`<span class="com-badge com-bgris">→ lib. en ${comBimLabel(f.ordLib)}</span>`;comHTML=`<span style="font-weight:700;color:#bbb;white-space:nowrap">${money(f.comTot)} ${f.mon}</span>`;}
     else{estadoHTML='';comHTML=`<span style="font-weight:700;color:#aaa;white-space:nowrap">${money(f.comTot)} ${f.mon}*</span>`;}
     const arr=f.arrastre&&f.estado==='LIB'?`<span style="font-size:10px;color:#BA7517;font-weight:700;display:block">↩ venta de ${comBimLabel(f.ordV)}</span>`:'';
@@ -12623,10 +12623,10 @@ function renderComisiones(){
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
-      <div class="com-kpi"><div class="lab">Liberadas · ${comBimLabel(comFiltroBim)}</div><div class="val" style="color:#3B6D11">${money(libUSD)} USD</div><div class="val2" style="color:#3B6D11">${money(libMXN)} MXN</div><div class="sub">${nLib} ventas cobradas al 100%${nArr?` · ${nArr} de arrastre ↩`:''}</div></div>
+      <div class="com-kpi"><div class="lab">Pagadas · ${comBimLabel(comFiltroBim)}</div><div class="val" style="color:#3B6D11">${money(libUSD)} USD</div><div class="val2" style="color:#3B6D11">${money(libMXN)} MXN</div><div class="sub">${nLib} ventas cobradas al 100%${nArr?` · ${nArr} de arrastre ↩`:''}</div></div>
       <div class="com-kpi"><div class="lab">Pendientes (se arrastran)</div><div class="val" style="color:#BA7517">${money(pendUSD)} USD</div><div class="val2" style="color:#BA7517">${money(pendMXN)} MXN</div><div class="sub">${nPend} ventas sin 100%</div></div>
       <div class="com-kpi"><div class="lab">💵 Pagada en efectivo</div><div class="val" style="color:#0F6E56">${money(efeUSD)} USD</div><div class="val2" style="color:#0F6E56">${money(efeMXN)} MXN</div><div class="sub">${nEfe} ventas liquidadas aparte</div></div>
-      <div class="com-kpi"><div class="lab">Equivalente liberado en MXN</div><div class="val">${money(libUSD*tc+libMXN)} MXN</div><div class="sub">USD × TC DOF + MXN · solo referencia</div></div>
+      <div class="com-kpi"><div class="lab">Equivalente pagado en MXN</div><div class="val">${money(libUSD*tc+libMXN)} MXN</div><div class="sub">USD × TC DOF + MXN · solo referencia</div></div>
     </div>
     </div>
     ${chipsHTML}
@@ -12635,7 +12635,7 @@ function renderComisiones(){
       <tbody>${filasHTML}</tbody>
       
     </table></div>
-    <div style="margin-top:12px;font-size:12px;color:#999;line-height:1.6">* Proyección: lo que valdrá al completar el 100%; no suma a liberadas. · La comisión se muestra en la moneda de cada venta (USD o MXN); el equivalente en MXN usa el TC DOF como referencia. · Los pagos vienen de Facturación: la comisión se libera cuando la factura se marca Pagada. · Lo pendiente pasa automático al siguiente bimestre.</div>`;
+    <div style="margin-top:12px;font-size:12px;color:#999;line-height:1.6">* Proyección: lo que valdrá al completar el 100%; no suma a pagadas. · La comisión se muestra en la moneda de cada venta (USD o MXN); el equivalente en MXN usa el TC DOF como referencia. · Los pagos vienen de Facturación: la comisión se libera cuando la factura se marca Pagada. · Lo pendiente pasa automático al siguiente bimestre.</div>`;
 }
 /* ── Modal de pago ── */
 var _comPagoCtx=null;
