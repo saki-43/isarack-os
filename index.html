@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.13';
+const APP_VERSION='2026.07.21.14';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7577,6 +7577,25 @@ function _registrarFalloSync(op,tabla,clave,motivo,definitivo){
     showToast('⚠ NO se guardó en la nube: '+tabla+' '+(clave||'')+' — revisa Diagnóstico','#c62828');
   }
 }
+function reintentarAtorados(){
+  if(!Array.isArray(window.cloudQueue)||!cloudQueue.length){
+    if(typeof showToast==='function')showToast('No hay nada pendiente','#555');return;
+  }
+  let n=0;
+  cloudQueue.forEach(it=>{
+    if(!it)return;
+    it.atorado=false;
+    if(it.data&&typeof it.data==='object'){it.data._reintentos=0;delete it.data._atorado;}
+    n++;
+  });
+  guardarLS('isarack_cloud_queue',cloudQueue);
+  if(typeof showToast==='function')showToast('Reintentando '+n+' pendiente(s)…','#185FA5');
+  if(typeof procesarCloudQueue==='function')procesarCloudQueue();
+  setTimeout(()=>{if(typeof correrDiagnostico==='function')correrDiagnostico();},2500);
+}
+function _pendientesCola(){
+  try{return Array.isArray(window.cloudQueue)?cloudQueue.length:0;}catch(e){return 0;}
+}
 function limpiarFallosSync(){
   try{localStorage.removeItem(FALLOS_SYNC_KEY);}catch(e){}
   if(typeof showToast==='function')showToast('Historial de fallos limpiado','#3B6D11');
@@ -7584,23 +7603,33 @@ function limpiarFallosSync(){
 }
 
 function encolar(op,tabla,data,extra){
-  const _maxReintentos=3;
+  // NUNCA se descarta trabajo del usuario (jul 2026). Antes, tras 3 reintentos fallidos la
+  // operación se TIRABA en silencio: Daniel capturaba medio día, la subida fallaba y el
+  // trabajo moría sin que nadie se enterara. Ahora, al pasar el tope, la operación se queda
+  // ATORADA en la cola (no se pierde), se avisa al usuario y sale en Diagnóstico con botón
+  // para reintentar a mano. Se deja de reintentar sola para no ciclar sobre un payload
+  // inválido, pero el dato sigue ahí hasta que alguien lo resuelva.
+  const _maxReintentos=6;
   const _reintentos=(data&&data._reintentos)||0;
-  if(_reintentos>=_maxReintentos){
-    console.warn('⚠ Descartando operación '+op+' en '+tabla+' tras '+_maxReintentos+' reintentos');
-    const _cl=(data&&(data.pedido||data.num||data.sku||data.clave))||'';
-    _registrarFalloSync(op,tabla,_cl,'descartada tras '+_maxReintentos+' reintentos',true);
-    updateCloudIndicator();return;
-  }
+  const _cl=(data&&(data.pedido||data.num||data.sku||data.clave))||'';
   if(data&&typeof data==='object')data._reintentos=_reintentos+1;
-  cloudQueue.push({op,tabla,data,extra,fecha:Date.now()});
+  const _atorado=(_reintentos+1)>=_maxReintentos;
+  if(_atorado&&data&&typeof data==='object')data._atorado=true;
+  cloudQueue.push({op,tabla,data,extra,fecha:Date.now(),atorado:_atorado});
   guardarLS('isarack_cloud_queue',cloudQueue);
+  if(_atorado){
+    console.warn('⚠ Operación ATORADA (no se pierde) '+op+' en '+tabla+' '+_cl);
+    _registrarFalloSync(op,tabla,_cl,'atorada tras '+_maxReintentos+' intentos — pendiente de reintentar',true);
+  }
   updateCloudIndicator();
 }
 
 // Procesa la cola de pendientes
 async function procesarCloudQueue(){
   if(!supabaseClient||cloudStatus!=='online'||!cloudQueue.length)return;
+  // Los atorados no se reintentan solos (evita ciclar sobre un payload invalido),
+  // pero SIGUEN en la cola: se reintentan a mano desde Diagnostico.
+
   const queue=cloudQueue.slice();
   cloudQueue=[];
   guardarLS('isarack_cloud_queue',cloudQueue);
@@ -12078,7 +12107,10 @@ function _diagChequeos(){
         nota:(x.definitivo?'PERDIDO · ':'reintentando · ')+(x.motivo||'')+(d?' · '+d:''),accion:'ninguna'});
     });
   }
-  R.push({id:'fallos-sync',titulo:'Cambios que no llegaron a la nube',detalle:'Se guardaron en el equipo pero la subida falló; los marcados PERDIDO ya se descartaron',filas:f8});
+  const _nCola=(typeof _pendientesCola==='function')?_pendientesCola():0;
+  if(_nCola>0)f8.unshift({folio:_nCola+' pendiente(s)',cliente:'siguen guardados en este equipo',
+    nota:'nada se pierde · usa Reintentar pendientes',accion:'reintentar'});
+  R.push({id:'fallos-sync',titulo:'Cambios que no llegaron a la nube',detalle:'Se guardaron en el equipo y siguen en cola; ninguno se descarta',filas:f8});
 
   R.forEach(c=>{
     c.atendidas=c.filas.filter(f=>!!_diagAtendidos[_diagClave(c.id,f.folio)]);
@@ -12216,6 +12248,7 @@ function _diagBotonAccion(f){
   if(f.accion==='factura')return b('Ir a factura','diagIrA(&quot;facturacion&quot;,&quot;'+q+'&quot;)');
   if(f.accion==='venta')return b('Ir a venta','diagIrA(&quot;ventas&quot;,&quot;'+q+'&quot;)');
   if(f.accion==='inventario')return b('Ir a inventario','diagIrA(&quot;inventario&quot;,&quot;'+q+'&quot;)');
+  if(f.accion==='reintentar')return b('Reintentar pendientes','reintentarAtorados()');
   if(f.accion==='ninguna')return '<span></span>';
   return b('Ir al pedido','diagIrA(&quot;dashboard&quot;,&quot;'+q+'&quot;)');
 }
