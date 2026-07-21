@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.09';
+const APP_VERSION='2026.07.21.10';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11910,8 +11910,42 @@ function desbloquearFolioManual(num){
 // ══ DIAGNÓSTICO DEL SISTEMA (solo admin) ══
 // Corre las mismas verificaciones que antes se hacían a mano en SQL. Cada chequeo
 // devuelve {id,titulo,detalle,nivel,filas[]}. nivel: 'alarma' | 'aviso' | 'ok'.
-// Filosofía tipo PLC: la falla se engancha y se ve, no pasa callada.
+// Filosofía tipo PLC: la falla se engancha y se ve, no pasa callada. Y como algunas
+// nunca se van a poder arreglar (un pedido viejo entregado sin firma no va a
+// conseguir la firma), se pueden marcar como atendidas con nota y fecha para que
+// la alarma no se vuelva ruido de fondo que se deja de mirar.
 let _diagUltimo=null;
+let _diagAtendidos={};
+const DIAG_AT_KEY='isarack_diag_atendidos';
+
+function _diagClave(idChequeo,folio){return idChequeo+'|'+String(folio||'');}
+function _diagCargarAtendidos(){
+  try{const o=JSON.parse(localStorage.getItem(DIAG_AT_KEY)||'{}');_diagAtendidos=(o&&typeof o==='object')?o:{};}catch(e){_diagAtendidos={};}
+}
+function _diagGuardarAtendidos(){
+  try{localStorage.setItem(DIAG_AT_KEY,JSON.stringify(_diagAtendidos));}catch(e){}
+  if(typeof supabaseClient!=='undefined'&&supabaseClient){
+    try{
+      supabaseClient.from('empresa_config').upsert({clave:'diag_atendidos',valor:JSON.stringify(_diagAtendidos),updated_at:new Date().toISOString()},{onConflict:'clave'}).then(({error})=>{
+        if(error)console.warn('No se pudo subir diag_atendidos:',error.message);
+      });
+    }catch(e){}
+  }
+}
+async function _diagBajarAtendidos(){
+  if(typeof supabaseClient==='undefined'||!supabaseClient)return;
+  try{
+    const {data}=await supabaseClient.from('empresa_config').select('valor').eq('clave','diag_atendidos').maybeSingle();
+    if(!data||!data.valor)return;
+    let v=data.valor;
+    if(typeof v==='string'){try{v=JSON.parse(v);}catch(e){}}
+    if(typeof v==='string'){try{v=JSON.parse(v);}catch(e){}}
+    if(v&&typeof v==='object'&&!Array.isArray(v)){
+      _diagAtendidos=v;
+      try{localStorage.setItem(DIAG_AT_KEY,JSON.stringify(v));}catch(e){}
+    }
+  }catch(e){}
+}
 
 function _diagChequeos(){
   const R=[];
@@ -11920,18 +11954,15 @@ function _diagChequeos(){
   const _facturas=Array.isArray(window.facturas)?facturas:[];
   const _inv=Array.isArray(window.inventario)?inventario:[];
 
-  // 1 · Folios bloqueados que tienen venta confirmada
   const bloq=(typeof getPedidosEliminados==='function')?getPedidosEliminados().map(String):[];
   const f1=[];
   bloq.forEach(n=>{
     const v=_ventas.find(x=>x&&String(x.num)===n);
     if(!v||v._historica)return;
-    const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada';
-    if(esVenta)f1.push({folio:n,cliente:v.cliente||'',nota:'bloqueado con venta confirmada',accion:'desbloquear'});
+    if((v.tipo==='Venta')||v.estatus==='Confirmada')f1.push({folio:n,cliente:v.cliente||'',nota:'bloqueado con venta confirmada',accion:'desbloquear'});
   });
-  R.push({id:'bloqueados',titulo:'Folios bloqueados con venta confirmada',detalle:'El pedido existe en la nube pero se borra de la app en cada sincronización',filas:f1});
+  R.push({id:'bloqueados',titulo:'Folios bloqueados con venta confirmada',detalle:'El pedido existe en la nube pero se borra de la app en cada sincronización',filas:f1,arreglable:true,arreglarTxt:'Desbloquear todos'});
 
-  // 2 · Facturas marcadas pagadas sin monto de cobro capturado
   const f2=[];
   _facturas.forEach(f=>{
     if(!f||!f.pagado)return;
@@ -11941,7 +11972,6 @@ function _diagChequeos(){
   });
   R.push({id:'pagadas-sin-monto',titulo:'Facturas pagadas sin monto capturado',detalle:'Liberan comisión sin respaldo de cobro',filas:f2});
 
-  // 3 · Referencias de archivo que ya no existen en Storage
   const CAMPOS=['fotosAvance','fotosTerminacion','fotosEntrega','planos','pdfsRecepcion','pdfsPresupuesto'];
   const f3=[];
   _orders.forEach(o=>{
@@ -11950,14 +11980,12 @@ function _diagChequeos(){
       if(!Array.isArray(o[c]))return;
       o[c].forEach(a=>{
         if(!a||typeof a!=='object')return;
-        const rota=(a._roto===true)||(a.path&&!a.data&&!a.url&&!a._enNube);
-        if(rota)f3.push({folio:o.num||'',cliente:o.cliente||'',nota:c+' · '+(a.name||'sin nombre'),accion:'pedido'});
+        if((a._roto===true)||(a.path&&!a.data&&!a.url&&!a._enNube))f3.push({folio:o.num||'',cliente:o.cliente||'',nota:c+' · '+(a.name||'sin nombre'),accion:'pedido'});
       });
     });
   });
   R.push({id:'archivos-rotos',titulo:'Archivos con referencia rota',detalle:'La referencia sigue en el pedido pero el archivo ya no está',filas:f3});
 
-  // 4 · Pedidos completados sin firma del cliente
   const f4=[];
   _orders.forEach(o=>{
     if(!o||o.estatus!=='Completado')return;
@@ -11966,38 +11994,35 @@ function _diagChequeos(){
   });
   R.push({id:'sin-firma',titulo:'Pedidos completados sin firma',detalle:'Se marcaron entregados sin el documento que lo respalda',filas:f4});
 
-  // 5 · Ventas confirmadas que nunca generaron pedido
   const f5=[];
   _ventas.forEach(v=>{
     if(!v||!v.num||v._historica)return;
-    const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada';
-    if(!esVenta)return;
+    if(!((v.tipo==='Venta')||v.estatus==='Confirmada'))return;
     if(_orders.some(o=>o&&o.num===v.num))return;
     f5.push({folio:v.num,cliente:v.cliente||'',nota:'venta confirmada sin pedido en Seguimiento',accion:'venta'});
   });
   R.push({id:'ventas-sin-pedido',titulo:'Ventas confirmadas sin pedido',detalle:'No aparecen en Seguimiento ni en Almacén',filas:f5});
 
-  // 6 · Inventario en negativo (consumo fantasma)
   const f6=[];
   _inv.forEach(p=>{
     if(!p)return;
     const c=Number(p.cantidad);
-    if(!isNaN(c)&&c<0)f6.push({folio:p.sku||'',cliente:p.producto||'',nota:'existencia en '+c,accion:'inventario'});
+    if(!isNaN(c)&&c<0)f6.push({folio:p.sku||'',cliente:p.producto||'',nota:'existencia en '+c,accion:'inventario',_ord:c});
   });
-  f6.sort((a,b)=>parseFloat(a.nota.replace(/[^\-\d.]/g,''))-parseFloat(b.nota.replace(/[^\-\d.]/g,'')));
+  f6.sort((a,b)=>a._ord-b._ord);
   R.push({id:'inv-negativo',titulo:'Inventario en negativo',detalle:'Se descontó material de pedidos que después se borraron o duplicaron',filas:f6});
 
-  // 7 · Instalador capturado con teléfono u otro texto en vez de nombre
   const f7=[];
   _orders.forEach(o=>{
     if(!o)return;
     const n=String(o.instaladorNombre||'').trim();
-    if(!n)return;
-    if(/^\d[\d\s\-()]{6,}$/.test(n))f7.push({folio:o.num||'',cliente:o.cliente||'',nota:'instalador capturado como "'+n+'"',accion:'pedido'});
+    if(n&&/^\d[\d\s\-()]{6,}$/.test(n))f7.push({folio:o.num||'',cliente:o.cliente||'',nota:'instalador capturado como "'+n+'"',accion:'pedido'});
   });
   R.push({id:'instalador-sucio',titulo:'Instaladores con nombre inválido',detalle:'Quedó el teléfono en vez del nombre',filas:f7});
 
   R.forEach(c=>{
+    c.atendidas=c.filas.filter(f=>!!_diagAtendidos[_diagClave(c.id,f.folio)]);
+    c.filas=c.filas.filter(f=>!_diagAtendidos[_diagClave(c.id,f.folio)]);
     c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo'].includes(c.id)?'alarma':'aviso');
   });
   return R;
@@ -12008,41 +12033,50 @@ function correrDiagnostico(){
   if(!lista)return;
   lista.innerHTML='<div style="text-align:center;padding:24px;color:#999;font-size:13px">Corriendo revisiones…</div>';
   const det=document.getElementById('diag-detalle');if(det)det.innerHTML='';
-  setTimeout(()=>{
-    let res;
-    try{res=_diagChequeos();}
-    catch(e){lista.innerHTML='<div style="padding:16px;color:#c62828;font-size:13px">No se pudo correr el diagnóstico: '+(e&&e.message?e.message:'error')+'</div>';return;}
-    _diagUltimo=res;
-    const nAlarmas=res.filter(c=>c.nivel==='alarma').length;
-    const nAvisos=res.filter(c=>c.nivel==='aviso').length;
-    const nOk=res.filter(c=>c.nivel==='ok').length;
-    const nReg=res.reduce((s,c)=>s+c.filas.length,0);
-    const kpi=(v,t,bg,bd,col)=>'<div style="background:'+bg+';border:1px solid '+bd+';border-radius:8px;padding:12px"><div style="font-size:22px;font-weight:700;color:'+col+'">'+v+'</div><div style="font-size:12px;color:'+col+'">'+t+'</div></div>';
-    const kc=document.getElementById('diag-kpis');
-    if(kc)kc.innerHTML=kpi(nAlarmas,'alarmas activas','#FCEBEB','#F09595','#791F1F')
-      +kpi(nAvisos,'avisos','#FAEEDA','#EF9F27','#633806')
-      +kpi(nReg,'registros afectados','#f4f3ed','#ddd','#444')
-      +kpi(nOk,'chequeos en orden','#EAF3DE','#C0DD97','#27500A');
-    const hr=document.getElementById('diag-hora');
-    if(hr){const d=new Date(),p=n=>String(n).padStart(2,'0');hr.textContent='Última revisión: '+p(d.getHours())+':'+p(d.getMinutes());}
-    const orden={alarma:0,aviso:1,ok:2};
-    const cfg={alarma:{bd:'#F09595',ic:'⚠',col:'#791F1F',bg:'#FCEBEB'},aviso:{bd:'#EF9F27',ic:'●',col:'#633806',bg:'#FAEEDA'},ok:{bd:'#e5e5e0',ic:'✓',col:'#27500A',bg:'#EAF3DE'}};
-    let h='<div style="display:flex;flex-direction:column;gap:8px">';
-    res.slice().sort((a,b)=>orden[a.nivel]-orden[b.nivel]||b.filas.length-a.filas.length).forEach(c=>{
-      const k=cfg[c.nivel];
-      h+='<div style="border:1px solid '+k.bd+';border-radius:8px;background:#fff;padding:11px 13px;display:flex;align-items:center;gap:10px">'
-        +'<span style="font-size:15px;color:'+k.col+'">'+k.ic+'</span>'
-        +'<div style="flex:1;min-width:0"><div style="font-size:13px;color:#1a1a1a;font-weight:600">'+c.titulo+'</div>'
-        +'<div style="font-size:11px;color:#666">'+c.detalle+'</div></div>'
-        +(c.filas.length
-          ?'<span style="font-size:13px;font-weight:700;color:'+k.col+';background:'+k.bg+';border-radius:20px;padding:3px 11px">'+c.filas.length+'</span>'
-           +'<button onclick="verDetalleDiag(\''+c.id+'\')" style="padding:4px 12px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Ver</button>'
-          :'<span style="font-size:11px;color:#27500A">en orden</span>')
-        +'</div>';
-    });
-    h+='</div>';
-    lista.innerHTML=h;
-  },30);
+  _diagCargarAtendidos();
+  _diagBajarAtendidos().then(_pintarDiagnostico).catch(_pintarDiagnostico);
+}
+
+function _pintarDiagnostico(){
+  const lista=document.getElementById('diag-lista');
+  if(!lista)return;
+  let res;
+  try{res=_diagChequeos();}
+  catch(e){lista.innerHTML='<div style="padding:16px;color:#c62828;font-size:13px">No se pudo correr el diagnóstico: '+(e&&e.message?e.message:'error')+'</div>';return;}
+  _diagUltimo=res;
+  const nAlarmas=res.filter(c=>c.nivel==='alarma').length;
+  const nAvisos=res.filter(c=>c.nivel==='aviso').length;
+  const nOk=res.filter(c=>c.nivel==='ok').length;
+  const nReg=res.reduce((s,c)=>s+c.filas.length,0);
+  const nAt=res.reduce((s,c)=>s+c.atendidas.length,0);
+  const kpi=(v,t,bg,bd,col)=>'<div style="background:'+bg+';border:1px solid '+bd+';border-radius:8px;padding:12px"><div style="font-size:22px;font-weight:700;color:'+col+'">'+v+'</div><div style="font-size:12px;color:'+col+'">'+t+'</div></div>';
+  const kc=document.getElementById('diag-kpis');
+  if(kc)kc.innerHTML=kpi(nAlarmas,'alarmas activas','#FCEBEB','#F09595','#791F1F')
+    +kpi(nAvisos,'avisos','#FAEEDA','#EF9F27','#633806')
+    +kpi(nReg,'registros pendientes','#f4f3ed','#ddd','#444')
+    +kpi(nAt,'ya revisados','#E6F1FB','#b5cce8','#0C447C')
+    +kpi(nOk,'chequeos en orden','#EAF3DE','#C0DD97','#27500A');
+  const hr=document.getElementById('diag-hora');
+  if(hr){const d=new Date(),p=n=>String(n).padStart(2,'0');hr.textContent='Última revisión: '+p(d.getHours())+':'+p(d.getMinutes());}
+  const orden={alarma:0,aviso:1,ok:2};
+  const cfg={alarma:{bd:'#F09595',ic:'⚠',col:'#791F1F',bg:'#FCEBEB'},aviso:{bd:'#EF9F27',ic:'●',col:'#633806',bg:'#FAEEDA'},ok:{bd:'#e5e5e0',ic:'✓',col:'#27500A',bg:'#EAF3DE'}};
+  let h='<div style="display:flex;flex-direction:column;gap:8px">';
+  res.slice().sort((a,b)=>orden[a.nivel]-orden[b.nivel]||b.filas.length-a.filas.length).forEach(c=>{
+    const k=cfg[c.nivel];
+    h+='<div style="border:1px solid '+k.bd+';border-radius:8px;background:#fff;padding:11px 13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<span style="font-size:15px;color:'+k.col+'">'+k.ic+'</span>'
+      +'<div style="flex:1;min-width:160px"><div style="font-size:13px;color:#1a1a1a;font-weight:600">'+c.titulo+'</div>'
+      +'<div style="font-size:11px;color:#666">'+c.detalle+(c.atendidas.length?' · '+c.atendidas.length+' ya revisado(s)':'')+'</div></div>'
+      +(c.filas.length
+        ?'<span style="font-size:13px;font-weight:700;color:'+k.col+';background:'+k.bg+';border-radius:20px;padding:3px 11px">'+c.filas.length+'</span>'
+         +(c.arreglable?'<button onclick="arreglarTodoDiag(\''+c.id+'\')" style="padding:4px 12px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">'+(c.arreglarTxt||'Arreglar')+'</button>':'')
+         +'<button onclick="verDetalleDiag(\''+c.id+'\')" style="padding:4px 12px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Ver</button>'
+        :'<span style="font-size:11px;color:#27500A">en orden</span>'
+         +(c.atendidas.length?' <button onclick="verDetalleDiag(\''+c.id+'\')" style="padding:4px 10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer">Ver revisados</button>':''))
+      +'</div>';
+  });
+  h+='</div>';
+  lista.innerHTML=h;
 }
 
 function verDetalleDiag(id){
@@ -12050,23 +12084,69 @@ function verDetalleDiag(id){
   if(!det||!_diagUltimo)return;
   const c=_diagUltimo.find(x=>x.id===id);
   if(!c)return;
-  if(!c.filas.length){det.innerHTML='';return;}
+  if(!c.filas.length&&!c.atendidas.length){det.innerHTML='';return;}
   let h='<div style="border:1px solid #e5e5e0;border-radius:8px;background:#fafaf7;padding:12px 14px">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-    +'<div style="font-size:13px;font-weight:700;color:#1a1a1a">'+c.titulo+' — '+c.filas.length+'</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#1a1a1a">'+c.titulo+'</div>'
     +'<button onclick="document.getElementById(\'diag-detalle\').innerHTML=\'\'" style="padding:3px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#666">Cerrar</button></div>'
-    +'<div style="display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto">';
+    +'<div style="display:flex;flex-direction:column;gap:5px;max-height:440px;overflow:auto">';
   c.filas.forEach(f=>{
-    h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#fff;border:1px solid #eee;border-radius:8px">'
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#fff;border:1px solid #eee;border-radius:8px;flex-wrap:wrap">'
       +'<div style="font-weight:700;color:#D85A30;font-size:12px;min-width:78px">'+(f.folio||'—')+'</div>'
-      +'<div style="flex:1;font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(f.cliente||'')+'</div>'
+      +'<div style="flex:1;min-width:120px;font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(f.cliente||'')+'</div>'
       +'<div style="font-size:11px;color:#777;white-space:nowrap">'+(f.nota||'')+'</div>'
       +_diagBotonAccion(f)
+      +'<button onclick="marcarRevisadoDiag(&quot;'+c.id+'&quot;,&quot;'+String(f.folio||'').replace(/"/g,'')+'&quot;)" style="padding:3px 10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap">Ya lo revisé</button>'
       +'</div>';
   });
+  if(c.atendidas.length){
+    h+='<div style="font-size:11px;color:#888;margin-top:8px;padding-top:8px;border-top:1px solid #e5e5e0">Ya revisados</div>';
+    c.atendidas.forEach(f=>{
+      const a=_diagAtendidos[_diagClave(c.id,f.folio)]||{};
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f7f7f4;border:1px solid #eee;border-radius:8px;flex-wrap:wrap;opacity:.85">'
+        +'<div style="font-weight:700;color:#888;font-size:12px;min-width:78px">'+(f.folio||'—')+'</div>'
+        +'<div style="flex:1;min-width:120px;font-size:12px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.nota||'sin nota')+'</div>'
+        +'<div style="font-size:11px;color:#999;white-space:nowrap">'+(a.fecha||'')+(a.usuario?' · '+a.usuario:'')+'</div>'
+        +'<button onclick="reabrirRevisadoDiag(&quot;'+c.id+'&quot;,&quot;'+String(f.folio||'').replace(/"/g,'')+'&quot;)" style="padding:3px 10px;background:#fff;color:#185FA5;border:1px solid #c5d8ea;border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap">Reabrir</button>'
+        +'</div>';
+    });
+  }
   h+='</div></div>';
   det.innerHTML=h;
   det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function marcarRevisadoDiag(id,folio){
+  const nota=prompt('¿Por qué se queda así? (queda registrado con fecha)\n\n'+folio);
+  if(nota===null)return;
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  let quien='';
+  try{quien=(window.usuarioActual&&(usuarioActual.nombre||usuarioActual.usuario))||'';}catch(e){}
+  _diagAtendidos[_diagClave(id,folio)]={nota:(nota||'').trim()||'sin nota',fecha:p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear(),usuario:quien};
+  _diagGuardarAtendidos();
+  if(typeof showToast==='function')showToast('Marcado como revisado','#3B6D11');
+  _pintarDiagnostico();
+  verDetalleDiag(id);
+}
+function reabrirRevisadoDiag(id,folio){
+  delete _diagAtendidos[_diagClave(id,folio)];
+  _diagGuardarAtendidos();
+  _pintarDiagnostico();
+  verDetalleDiag(id);
+}
+
+// Solo para chequeos donde el arreglo es REVERSIBLE y no ambiguo. Hoy: folios bloqueados.
+// Nunca en lote sobre inventario, montos o firmas — ahí un arreglo masivo mal hecho hace
+// más daño que el error que corrige.
+function arreglarTodoDiag(id){
+  if(id!=='bloqueados')return;
+  const c=_diagUltimo?_diagUltimo.find(x=>x.id===id):null;
+  if(!c||!c.filas.length)return;
+  const lista=c.filas.map(f=>f.folio+' · '+(f.cliente||'')).join('\n');
+  if(!confirm('Se van a desbloquear '+c.filas.length+' folio(s):\n\n'+lista+'\n\nVolverán a aparecer en Seguimiento. Es reversible.'))return;
+  c.filas.forEach(f=>{if(typeof desmarcarPedidoEliminado==='function')desmarcarPedidoEliminado(String(f.folio));});
+  if(typeof showToast==='function')showToast('Desbloqueados '+c.filas.length,'#3B6D11');
+  _pintarDiagnostico();
 }
 
 function _diagBotonAccion(f){
