@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.15';
+const APP_VERSION='2026.07.21.16';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -2159,7 +2159,7 @@ async function checarVersion(){
       try{
         if(sessionStorage.getItem('isarack_retry_ver')!==remota){
           sessionStorage.setItem('isarack_retry_ver',remota);
-          setTimeout(()=>{try{if(_cmpVer(window.__verLive||remota,APP_VERSION)>0)actualizarApp();}catch(e){}},75000);
+          setTimeout(()=>{try{if(_cmpVer(window.__verLive||remota,APP_VERSION)>0){if(typeof _hayTrabajoEnCurso==='function'&&_hayTrabajoEnCurso()){_actualizarCuandoSePueda(0);}else{actualizarApp();}}}catch(e){}},75000);
         }
       }catch(e){}
     }else{
@@ -2176,6 +2176,38 @@ async function checarVersion(){
     }
   }catch(e){}
 }
+// ── NO RECARGAR ENCIMA DEL TRABAJO DE LA GENTE (jul 2026) ──
+// El banner de actualizar recargaba SOLO a los 20s (y otro reintento a los 75s). Si alguien
+// estaba capturando una cotización, la página se le recargaba a media captura y el formulario
+// volvía a lo último guardado: "hago la cotización y cuando fuerzan la versión se me regresa".
+// Ahora la recarga automática espera a que la persona termine. El botón manual sigue igual.
+function _hayTrabajoEnCurso(){
+  try{
+    const m=document.getElementById('modal');
+    if(m&&m.style.display&&m.style.display!=='none')return true;
+    if(document.querySelector('.modal-bg.open,.ov.open,.overlay.open'))return true;
+    const a=document.activeElement;
+    if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable))return true;
+    if(typeof cloudQueue!=='undefined'&&Array.isArray(cloudQueue)){
+      if(cloudQueue.some(it=>it&&!it.atorado))return true; // hay cambios sin subir
+    }
+  }catch(e){}
+  return false;
+}
+function _actualizarCuandoSePueda(intento){
+  intento=intento||0;
+  const b=document.getElementById('update-banner');
+  if(!b)return; // ya actualizó o se cerró
+  if(_hayTrabajoEnCurso()&&intento<60){
+    const t=document.getElementById('update-banner-txt');
+    if(t)t.textContent='✨ Versión nueva lista — se actualiza en cuanto termines';
+    setTimeout(function(){_actualizarCuandoSePueda(intento+1);},15000);
+    return;
+  }
+  const t=document.getElementById('update-banner-txt');
+  if(t)t.textContent='✨ Actualizando el sistema…';
+  actualizarApp();
+}
 function mostrarBannerActualizar(remota){
   const ex=document.getElementById('update-banner');
   if(ex){const t=document.getElementById('update-banner-txt');if(t&&remota)t.textContent='✨ Hay una versión nueva del sistema';return;}
@@ -2185,7 +2217,7 @@ function mostrarBannerActualizar(remota){
   div.innerHTML='<span id="update-banner-txt">✨ Hay una versión nueva del sistema</span> <button onclick="actualizarApp()" style="background:#fff;color:#185FA5;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer">⬆ Actualizar ahora</button>';
   document.body.appendChild(div);
   // Auto-actualiza a los 20 segundos si la persona no le dio clic (para que nadie se quede rezagado)
-  try{setTimeout(function(){if(document.getElementById('update-banner')){var t=document.getElementById('update-banner-txt');if(t)t.textContent='✨ Actualizando el sistema…';actualizarApp();}},20000);}catch(e){}
+  try{setTimeout(function(){_actualizarCuandoSePueda(0);},20000);}catch(e){}
 }
 async function actualizarApp(){
   // ARREGLO DE RAÍZ: el service worker y los cachés son lo que mantiene pegada la versión vieja.
