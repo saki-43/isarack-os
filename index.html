@@ -649,6 +649,16 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
             <input id="pap-buscar" oninput="renderPapelera()" placeholder="🔍 Buscar folio o cliente" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px">
           </div>
           <div id="pap-lista"><div style="text-align:center;padding:22px;color:#999;font-size:13px">Dale a ↻ Actualizar para ver lo eliminado</div></div>
+          <div style="margin-top:16px;border-top:1px solid #eee;padding-top:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1a1a1a">🚫 Folios bloqueados</div>
+                <div style="font-size:11px;color:#666">Un folio bloqueado se borra de esta app en cada sincronización aunque exista en la nube. Si su venta está confirmada, desbloquéalo.</div>
+              </div>
+              <button onclick="renderFoliosBloqueados()" style="padding:6px 12px;background:#fff;color:#333;border:1px solid #ccc;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">↻ Ver</button>
+            </div>
+            <div id="pap-bloqueados"><div style="text-align:center;padding:14px;color:#999;font-size:12px">Dale a ↻ Ver</div></div>
+          </div>
         </div>
 
         <!-- Panel: Reglas BOM Custom -->
@@ -1069,7 +1079,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.06';
+const APP_VERSION='2026.07.21.07';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -8943,6 +8953,7 @@ async function bajarCambiosDeNube(){
       if(mx!==_ordersDeltaVisto){_ordersDeltaVisto=mx;guardarLS('isarack_orders_delta_visto',mx);}
       if(toco){window._skipCloudSync=true;saveOrders();setTimeout(()=>{window._skipCloudSync=false;},2000);}
     }
+    if(typeof reconciliarPedidosEliminados==='function')reconciliarPedidosEliminados();
     if(typeof repararVentasHuerfanas==='function')repararVentasHuerfanas();
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
@@ -9023,6 +9034,7 @@ async function bajarTodoDeNube(silencioso){
     }
     // Reparar ventas confirmadas sin su pedido (tras cargar nube)
     if(typeof cargarPedidosEliminadosNube==='function')await cargarPedidosEliminadosNube();
+    if(typeof reconciliarPedidosEliminados==='function')reconciliarPedidosEliminados();
     if(typeof repararVentasHuerfanas==='function')repararVentasHuerfanas();
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
@@ -11786,6 +11798,67 @@ function desmarcarPedidoEliminado(num){
   const arr=getPedidosEliminados().filter(n=>n!==num);
   localStorage.setItem(PED_ELIM_KEY,JSON.stringify(arr));
   _syncPedidosEliminados(arr);
+}
+// ── AUTO-DESBLOQUEO (jul 2026) ──
+// El folio entra a la lista negra cuando su venta regresa a Presupuesto/Borrador. Pero al
+// re-confirmar la venta nadie lo sacaba: el pedido se recreaba desde Ventas y esta misma
+// lista lo borraba de la copia local en cada sync. Existia en la nube y era invisible en la
+// app. Eso metio a Daniel en un ciclo (confirmar -> desaparece -> regresar -> confirmar) que
+// se repitio 3 veces con PLASCO S07212.
+// Regla: si el folio tiene una VENTA confirmada, no tiene nada que hacer en la lista negra.
+function reconciliarPedidosEliminados(){
+  try{
+    if(!Array.isArray(ventas))return 0;
+    const bloq=getPedidosEliminados().map(String);
+    if(!bloq.length)return 0;
+    const confirmadas=new Set();
+    ventas.forEach(v=>{
+      if(!v||!v.num)return;
+      if(v._historica)return;
+      const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada'||v.stage==='Pedido de venta';
+      if(esVenta)confirmadas.add(String(v.num));
+    });
+    const quedan=bloq.filter(n=>!confirmadas.has(String(n)));
+    const soltados=bloq.length-quedan.length;
+    if(soltados>0){
+      localStorage.setItem(PED_ELIM_KEY,JSON.stringify(quedan));
+      _syncPedidosEliminados(quedan);
+      console.log('[ISA-OS] Folios desbloqueados por tener venta confirmada:',soltados);
+    }
+    return soltados;
+  }catch(e){return 0;}
+}
+function renderFoliosBloqueados(){
+  const cont=document.getElementById('pap-bloqueados');
+  if(!cont)return;
+  const bloq=getPedidosEliminados().map(String);
+  if(!bloq.length){cont.innerHTML='<div style="text-align:center;padding:14px;color:#999;font-size:12px">Ningun folio bloqueado</div>';return;}
+  let h='<div style="display:flex;flex-direction:column;gap:6px">';
+  bloq.forEach(n=>{
+    const v=(Array.isArray(ventas)?ventas.find(x=>x&&String(x.num)===n):null);
+    const o=(Array.isArray(orders)?orders.find(x=>x&&String(x.num)===n):null);
+    const esVenta=!!(v&&((v.tipo==='Venta')||v.estatus==='Confirmada'));
+    const et=esVenta
+      ?'<span style="font-size:10px;font-weight:700;color:#791F1F;background:#FCEBEB;border-radius:20px;padding:2px 8px">venta confirmada</span>'
+      :(v?'<span style="font-size:10px;color:#666;background:#f2f2f2;border-radius:20px;padding:2px 8px">'+(v.tipo||'Cotizacion')+'</span>'
+         :'<span style="font-size:10px;color:#999;background:#f7f7f7;border-radius:20px;padding:2px 8px">sin venta</span>');
+    const cli=(v&&v.cliente)||(o&&o.cliente)||'';
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid '+(esVenta?'#E24B4A':'#eee')+';border-radius:8px;background:'+(esVenta?'#fffafa':'#fff')+'">'
+      +'<div style="font-weight:700;color:#D85A30;font-size:12px;min-width:70px">'+n+'</div>'
+      +'<div style="flex:1;font-size:12px;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+cli+'</div>'
+      +et
+      +'<button onclick="desbloquearFolioManual(&quot;'+n+'&quot;)" style="padding:4px 10px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Desbloquear</button>'
+      +'</div>';
+  });
+  h+='</div>';
+  cont.innerHTML=h;
+}
+function desbloquearFolioManual(num){
+  if(!num)return;
+  if(!confirm('Desbloquear el folio '+num+'?'))return;
+  desmarcarPedidoEliminado(String(num));
+  if(typeof showToast==='function')showToast('OK '+num+' desbloqueado','#3B6D11');
+  renderFoliosBloqueados();
 }
 function _syncPedidosEliminados(arr){
   if(typeof supabaseClient!=='undefined'&&supabaseClient){
