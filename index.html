@@ -1069,7 +1069,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.05';
+const APP_VERSION='2026.07.21.06';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -5167,8 +5167,10 @@ function renderFacturaDetalle(){
   // Factura alineada con PDF + XML en la misma fila (solo Adrián sube)
   const factRowA=(ri2,f2)=>{
     const lab='🧾 Factura';
-    const tienePdf=f2.pdfFactNum&&f2.pdfFactNum.data;
-    const tieneXml=f2.xmlCfdi&&f2.xmlCfdi.data;
+    // _hayAdj (no .data) para no marcar 'Falta' cuando el PDF esta en la nube sin hidratar:
+    // asi coincide con docCount, que tambien usa _hayAdj. verAdjuntoFact lo baja al dar clic.
+    const tienePdf=_hayAdj(f2.pdfFactNum);
+    const tieneXml=_hayAdj(f2.xmlCfdi);
     if(f2.factura_na)return _row2(lab,_est('na'),_btnRev('factura'),'<span></span>','<span></span>');
     const estado=tienePdf?_est('ok'):_est('falta');
     if(!puedeEditarFactura(f2)){
@@ -5186,8 +5188,8 @@ function renderFacturaDetalle(){
   // Complemento alineado con PDF + XML en la misma fila (solo Adrián sube)
   const complementoRowA=(ri2,f2)=>{
     const lab='🧾 Complemento de pago';
-    const tienePdf=f2.pdfComplemento&&f2.pdfComplemento.data;
-    const tieneXml=f2.xmlComplemento&&f2.xmlComplemento.data;
+    const tienePdf=_hayAdj(f2.pdfComplemento);
+    const tieneXml=_hayAdj(f2.xmlComplemento);
     if(f2.complemento_na)return _row2(lab,_est('na'),_btnRev('complemento'),'<span></span>','<span></span>');
     const estado=tienePdf?_est('ok'):_est('falta');
     if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){
