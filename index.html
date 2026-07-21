@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.12';
+const APP_VERSION='2026.07.21.13';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7526,7 +7526,11 @@ async function cloudUpsert(tabla,registro,onConflict){
     let _limpio=registro;
     if(registro&&typeof registro==='object'&&!Array.isArray(registro)){_limpio={};for(const _k in registro){if(_k.charAt(0)!=='_')_limpio[_k]=registro[_k];}}
     const {error}=await supabaseClient.from(tabla).upsert(_limpio,opts);
-    if(error){console.warn('cloudUpsert error '+tabla+':',error);encolar('upsert',tabla,registro,onConflict);return false;}
+    if(error){
+      console.warn('cloudUpsert error '+tabla+':',error);
+      _registrarFalloSync('upsert',tabla,(registro&&(registro.pedido||registro.num||registro.sku||registro.clave))||'',(error&&error.message)||'error',false);
+      encolar('upsert',tabla,registro,onConflict);return false;
+    }
     cloudLastSync=Date.now();
     guardarLS('isarack_cloud_last_sync',cloudLastSync);
     updateCloudIndicator();
@@ -7553,10 +7557,41 @@ async function cloudDelete(tabla,col,val){
 }
 
 // Encolar operación pendiente (con límite de reintentos para evitar loop infinito)
+// ── FALLOS DE SINCRONIZACIÓN VISIBLES (jul 2026) ──
+// Antes, si el upsert fallaba se hacía console.warn y a la cola; y tras 3 reintentos la
+// operación se DESCARTABA en silencio. Ese es el agujero por el que Daniel perdió los
+// comprobantes de Panasonic: los adjuntaba, los veía en pantalla (estaban en memoria),
+// la subida fallaba y nadie se enteraba. Ahora todo fallo se anota y se avisa.
+const FALLOS_SYNC_KEY='isarack_fallos_sync';
+function getFallosSync(){
+  try{const a=JSON.parse(localStorage.getItem(FALLOS_SYNC_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}
+}
+function _registrarFalloSync(op,tabla,clave,motivo,definitivo){
+  try{
+    const arr=getFallosSync();
+    arr.unshift({op:op,tabla:tabla,clave:String(clave||''),motivo:String(motivo||'').slice(0,220),
+      definitivo:!!definitivo,fecha:new Date().toISOString()});
+    localStorage.setItem(FALLOS_SYNC_KEY,JSON.stringify(arr.slice(0,60)));
+  }catch(e){}
+  if(definitivo&&typeof showToast==='function'){
+    showToast('⚠ NO se guardó en la nube: '+tabla+' '+(clave||'')+' — revisa Diagnóstico','#c62828');
+  }
+}
+function limpiarFallosSync(){
+  try{localStorage.removeItem(FALLOS_SYNC_KEY);}catch(e){}
+  if(typeof showToast==='function')showToast('Historial de fallos limpiado','#3B6D11');
+  if(typeof correrDiagnostico==='function')correrDiagnostico();
+}
+
 function encolar(op,tabla,data,extra){
   const _maxReintentos=3;
   const _reintentos=(data&&data._reintentos)||0;
-  if(_reintentos>=_maxReintentos){console.warn('⚠ Descartando operación '+op+' en '+tabla+' tras '+_maxReintentos+' reintentos');updateCloudIndicator();return;}
+  if(_reintentos>=_maxReintentos){
+    console.warn('⚠ Descartando operación '+op+' en '+tabla+' tras '+_maxReintentos+' reintentos');
+    const _cl=(data&&(data.pedido||data.num||data.sku||data.clave))||'';
+    _registrarFalloSync(op,tabla,_cl,'descartada tras '+_maxReintentos+' reintentos',true);
+    updateCloudIndicator();return;
+  }
   if(data&&typeof data==='object')data._reintentos=_reintentos+1;
   cloudQueue.push({op,tabla,data,extra,fecha:Date.now()});
   guardarLS('isarack_cloud_queue',cloudQueue);
@@ -12034,10 +12069,21 @@ function _diagChequeos(){
   });
   R.push({id:'instalador-sucio',titulo:'Instaladores con nombre inválido',detalle:'Quedó el teléfono en vez del nombre',filas:f7});
 
+  const f8=[];
+  if(typeof getFallosSync==='function'){
+    getFallosSync().forEach(x=>{
+      if(!x)return;
+      const d=(x.fecha||'').slice(0,10);
+      f8.push({folio:x.clave||'—',cliente:x.tabla+' · '+x.op,
+        nota:(x.definitivo?'PERDIDO · ':'reintentando · ')+(x.motivo||'')+(d?' · '+d:''),accion:'ninguna'});
+    });
+  }
+  R.push({id:'fallos-sync',titulo:'Cambios que no llegaron a la nube',detalle:'Se guardaron en el equipo pero la subida falló; los marcados PERDIDO ya se descartaron',filas:f8});
+
   R.forEach(c=>{
     c.atendidas=c.filas.filter(f=>!!_diagAtendidos[_diagClave(c.id,f.folio)]);
     c.filas=c.filas.filter(f=>!_diagAtendidos[_diagClave(c.id,f.folio)]);
-    c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo'].includes(c.id)?'alarma':'aviso');
+    c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo','fallos-sync'].includes(c.id)?'alarma':'aviso');
   });
   return R;
 }
@@ -12170,6 +12216,7 @@ function _diagBotonAccion(f){
   if(f.accion==='factura')return b('Ir a factura','diagIrA(&quot;facturacion&quot;,&quot;'+q+'&quot;)');
   if(f.accion==='venta')return b('Ir a venta','diagIrA(&quot;ventas&quot;,&quot;'+q+'&quot;)');
   if(f.accion==='inventario')return b('Ir a inventario','diagIrA(&quot;inventario&quot;,&quot;'+q+'&quot;)');
+  if(f.accion==='ninguna')return '<span></span>';
   return b('Ir al pedido','diagIrA(&quot;dashboard&quot;,&quot;'+q+'&quot;)');
 }
 
