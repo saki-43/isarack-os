@@ -1069,7 +1069,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.20.03';
+const APP_VERSION='2026.07.21.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7983,6 +7983,96 @@ async function handleAvanceUpload(input){
   if(exitos>0)showToast('✓ '+exitos+' foto(s) subida(s)'+(errores>0?' ('+errores+' fallaron)':''),'#3B6D11');
   else if(errores>0)showToast('⚠ No se pudo subir ninguna foto','#c62828');
 }
+
+// ══ PEGAR / ARRASTRAR archivos en zonas de obra ══
+const ZONAS_ARCHIVO={
+  planos:{drop:'drop-planos',fn:'handlePlanosUpload',color:'#185FA5'},
+  avance:{drop:'drop-avance',fn:'handleAvanceUpload',color:'#854F0B'},
+  termin:{drop:'drop-termin',fn:'handleTerminUpload',color:'#3B6D11'},
+  fotoentrega:{drop:'drop-fotoentrega',fn:'handleFotoEntregaUpload',color:'#B8431C'}
+};
+let zonaArchivoActiva='avance';
+function setZonaArchivoActiva(z){
+  if(!ZONAS_ARCHIVO[z])return;
+  zonaArchivoActiva=z;
+  try{localStorage.setItem('zonaArchivoActiva',z);}catch(e){}
+  pintarZonaActiva();
+}
+function pintarZonaActiva(){
+  Object.keys(ZONAS_ARCHIVO).forEach(function(z){
+    var el=document.getElementById(ZONAS_ARCHIVO[z].drop);
+    if(!el)return;
+    var act=(z===zonaArchivoActiva);
+    el.style.outline=act?('2px solid '+ZONAS_ARCHIVO[z].color):'';
+    el.style.outlineOffset=act?'1px':'';
+    var tag=el.querySelector('.zona-activa-tag');
+    if(act&&!tag){
+      tag=document.createElement('div');
+      tag.className='zona-activa-tag';
+      tag.style.cssText='font-size:8px;font-weight:700;margin-top:2px;color:'+ZONAS_ARCHIVO[z].color;
+      tag.textContent='Ctrl+V aqui';
+      el.appendChild(tag);
+    } else if(!act&&tag){ tag.remove(); }
+  });
+}
+function _entregarArchivosAZona(z,files){
+  var cfg=ZONAS_ARCHIVO[z];
+  if(!cfg||!files||!files.length)return;
+  var fn=window[cfg.fn];
+  if(typeof fn!=='function')return;
+  fn({files:files,value:''});
+}
+function _nombrarPegada(f,z){
+  var el=document.getElementById('f-num');
+  var num=(el&&el.value.trim())||'pedido';
+  num=num.replace(/[^a-zA-Z0-9_-]/g,'_');
+  var d=new Date(),p=function(n){return String(n).padStart(2,'0');};
+  var ext=((f.type||'image/jpeg').split('/')[1]||'jpg').replace('jpeg','jpg');
+  var nom=num+'_'+z+'_'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+'.'+ext;
+  try{return new File([f],nom,{type:f.type});}catch(e){return f;}
+}
+document.addEventListener('paste',function(e){
+  var modal=document.getElementById('modal');
+  if(!modal||modal.style.display==='none')return;
+  var t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  var items=(e.clipboardData&&e.clipboardData.items)||[];
+  var imgs=[];
+  for(var i=0;i<items.length;i++){
+    if(items[i].kind==='file'&&items[i].type.indexOf('image/')===0){
+      var f=items[i].getAsFile();
+      if(f)imgs.push(_nombrarPegada(f,zonaArchivoActiva));
+    }
+  }
+  if(!imgs.length)return;
+  e.preventDefault();
+  _entregarArchivosAZona(zonaArchivoActiva,imgs);
+});
+function _initDropZonas(){
+  try{var g=localStorage.getItem('zonaArchivoActiva');if(g&&ZONAS_ARCHIVO[g])zonaArchivoActiva=g;}catch(e){}
+  Object.keys(ZONAS_ARCHIVO).forEach(function(z){
+    var el=document.getElementById(ZONAS_ARCHIVO[z].drop);
+    if(!el||el._dropOK)return;
+    el._dropOK=true;
+    el.addEventListener('click',function(){setZonaArchivoActiva(z);});
+    ['dragenter','dragover'].forEach(function(ev){
+      el.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();el.style.filter='brightness(0.95)';});
+    });
+    ['dragleave','drop'].forEach(function(ev){
+      el.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();el.style.filter='';});
+    });
+    el.addEventListener('drop',function(e){
+      var fs=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]).filter(function(f){
+        return f.type.indexOf('image/')===0||f.type==='application/pdf';
+      });
+      if(fs.length){setZonaArchivoActiva(z);_entregarArchivosAZona(z,fs);}
+    });
+  });
+  pintarZonaActiva();
+}
+document.addEventListener('DOMContentLoaded',_initDropZonas);
+if(document.readyState!=='loading')_initDropZonas();
+
 function _fmtFotoFecha(iso){try{if(!iso)return '';var d=new Date(iso);if(isNaN(d))return '';var D=String(d.getDate()).padStart(2,'0'),M=String(d.getMonth()+1).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),m=String(d.getMinutes()).padStart(2,'0');return D+'/'+M+' '+h+':'+m;}catch(e){return '';}}
 function renderChipsAvance(){
   const cont=document.getElementById('chips-avance');
