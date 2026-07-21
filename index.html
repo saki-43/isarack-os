@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.21.16';
+const APP_VERSION='2026.07.21.17';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7524,10 +7524,28 @@ function updateCloudIndicator(errorMsg){
                 connecting:{bg:'#FEF3CD',color:'#5F4400',icon:'🟡',label:'Conectando...'},
                 online:{bg:'#EAF3DE',color:'#27500A',icon:'🟢',label:pendientes>0?('Subiendo '+pendientes):'Sincronizado'},
                 error:{bg:'#FCEBEB',color:'#A32D2D',icon:'⚠',label:'Error'}};
-  const s=colors[cloudStatus]||colors.offline;
+  let s=colors[cloudStatus]||colors.offline;
+  // Si hay trabajo ATORADO (no subio tras varios intentos), el badge lo grita en rojo y
+  // deja reintentar con un clic. Antes esto solo se veia en Diagnostico, que es solo admin:
+  // el vendedor que tenia el trabajo atorado no podia hacer nada al respecto.
+  let _atorados=0;
+  try{if(Array.isArray(cloudQueue))_atorados=cloudQueue.filter(it=>it&&it.atorado).length;}catch(e){}
+  if(_atorados>0){
+    s={bg:'#FCEBEB',color:'#A32D2D',icon:'⚠',label:_atorados+' sin guardar'};
+  }
   el.style.background=s.bg;
   el.style.color=s.color;
   el.innerHTML=s.icon+' '+s.label;
+  if(_atorados>0){
+    el.style.cursor='pointer';
+    el.title='Hay '+_atorados+' cambio(s) que no subieron a la nube. NO cierres el navegador. Click para reintentar.';
+    el.onclick=function(){
+      if(!confirm('Hay '+_atorados+' cambio(s) que no se han guardado en la nube.\n\n¿Reintentar ahora?\n\nNo cierres el navegador hasta que se guarden.'))return;
+      if(typeof reintentarAtorados==='function')reintentarAtorados();
+      else if(typeof procesarCloudQueue==='function')procesarCloudQueue();
+    };
+    return;
+  }
   // Si está offline o error, hacer el badge clickeable para reconectar al instante
   if(cloudStatus==='offline'||cloudStatus==='error'){
     el.style.cursor='pointer';
