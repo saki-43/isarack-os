@@ -4895,6 +4895,21 @@ function verListaSurtido(num){
     '</body></html>';
   openHTMLViewer(html,'Surtido '+o.num);
 }
+// El propio almacén cierra su parte: al terminar de armar, el pedido pasa a
+// "esperando salida" sin que oficina tenga que intervenir. Se pregunta antes
+// porque en tableta es fácil picarle sin querer.
+function marcarArmadoListo(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return showToast('Pedido no encontrado','#c62828');
+  if(o.armado==='Listo')return showToast('Ese pedido ya estaba armado','#BA7517');
+  if(!confirm('¿'+num+' ya quedó armado?\n\n'+(o.cliente||'')+'\n\nPasa a "Ya armados, esperando salida".'))return;
+  o.armado='Listo';
+  o.updated=Date.now();
+  saveOrders();   // guarda en el equipo Y sube a la nube (cloudSyncTodosLosPedidos)
+  showToast('✓ '+num+' armado · listo para salir','#3B6D11');
+  if(typeof renderAlmacen==='function')renderAlmacen();
+  if(typeof render==='function')render();
+}
 function renderAlmacen(){
   const cont=document.getElementById('alm-lista');if(!cont)return;
   const q=(document.getElementById('alm-buscar')?.value||'').trim().toLowerCase();
@@ -4979,7 +4994,8 @@ function renderAlmacen(){
     }
     // Un solo botón principal, y solo el que aplica en ese momento.
     let acciones='';
-    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`;
+    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`+
+      `<button class="a2-btn a2-done" onclick="event.stopPropagation();marcarArmadoListo('${esc(o.num)}')">Ya quedó armado</button>`;
     else if(_estado==='listo'||viejo)acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
     return `<div class="a2-card ${cls}" onclick="openModal(${o.id})">
