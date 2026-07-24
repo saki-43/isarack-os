@@ -897,7 +897,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Comercial <span id="auto-com" class="auto-label" style="display:none">auto ✓</span></label><select id="f-comercial" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option>Adrian Solorzano</option><option>Ing. Miguel Morga</option><option>Ing. Gil Osuna</option><option>Isaac Romero</option><option>Jesus Pelayo</option><option>Lic. Daniel Osuna R.</option><option>Ninguno</option></select></div>
         <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Instalador asignado</label><select id="f-instalador" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
-        <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">🚛 Chofer asignado</label><select id="f-chofer" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
+        <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">🚛 Quién entrega</label><select id="f-chofer" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
       </div>
       
       <!-- Contacto + WhatsApp -->
@@ -1139,7 +1139,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.05';
+const APP_VERSION='2026.07.24.06';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4837,7 +4837,7 @@ function asignarChoferAlmacen(num,sel){
   orders[i].updated=Date.now();
   saveOrders();
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(orders[i]);
-  showToast(sel.value?('🚛 Chofer asignado: '+orders[i].choferNombre):'Chofer quitado','#3B6D11');
+  showToast(sel.value?('🚛 Asignado a la entrega: '+orders[i].choferNombre):'Sin asignar entrega','#3B6D11');
 }
 // ── LISTA DE SURTIDO (jul 2026) ──
 // Lo que el almacén necesita para juntar el material, y nada más: cantidad, producto
