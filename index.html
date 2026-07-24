@@ -1134,7 +1134,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.01';
+const APP_VERSION='2026.07.24.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -9978,7 +9978,7 @@ function cambiarTipoVenta(ri,nuevoTipo){
   }
 
   if(nuevoTipo==='Venta'){
-    if(v._historica){v.tipo='Venta';v.stage='Pedido de venta';v.estatus='Confirmada';guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);renderVentas();showToast('🕓 Histórica marcada como Venta (sin pedido ni inventario)','#7c5cbf');return;}
+    if(v._historica){v.contadorVenta=(v.contadorVenta||0)+1;v.tipo='Venta';v.stage='Pedido de venta';v.estatus='Confirmada';guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);renderVentas();showToast('🕓 Histórica marcada como Venta (sin pedido ni inventario)','#7c5cbf');return;}
     {const _f=[];if(!(v.dir||'').trim())_f.push('ubicación');if(!(v.cel||'').trim())_f.push('celular');if(_f.length){alert('No puede pasar a VENTA: a '+v.num+' le falta '+_f.join(' y ')+'. Ábrela, llena esos datos y guárdala; se queda como cotización.');return;}}
     const items=(v.lineas||[]).filter(l=>!l.tipo&&l.producto&&l.cantidad>0);
     let msg='¿Convertir '+v.num+' ('+v.cliente+') a VENTA?\n\nEsto va a:\n  • Crear el pedido en Seguimientos y Almacén\n  • Descontar del inventario '+items.length+' producto(s) y sus componentes';
@@ -10014,6 +10014,7 @@ function cambiarTipoVenta(ri,nuevoTipo){
       facturas.push(_factCTV);
       guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(_factCTV);if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();
     }
+    v.contadorVenta=(v.contadorVenta||0)+1;
     v.tipo='Venta';v.stage='Pedido de venta';v.estatus='Confirmada';
     guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);
     saveOrders();render();if(typeof renderAlmacen==='function')renderAlmacen();if(typeof renderFacturas==='function')renderFacturas();renderInventario();renderVentas();
@@ -11278,6 +11279,7 @@ h+=`<div><strong>MANIOBRA DE DE DESCARGA:</strong> ${incMan}</div>`;
 h+=`<div><strong>CONDICIONES DE PAGO:</strong> ${plazo?plazo.toUpperCase():'50% ANTICIPO JUNTO CON P.O., 50% RESTO AL FINALIZAR LA INSTALACION'}</div>`;
 h+=`<div><strong>COTIZACION VALIDA POR:</strong> 15 DIAS</div>`;
 h+=`<div><strong>GARANTIA SOBRE MATERIAL NUEVO:</strong> 12 MESES</div>`;
+{const _vSelf=ventas.find(x=>x.num===num);const _cvN=(_vSelf&&_vSelf.contadorVenta)||0;if(_cvN>1)h+=`<div>${'.'.repeat(_cvN-1)}</div>`;}
 if(pesoTotal>0)h+=`<div><strong>PESO TOTAL APROX.:</strong> ${pesoTotal.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})} KG</div>`;
 h+=`</div>`;
 h+=`</div>`;
