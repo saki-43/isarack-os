@@ -264,6 +264,11 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 .a2-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start}
 .a2-folio{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--a2-ink,#1E1B19)}
 .a2-cli{font-size:18px;margin-top:3px;color:var(--a2-ink,#1E1B19)}
+.a2-ctx{font-size:14px;color:var(--a2-ink2,#6B625B);margin-top:3px}
+.a2-nota{margin-top:11px;font-size:15px;line-height:1.45;color:var(--a2-ink,#1E1B19);background:#FEF9EF;border:1px solid #EFC77B;border-radius:9px;padding:9px 13px}
+.a2-nota b{color:#7A4E08;font-weight:600}
+html.dark-mode #alm-wrap .a2-nota{background:#3A2C10;border-color:#5c4718}
+html.dark-mode #alm-wrap .a2-nota b{color:#F0C878}
 .a2-pill{font-size:15px;font-weight:600;padding:8px 16px;border-radius:9px;white-space:nowrap}
 .a2-pw{background:#FCF1DE;color:#7A4E08}.a2-pr{background:#EBF3DF;color:#2E5A0C}
 .a2-po{background:#FBEAE7;color:#8A2E1B}.a2-pb{background:#E6F1FB;color:#0C447C}
@@ -4991,19 +4996,27 @@ function renderAlmacen(){
     const _esMont=l=>/montacarga/i.test((l&&l.producto)||'');
     const _esSv=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!_esMont(l);
     const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!_esSv(l)&&(l.producto||l.sku)).length:0;
-    // Papeles: el almacén los imprime y se van con la entrega. Lo que hay se imprime,
-    // lo que falta se dice en gris — sin alarma, porque no es su trabajo conseguirlo.
-    let docs='';
-    if(_estado!=='falta'){
-      const bPed=(o.cotData||o.cotHTML)?`<button class="a2-doc" onclick="event.stopPropagation();verPedidoDesdeFactura('${esc(o.num)}')">Pedido <b>${esc(o.num)}</b> <i>Imprimir</i></button>`:'';
-      const hayPO=f&&typeof _hayAdj==='function'&&_hayAdj(f.pdfPo);
-      const bPO=hayPO?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'pdfPo')">Orden de compra${f.poNum?' <b>'+esc(f.poNum)+'</b>':''} <i>Imprimir</i></button>`
-                     :`<span class="a2-doc none">Sin orden de compra</span>`;
-      const hayFac=f&&typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura));
-      const bFac=hayFac?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'${_hayAdj(f.pdfFactNum)?'pdfFactNum':'pdfFactura'}')">Factura${f.factura?' <b>'+esc(f.factura)+'</b>':''} <i>Imprimir</i></button>`
-                       :`<span class="a2-doc none">Sin factura todavía</span>`;
-      docs=`<div class="a2-docs"><div class="a2-docs-t">Papeles para entregar</div><div class="a2-docrow">${bPed}${bFac}${bPO}</div></div>`;
-    }
+    // Papeles: se muestran en TODAS las tarjetas (armar y entregar). En las de armar
+    // sirven de consulta -ver el pedido, saber si ya hay factura-; en las de entrega
+    // se imprimen y se van con el material. Lo que falta se dice en gris, sin alarma.
+    const bPed=(o.cotData||o.cotHTML)?`<button class="a2-doc" onclick="event.stopPropagation();verPedidoDesdeFactura('${esc(o.num)}')">Pedido <b>${esc(o.num)}</b> <i>Ver</i></button>`:'';
+    const hayPO=f&&typeof _hayAdj==='function'&&_hayAdj(f.pdfPo);
+    const bPO=hayPO?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'pdfPo')">Orden de compra${f.poNum?' <b>'+esc(f.poNum)+'</b>':''} <i>Ver</i></button>`
+                   :`<span class="a2-doc none">Sin orden de compra</span>`;
+    const hayFac=f&&typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura));
+    const bFac=hayFac?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'${_hayAdj(f.pdfFactNum)?'pdfFactNum':'pdfFactura'}')">Factura${f.factura?' <b>'+esc(f.factura)+'</b>':''} <i>Ver</i></button>`
+                     :`<span class="a2-doc none">Sin factura todavía</span>`;
+    const tituloDocs=(_estado==='falta')?'Documentos del pedido':'Papeles para entregar';
+    const docs=`<div class="a2-docs"><div class="a2-docs-t">${tituloDocs}</div><div class="a2-docrow">${bPed}${bFac}${bPO}</div></div>`;
+    // Comercial y fecha: quién vendió y de cuándo es, para saber a quién preguntar.
+    const com=(o.comercial||'').trim();
+    let fLarga='';
+    if(o.fecha){const p=o.fecha.split('-');if(p.length===3)fLarga=p[2]+'/'+p[1]+'/'+p[0];}
+    const linCtx=(com||fLarga)?`<div class="a2-ctx">${com?esc(com):''}${com&&fLarga?' · ':''}${fLarga?esc(fLarga):''}</div>`:'';
+    // Notas del pedido: solo si trae algo real (se omite el texto autogenerado de totales).
+    const nt=(o.notas||'').trim();
+    const notaUtil=nt&&!/^Moneda:/i.test(nt)?nt:'';
+    const linNota=notaUtil?`<div class="a2-nota"><b>Nota:</b> ${esc(notaUtil.length>160?notaUtil.slice(0,158)+'…':notaUtil)}</div>`:'';
     // Un solo botón principal, y solo el que aplica en ese momento.
     let acciones='';
     if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`+
@@ -5012,14 +5025,14 @@ function renderAlmacen(){
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
     return `<div class="a2-card ${cls}" onclick="openModal(${o.id})">
       <div class="a2-top">
-        <div><div class="a2-folio">${esc(o.num)}</div><div class="a2-cli">${esc(o.cliente||(f&&f.cliente)||'')}</div></div>
+        <div><div class="a2-folio">${esc(o.num)}</div><div class="a2-cli">${esc(o.cliente||(f&&f.cliente)||'')}</div>${linCtx}</div>
         <div class="a2-pill ${pill}">${pillTxt}</div>
       </div>
       <div class="a2-meta">
         <span class="a2-dias${d>10?' bad':''}">${d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando')}</span>
         ${chipUbic}${nPart?`<span class="a2-chip">${nPart} ${nPart===1?'partida':'partidas'}</span>`:''}
       </div>
-      ${docs}${acciones}
+      ${linNota}${docs}${acciones}
     </div>`;
   };
   const bloque=(titulo,pista,lista)=>lista.length
