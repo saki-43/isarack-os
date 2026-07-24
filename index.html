@@ -1139,7 +1139,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.06';
+const APP_VERSION='2026.07.24.07';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4838,6 +4838,7 @@ function asignarChoferAlmacen(num,sel){
   saveOrders();
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(orders[i]);
   showToast(sel.value?('🚛 Asignado a la entrega: '+orders[i].choferNombre):'Sin asignar entrega','#3B6D11');
+  if(typeof renderAlmacen==='function')renderAlmacen();
 }
 // ── LISTA DE SURTIDO (jul 2026) ──
 // Lo que el almacén necesita para juntar el material, y nada más: cantidad, producto
@@ -4851,63 +4852,177 @@ function verListaSurtido(num){
   const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
   // El montacargas ES un servicio, pero el almacén sí tiene que prepararlo (rentarlo/
   // apartarlo), así que cuenta como algo que juntar. El resto de servicios -flete,
-  // instalación, maniobras- no llevan material y se omiten.
+  // instalación, maniobras- no llevan material y se omiten del conteo, pero se
+  // muestran abajo con una etiqueta para que el almacén vea el panorama completo.
   const esMontacargas=l=>/montacarga/i.test((l&&l.producto)||'');
   const esServ=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!esMontacargas(l);
-  const arts=lineas.filter(l=>l&&!esServ(l)&&(l.producto||l.sku));
-  // Si el pedido es puro servicio (sin material ni montacargas), no es que le falten
-  // partidas: es que no hay nada que surtir. Se dice claro, sin alarma.
+  const arts=[];const servs=[];
+  lineas.forEach((l,i)=>{ if(!l)return; if(esServ(l)) servs.push({...l,_idx:i}); else if(l.producto||l.sku) arts.push({...l,_idx:i}); });
   const soloServicios=lineas.length>0 && !arts.length;
-  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   let dias=0;
   if(o.fecha){const d=new Date(o.fecha+'T00:00:00');if(!isNaN(d))dias=Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
+  // Estado de palomeado guardado en el pedido, por índice de línea.
+  if(!o.surtidoChecks||typeof o.surtidoChecks!=='object')o.surtidoChecks={};
+  const juntadas=arts.filter(a=>o.surtidoChecks[a._idx]).length;
+  const total=arts.length;
+  const pct=total>0?Math.round((juntadas/total)*100):0;
+  const todoJuntado=total>0&&juntadas===total;
+  const ub=(o.ubicacion||'').trim();
+  const recoge=/recoge|recoger|paqueter/i.test(ub);
+
   let filas='';
   if(!arts.length){
     filas=soloServicios
-      ?'<tr><td colspan="3" style="padding:26px;text-align:center;color:#2E5A0C;font-size:17px;background:#EBF3DF;border-radius:8px">Este pedido es solo de servicio.<br><span style="font-size:14px;color:#4a6b2a">No hay material que juntar en el almacén.</span></td></tr>'
-      :'<tr><td colspan="3" style="padding:26px;text-align:center;color:#888;font-size:16px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</td></tr>';
-  }else arts.forEach(l=>{
-    // Solo lo que dice la orden. NO se desglosan las piezas del BOM: el marco ya
-    // incluye su pie base y sus diagonales, y se surte como una sola cosa. El BOM
-    // existe para descontar inventario, no para decirle al almacén qué juntar.
-    filas+='<tr>'+
-      '<td class="chk"><span class="box"></span></td>'+
-      '<td class="cant">'+esc(l.cantidad||0)+'</td>'+
-      '<td class="prod"><b>'+esc(l.producto||'')+'</b>'+(l.sku?'<span class="sku">'+esc(l.sku)+'</span>':'')+'</td>'+
-      '</tr>';
-  });
-  const ub=(o.ubicacion||'').trim();
-  const recoge=/recoge|recoger|paqueter/i.test(ub);
-  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+
-    'body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:34px 38px;color:#111;background:#fff}'+
-    'h1{font-size:31px;margin:0 0 2px;letter-spacing:-.5px}'+
-    '.cli{font-size:21px;margin:0 0 14px;color:#333}'+
-    '.tags{margin:0 0 22px;display:flex;gap:8px;flex-wrap:wrap}'+
-    '.tag{font-size:15px;padding:6px 13px;border-radius:7px;background:#f0eeea;color:#444}'+
-    '.tag.hi{background:#EAF3DE;color:#2E5A0C;font-weight:600}'+
-    '.tag.old{background:#FBEAE7;color:#8A2E1B;font-weight:600}'+
-    'table{width:100%;border-collapse:collapse;margin-top:6px}'+
-    'th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:#888;padding:0 0 9px;border-bottom:2px solid #ddd}'+
-    'td{padding:14px 8px;border-bottom:1px solid #eee;vertical-align:middle}'+
-    '.chk{width:46px}.box{display:block;width:26px;height:26px;border:2.5px solid #444;border-radius:5px}'+
-    '.cant{width:74px;font-size:25px;font-weight:700;text-align:right;padding-right:16px;white-space:nowrap}'+
-    '.prod{font-size:18px}.prod b{font-weight:600}'+
-    '.sku{display:block;font-size:13px;color:#999;margin-top:2px}'+
-    '.pie{margin-top:30px;padding-top:14px;border-top:1px solid #ddd;font-size:14px;color:#777;display:flex;justify-content:space-between;gap:20px}'+
-    '@media print{body{padding:14px}.tag{border:1px solid #ddd}}'+
-    '</style></head><body>'+
-    '<h1>Surtido · '+esc(o.num)+'</h1>'+
-    '<p class="cli">'+esc(o.cliente||'')+'</p>'+
-    '<div class="tags">'+
-      '<span class="tag'+(dias>10?' old':'')+'">'+(dias===0?'De hoy':(dias===1?'1 día esperando':dias+' días esperando'))+'</span>'+
-      (ub?'<span class="tag'+(recoge?' hi':'')+'">'+esc(ub.length>60?ub.slice(0,58)+'…':ub)+'</span>':'')+
-      (arts.length?'<span class="tag">'+arts.length+(arts.length===1?' partida':' partidas')+'</span>':'')+
-    '</div>'+
-    '<table><thead><tr><th></th><th style="text-align:right;padding-right:16px">Cant.</th><th>Qué hay que juntar</th></tr></thead>'+
-    '<tbody>'+filas+'</tbody></table>'+
-    '<div class="pie"><span>Surtió: ____________________</span><span>Fecha: ____________</span></div>'+
-    '</body></html>';
-  openHTMLViewer(html,'Surtido '+o.num);
+      ?'<div style="padding:26px;text-align:center;color:#2E5A0C;font-size:16px;background:#EBF3DF;border-radius:10px;margin:12px 0">Este pedido es solo de servicio.<br><span style="font-size:14px;color:#4a6b2a">No hay material que juntar en el almacén.</span></div>'
+      :'<div style="padding:26px;text-align:center;color:#888;font-size:15px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</div>';
+  }else{
+    arts.forEach(l=>{
+      const done=!!o.surtidoChecks[l._idx];
+      const clase='surt-linea'+(done?' done':'');
+      filas+=`<div class="${clase}" onclick="_toggleSurtidoCheck('${esc(num)}',${l._idx})">
+        <div class="surt-check">${done?'✓':''}</div>
+        <div class="surt-cant">${esc(l.cantidad||0)}</div>
+        <div class="surt-prod-w">
+          <div class="surt-prod">${esc(l.producto||'')}</div>
+          ${l.sku?`<div class="surt-sku">${esc(l.sku)}</div>`:''}
+        </div>
+      </div>`;
+    });
+  }
+  let filasServ='';
+  if(servs.length){
+    filasServ='<div class="surt-servs-t">Servicios (no se juntan)</div>';
+    servs.forEach(l=>{
+      filasServ+=`<div class="surt-linea surt-serv">
+        <div class="surt-check surt-check-off"></div>
+        <div class="surt-cant surt-cant-serv">${esc(l.cantidad||0)}</div>
+        <div class="surt-prod-w">
+          <div class="surt-prod">${esc(l.producto||'')}</div>
+          ${l.sku?`<div class="surt-sku">${esc(l.sku)}</div>`:''}
+        </div>
+      </div>`;
+    });
+  }
+
+  const html=`<div id="ov-surt" class="surt-overlay" onclick="if(event.target===this)_cerrarSurtido()">
+    <div class="surt-modal">
+      <button class="surt-close" onclick="_cerrarSurtido()">×</button>
+      <div class="surt-h">
+        <div class="surt-lbl">Surtido</div>
+        <div class="surt-folio">${esc(o.num)}</div>
+        <div class="surt-cli">${esc(o.cliente||'')}</div>
+        <div class="surt-tags">
+          <span class="surt-tag${dias>10?' bad':''}">${dias===0?'De hoy':(dias===1?'1 día esperando':dias+' días esperando')}</span>
+          ${ub?`<span class="surt-tag${recoge?' hi':''}">📍 ${esc(ub.length>50?ub.slice(0,48)+'…':ub)}</span>`:''}
+          ${total?`<span class="surt-tag">${total} ${total===1?'partida':'partidas'}</span>`:''}
+        </div>
+      </div>
+      ${total>0?`
+        <div class="surt-prog-t"><span>Avance: ${juntadas} de ${total}</span><span>${pct}%</span></div>
+        <div class="surt-prog"><div class="surt-prog-b" style="width:${pct}%"></div></div>
+      `:''}
+      <div class="surt-cols">
+        <span></span>
+        <span class="surt-th">Cant.</span>
+        <span class="surt-th">Qué hay que juntar</span>
+      </div>
+      ${filas}
+      ${filasServ}
+      ${todoJuntado?'<div class="surt-ok">✓ Todo el material está listo. Puedes marcar el pedido como armado.</div>':''}
+      <div class="surt-actions">
+        <button class="surt-btn surt-btn-out" onclick="_cerrarSurtido()">Cerrar</button>
+        ${todoJuntado
+          ?`<button class="surt-btn surt-btn-done" onclick="_marcarListoDesdeSurtido('${esc(num)}')">✓ Ya quedó armado</button>`
+          :(total>0?`<button class="surt-btn surt-btn-primary" onclick="_guardarAvanceSurtido('${esc(num)}')">Guardar avance</button>`:'')
+        }
+      </div>
+    </div>
+  </div>`;
+
+  // Estilos: se inyectan una sola vez.
+  if(!document.getElementById('surt-styles')){
+    const st=document.createElement('style');
+    st.id='surt-styles';
+    st.textContent=`
+    .surt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;z-index:10000;padding:24px;overflow-y:auto}
+    .surt-modal{background:#fff;border-radius:16px;padding:32px;max-width:720px;width:100%;position:relative;margin:auto;font-family:inherit;color:#1a1a1a}
+    .surt-close{position:absolute;top:14px;right:16px;background:none;border:0;font-size:28px;color:#B4B2A9;cursor:pointer;line-height:1;padding:4px}
+    .surt-close:hover{color:#5F5E5A}
+    .surt-h{margin-bottom:8px}
+    .surt-lbl{font-size:14px;color:#888;font-weight:500}
+    .surt-folio{font-size:32px;font-weight:700;color:#1a1a1a;line-height:1.1;margin:4px 0 6px}
+    .surt-cli{font-size:16px;color:#5F5E5A;font-weight:500}
+    .surt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .surt-tag{background:#F1EFE8;color:#5F5E5A;font-size:13px;padding:6px 14px;border-radius:22px;font-weight:600}
+    .surt-tag.bad{background:#FCEBEB;color:#A32D2D}
+    .surt-tag.hi{background:#EAF3DE;color:#2E5A0C}
+    .surt-prog-t{display:flex;justify-content:space-between;font-size:13px;color:#5F5E5A;margin:22px 0 6px;font-weight:500}
+    .surt-prog{background:#F1EFE8;border-radius:20px;height:8px;overflow:hidden;margin-bottom:20px}
+    .surt-prog-b{background:#639922;height:100%;transition:width .3s;border-radius:20px}
+    .surt-cols{display:grid;grid-template-columns:56px 90px 1fr;gap:12px;padding:0 4px 10px;border-bottom:0.5px solid #E7DFD8}
+    .surt-th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#888}
+    .surt-th:first-of-type{text-align:center}
+    .surt-linea{display:grid;grid-template-columns:56px 90px 1fr;gap:12px;padding:16px 4px;border-bottom:0.5px solid #E7DFD8;align-items:center;cursor:pointer;transition:background .15s}
+    .surt-linea:hover{background:#FAF7F4}
+    .surt-linea.done{opacity:.55}
+    .surt-linea.done .surt-prod{text-decoration:line-through;color:#888}
+    .surt-linea.surt-serv{background:#FAF7F4;cursor:default}
+    .surt-linea.surt-serv:hover{background:#FAF7F4}
+    .surt-check{width:32px;height:32px;border:2px solid #D3D1C7;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;transition:all .15s;flex-shrink:0}
+    .surt-linea:hover .surt-check{border-color:#B4B2A9}
+    .surt-linea.done .surt-check{background:#3B6D11;border-color:#3B6D11}
+    .surt-check-off{opacity:.3;border-style:dashed}
+    .surt-cant{font-size:26px;font-weight:700;color:#1a1a1a;text-align:center}
+    .surt-cant-serv{font-size:16px;color:#888;font-weight:600}
+    .surt-prod-w{min-width:0}
+    .surt-prod{font-size:15px;font-weight:600;color:#1a1a1a;line-height:1.3}
+    .surt-sku{font-size:12px;color:#888;margin-top:2px;font-family:monospace}
+    .surt-servs-t{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:#888;margin:16px 4px 4px}
+    .surt-ok{background:#EAF3DE;color:#3B6D11;padding:14px 18px;border-radius:10px;font-size:14px;font-weight:600;margin-top:16px;text-align:center}
+    .surt-actions{display:flex;gap:10px;margin-top:24px;padding-top:20px;border-top:0.5px solid #E7DFD8}
+    .surt-btn{border:0;border-radius:10px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;flex:1;transition:all .15s}
+    .surt-btn-primary{background:#D85A30;color:#fff}
+    .surt-btn-primary:hover{background:#b8481e}
+    .surt-btn-done{background:#3B6D11;color:#fff}
+    .surt-btn-done:hover{background:#2c520c}
+    .surt-btn-out{background:transparent;color:#5F5E5A;border:1px solid #d8d8d2}
+    .surt-btn-out:hover{background:#F1EFE8}`;
+    document.head.appendChild(st);
+  }
+  // Meter el modal en el DOM
+  let cont=document.getElementById('ov-surt-cont');
+  if(!cont){cont=document.createElement('div');cont.id='ov-surt-cont';document.body.appendChild(cont);}
+  cont.innerHTML=html;
+}
+function _toggleSurtidoCheck(num,idx){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return;
+  if(!o.surtidoChecks||typeof o.surtidoChecks!=='object')o.surtidoChecks={};
+  o.surtidoChecks[idx]=!o.surtidoChecks[idx];
+  o.updated=Date.now();
+  verListaSurtido(num); // re-renderiza el modal
+}
+function _guardarAvanceSurtido(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return;
+  saveOrders();
+  if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+  showToast('✓ Avance guardado','#3B6D11');
+  _cerrarSurtido();
+}
+function _marcarListoDesdeSurtido(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return;
+  saveOrders();
+  if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+  _cerrarSurtido();
+  // Reutilizamos el flujo existente que ya tiene su confirmación y toasts.
+  if(typeof marcarArmadoListo==='function')marcarArmadoListo(num);
+}
+function _cerrarSurtido(){
+  const cont=document.getElementById('ov-surt-cont');
+  if(cont)cont.innerHTML='';
 }
 // El propio almacén cierra su parte: al terminar de armar, el pedido pasa a
 // "esperando salida" sin que oficina tenga que intervenir. Se pregunta antes
@@ -4996,6 +5111,12 @@ function renderAlmacen(){
     const _esMont=l=>/montacarga/i.test((l&&l.producto)||'');
     const _esSv=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!_esMont(l);
     const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!_esSv(l)&&(l.producto||l.sku)).length:0;
+    // Quién entrega: select embebido para que el almacén no tenga que abrir el modal.
+    // Usa la MISMA lista central (instaladores + choferes + bodega), igual que refrescarSelectChofer.
+    const _listaE=(typeof getInstaladoresLista==='function')?getInstaladoresLista().filter(x=>x.cel):[];
+    const _optsE=_listaE.map(p=>`<option value="${esc(p.cel)}" data-nombre="${esc(p.nombre)}"${p.cel===o.choferCel?' selected':''}>${esc(p.nombre)}</option>`).join('');
+    const _tieneE=!!o.choferNombre;
+    const chipEntrega=`<span class="a2-chip" onclick="event.stopPropagation()" style="padding:0;background:${_tieneE?'#EAF3DE':'#FBEAE7'};border-color:transparent;font-weight:600">🚛&nbsp;<select onchange="asignarChoferAlmacen('${esc(o.num)}',this)" style="border:0;background:transparent;font:inherit;color:${_tieneE?'#2E5A0C':'#8A2E1B'};padding:4px 8px 4px 2px;cursor:pointer;font-family:inherit"><option value="">Sin asignar</option>${_optsE}</select></span>`;
     // Papeles: se muestran en TODAS las tarjetas (armar y entregar). En las de armar
     // sirven de consulta -ver el pedido, saber si ya hay factura-; en las de entrega
     // se imprimen y se van con el material. Lo que falta se dice en gris, sin alarma.
@@ -5030,7 +5151,7 @@ function renderAlmacen(){
       </div>
       <div class="a2-meta">
         <span class="a2-dias${d>10?' bad':''}">${d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando')}</span>
-        ${chipUbic}${nPart?`<span class="a2-chip">${nPart} ${nPart===1?'partida':'partidas'}</span>`:''}
+        ${chipUbic}${nPart?`<span class="a2-chip">${nPart} ${nPart===1?'partida':'partidas'}</span>`:''}${chipEntrega}
       </div>
       ${linNota}${docs}${acciones}
     </div>`;
