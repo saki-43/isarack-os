@@ -1139,7 +1139,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.08';
+const APP_VERSION='2026.07.24.09';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -5042,8 +5042,14 @@ function marcarArmadoListo(num){
 function renderAlmacen(){
   const cont=document.getElementById('alm-lista');if(!cont)return;
   const q=(document.getElementById('alm-buscar')?.value||'').trim().toLowerCase();
-  // Recorremos los pedidos (orders) y emparejamos con su factura por número
-  let items=orders.filter(o=>o&&!o.archivadoCotizacion&&_pedidoVendido(o.num)).map(o=>{
+  // Recorremos los pedidos (orders) y emparejamos con su factura por número.
+  // Ventas históricas se excluyen: por definición ya se entregaron antes; no deben aparecer aquí.
+  let items=orders.filter(o=>{
+    if(!o||o.archivadoCotizacion||!_pedidoVendido(o.num))return false;
+    const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===o.num):null;
+    if(v&&v._historica)return false;
+    return true;
+  }).map(o=>{
     const f=facturas.find(x=>x.pedido===o.num)||null;
     return {o,f};
   });
@@ -5098,7 +5104,6 @@ function renderAlmacen(){
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     let cls,pill,pillTxt;
     if(_estado==='entregado'){cls='a2-b';pill='a2-pb';pillTxt='Entregado';}
-    else if(viejo){cls='a2-o';pill='a2-po';pillTxt='Sin cerrar';}
     else if(_estado==='listo'){cls='a2-r';pill='a2-pr';pillTxt='Listo';}
     else{cls='a2-w';pill='a2-pw';pillTxt='Falta armar';}
     // Ubicación: cuando el cliente pasa por él, el almacén no tiene que salir. Va resaltado.
@@ -5142,7 +5147,7 @@ function renderAlmacen(){
     let acciones='';
     if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`+
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();marcarArmadoListo('${esc(o.num)}')">Ya quedó armado</button>`;
-    else if(_estado==='listo'||viejo)acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
+    else if(_estado==='listo')acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
     return `<div class="a2-card ${cls}">
       <div class="a2-top">
@@ -5161,13 +5166,10 @@ function renderAlmacen(){
     : '';
   let cuerpo='';
   if(_almTab==='porentregar'){
-    const viejos=visibles.filter(it=>_dias(it.o)>60);
-    const resto=visibles.filter(it=>_dias(it.o)<=60);
-    const porArmar=resto.filter(it=>it._estado==='falta');
-    const listos=resto.filter(it=>it._estado==='listo');
+    const porArmar=visibles.filter(it=>it._estado==='falta');
+    const listos=visibles.filter(it=>it._estado==='listo');
     cuerpo=bloque('Falta armar','empieza por estos',porArmar)
-          +bloque('Ya armados, esperando salida','solo falta entregarlos',listos)
-          +bloque('Muy viejos — revisar','seguro ya salieron y nadie los cerró',viejos);
+          +bloque('Ya armados, esperando salida','solo falta entregarlos',listos);
   }else{
     cuerpo=visibles.map(tarjeta).join('');
   }
