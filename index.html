@@ -251,6 +251,37 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 .alm-st-e{font-size:11px;font-weight:500;color:#A32D2D}
 .alm-st-b{font-size:11px;font-weight:500;color:#185FA5}
 .alm-row-btn{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:500;border:none;cursor:pointer;background:#D85A30;color:#fff}
+/* ── ALMACÉN v2 (jul 2026): vista para el personal de piso ──
+   Tarjetas grandes en vez de filas apretadas, palabras normales en vez de
+   abreviaturas, y los papeles (pedido/PO/factura) como botones de imprimir
+   en vez de una alarma "Falta PO+Fact" que salía en 79 de 81 pedidos. */
+.a2-sec{margin:0 0 22px}
+.a2-sech{display:flex;align-items:baseline;gap:9px;margin:0 0 10px;padding:0 2px}
+.a2-sech b{font-size:17px;font-weight:600;color:var(--a2-ink,#1E1B19)}
+.a2-sech span{font-size:13px;color:var(--a2-ink3,#9A9088)}
+.a2-card{background:var(--a2-card,#fff);border:1px solid var(--a2-line,#E7DFD8);border-left:7px solid #ccc;border-radius:12px;padding:18px 20px;margin-bottom:11px}
+.a2-w{border-left-color:#D89B22}.a2-r{border-left-color:#5E8F1E}.a2-o{border-left-color:#C0472C}.a2-b{border-left-color:#378ADD}
+.a2-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.a2-folio{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--a2-ink,#1E1B19)}
+.a2-cli{font-size:18px;margin-top:3px;color:var(--a2-ink,#1E1B19)}
+.a2-pill{font-size:15px;font-weight:600;padding:8px 16px;border-radius:9px;white-space:nowrap}
+.a2-pw{background:#FCF1DE;color:#7A4E08}.a2-pr{background:#EBF3DF;color:#2E5A0C}
+.a2-po{background:#FBEAE7;color:#8A2E1B}.a2-pb{background:#E6F1FB;color:#0C447C}
+.a2-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.a2-chip{background:var(--a2-bg,#FAF7F4);border:1px solid var(--a2-line,#E7DFD8);border-radius:8px;padding:5px 12px;font-size:14px;color:var(--a2-ink2,#6B625B)}
+.a2-chip.hi{background:#EBF3DF;color:#2E5A0C;border-color:transparent;font-weight:600}
+.a2-dias{font-size:14px;font-weight:600;color:var(--a2-ink2,#6B625B)}
+.a2-dias.bad{color:#8A2E1B}
+.a2-docs{border-top:1px solid var(--a2-line,#E7DFD8);margin-top:14px;padding-top:12px}
+.a2-docs-t{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--a2-ink3,#9A9088);margin-bottom:8px}
+.a2-docrow{display:flex;gap:8px;flex-wrap:wrap}
+.a2-doc{display:inline-flex;align-items:center;gap:7px;background:var(--a2-bg,#FAF7F4);border:1px solid var(--a2-line,#E7DFD8);border-radius:9px;padding:10px 14px;font-size:15px;color:var(--a2-ink,#1E1B19);cursor:pointer;font-family:inherit}
+.a2-doc i{font-style:normal;font-size:13px;color:#D85A30;font-weight:600}
+.a2-doc.none{color:var(--a2-ink3,#9A9088);border-style:dashed;cursor:default}
+.a2-btn{border:0;border-radius:10px;padding:15px 24px;font-size:17px;font-weight:600;cursor:pointer;width:100%;margin-top:11px;font-family:inherit}
+.a2-go{background:#D85A30;color:#fff}.a2-done{background:#3B6D11;color:#fff}
+.a2-print{background:var(--a2-card,#fff);color:var(--a2-ink,#1E1B19);border:2px solid var(--a2-ink,#1E1B19)}
+html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a2-ink:#F2EDE8;--a2-ink2:#B3A89F;--a2-ink3:#877C73}
 #alm-wrap .alm-num{font-size:18px;font-weight:800;color:var(--alm-num);letter-spacing:-0.3px;line-height:1.1}
 #alm-wrap .alm-cli{font-size:12.5px;color:var(--alm-cli);margin-top:1px}
 #alm-wrap .alm-ico{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
@@ -4803,6 +4834,82 @@ function asignarChoferAlmacen(num,sel){
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(orders[i]);
   showToast(sel.value?('🚛 Chofer asignado: '+orders[i].choferNombre):'Chofer quitado','#3B6D11');
 }
+// ── LISTA DE SURTIDO (jul 2026) ──
+// Lo que el almacén necesita para juntar el material, y nada más: cantidad, producto
+// y un cuadrito para ir palomeando en papel. Antes había que abrir el pedido completo
+// y buscarle entre datos de facturación, direcciones y PDFs.
+// Los marcos que se fabrican por BOM muestran sus piezas: eso es lo que se toma
+// físicamente del anaquel, no el marco terminado.
+function verListaSurtido(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return showToast('Pedido no encontrado','#c62828');
+  const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
+  const esServ=l=>(typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo);
+  const arts=lineas.filter(l=>l&&!esServ(l)&&(l.producto||l.sku));
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let dias=0;
+  if(o.fecha){const d=new Date(o.fecha+'T00:00:00');if(!isNaN(d))dias=Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
+  let filas='';
+  if(!arts.length){
+    filas='<tr><td colspan="3" style="padding:26px;text-align:center;color:#888;font-size:16px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</td></tr>';
+  }else arts.forEach(l=>{
+    // Solo lo que dice la orden. NO se desglosan las piezas del BOM: el marco ya
+    // incluye su pie base y sus diagonales, y se surte como una sola cosa. El BOM
+    // existe para descontar inventario, no para decirle al almacén qué juntar.
+    filas+='<tr>'+
+      '<td class="chk"><span class="box"></span></td>'+
+      '<td class="cant">'+esc(l.cantidad||0)+'</td>'+
+      '<td class="prod"><b>'+esc(l.producto||'')+'</b>'+(l.sku?'<span class="sku">'+esc(l.sku)+'</span>':'')+'</td>'+
+      '</tr>';
+  });
+  const ub=(o.ubicacion||'').trim();
+  const recoge=/recoge|recoger|paqueter/i.test(ub);
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+
+    'body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:34px 38px;color:#111;background:#fff}'+
+    'h1{font-size:31px;margin:0 0 2px;letter-spacing:-.5px}'+
+    '.cli{font-size:21px;margin:0 0 14px;color:#333}'+
+    '.tags{margin:0 0 22px;display:flex;gap:8px;flex-wrap:wrap}'+
+    '.tag{font-size:15px;padding:6px 13px;border-radius:7px;background:#f0eeea;color:#444}'+
+    '.tag.hi{background:#EAF3DE;color:#2E5A0C;font-weight:600}'+
+    '.tag.old{background:#FBEAE7;color:#8A2E1B;font-weight:600}'+
+    'table{width:100%;border-collapse:collapse;margin-top:6px}'+
+    'th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:#888;padding:0 0 9px;border-bottom:2px solid #ddd}'+
+    'td{padding:14px 8px;border-bottom:1px solid #eee;vertical-align:middle}'+
+    '.chk{width:46px}.box{display:block;width:26px;height:26px;border:2.5px solid #444;border-radius:5px}'+
+    '.cant{width:74px;font-size:25px;font-weight:700;text-align:right;padding-right:16px;white-space:nowrap}'+
+    '.prod{font-size:18px}.prod b{font-weight:600}'+
+    '.sku{display:block;font-size:13px;color:#999;margin-top:2px}'+
+    '.pie{margin-top:30px;padding-top:14px;border-top:1px solid #ddd;font-size:14px;color:#777;display:flex;justify-content:space-between;gap:20px}'+
+    '@media print{body{padding:14px}.tag{border:1px solid #ddd}}'+
+    '</style></head><body>'+
+    '<h1>Surtido · '+esc(o.num)+'</h1>'+
+    '<p class="cli">'+esc(o.cliente||'')+'</p>'+
+    '<div class="tags">'+
+      '<span class="tag'+(dias>10?' old':'')+'">'+(dias===0?'De hoy':(dias===1?'1 día esperando':dias+' días esperando'))+'</span>'+
+      (ub?'<span class="tag'+(recoge?' hi':'')+'">'+esc(ub.length>60?ub.slice(0,58)+'…':ub)+'</span>':'')+
+      (arts.length?'<span class="tag">'+arts.length+(arts.length===1?' partida':' partidas')+'</span>':'')+
+    '</div>'+
+    '<table><thead><tr><th></th><th style="text-align:right;padding-right:16px">Cant.</th><th>Qué hay que juntar</th></tr></thead>'+
+    '<tbody>'+filas+'</tbody></table>'+
+    '<div class="pie"><span>Surtió: ____________________</span><span>Fecha: ____________</span></div>'+
+    '</body></html>';
+  openHTMLViewer(html,'Surtido '+o.num);
+}
+// El propio almacén cierra su parte: al terminar de armar, el pedido pasa a
+// "esperando salida" sin que oficina tenga que intervenir. Se pregunta antes
+// porque en tableta es fácil picarle sin querer.
+function marcarArmadoListo(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return showToast('Pedido no encontrado','#c62828');
+  if(o.armado==='Listo')return showToast('Ese pedido ya estaba armado','#BA7517');
+  if(!confirm('¿'+num+' ya quedó armado?\n\n'+(o.cliente||'')+'\n\nPasa a "Ya armados, esperando salida".'))return;
+  o.armado='Listo';
+  o.updated=Date.now();
+  saveOrders();   // guarda en el equipo Y sube a la nube (cloudSyncTodosLosPedidos)
+  showToast('✓ '+num+' armado · listo para salir','#3B6D11');
+  if(typeof renderAlmacen==='function')renderAlmacen();
+  if(typeof render==='function')render();
+}
 function renderAlmacen(){
   const cont=document.getElementById('alm-lista');if(!cont)return;
   const q=(document.getElementById('alm-buscar')?.value||'').trim().toLowerCase();
@@ -4813,13 +4920,20 @@ function renderAlmacen(){
   });
   if(q)items=items.filter(({o,f})=>(o.num||'').toLowerCase().includes(q)||(o.cliente||'').toLowerCase().includes(q)||(f&&(f.cliente||'').toLowerCase().includes(q)));
 
-  // Clasificar cada item por estado: 'entregado' | 'listo' | 'falta'
-  const clasificar=({o,f})=>{
+  // Clasificar por lo que el ALMACÉN puede hacer, no por papeleo.
+  // Antes el estado salía de PO+Factura, que casi nunca se capturan: 79 de 81 pedidos
+  // mostraban la misma alarma y la gente aprendió a ignorar la pantalla. El campo que
+  // el piso sí mantiene es 'armado' (115 de 120 pedidos lo traen).
+  const clasificar=({o})=>{
     const entregado=(o.entregado==='Si'||o.entregado==='Sí')||(o.pdfsRecepcion&&o.pdfsRecepcion.length>0);
     if(entregado)return 'entregado';
-    const estPO=_almEstadoDoc(f,'poNum','pdfPo');
-    const estFact=_almEstadoDoc(f,'factura','pdfFactNum');
-    return (estPO!=='falta'&&estFact!=='falta')?'listo':'falta';
+    return (o.armado==='Listo')?'listo':'falta';
+  };
+  // Días esperando: sirve para que lo viejo no se hunda al fondo de la lista.
+  const _dias=o=>{
+    const s=o&&o.fecha;if(!s)return 0;
+    const d=new Date(s+'T00:00:00');if(isNaN(d))return 0;
+    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
   };
   items.forEach(it=>{it._estado=clasificar(it);});
 
@@ -4839,44 +4953,79 @@ function renderAlmacen(){
   else if(_almTab==='entregado')visibles=items.filter(it=>it._estado==='entregado');
   // Orden estable e idéntico en todos los equipos: más reciente primero (fecha desc, luego # de pedido desc)
   const _almTs=o=>o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):'');
-  visibles=visibles.slice().sort((a,b)=>{const fa=_almTs(a.o),fb=_almTs(b.o);if(fa!==fb)return fa<fb?1:-1;const na=String(a.o.num||''),nb=String(b.o.num||'');return na<nb?1:(na>nb?-1:0);});
+  // v2: el que lleva MÁS tiempo esperando va primero. Antes era al revés y los pedidos
+  // de hace semanas quedaban hundidos abajo de 80 filas, donde nadie los veía.
+  // En 'Entregado' se conserva el orden viejo (lo recién entregado arriba).
+  const _dirAlm=(_almTab==='entregado')?-1:1;
+  visibles=visibles.slice().sort((a,b)=>{const fa=_almTs(a.o),fb=_almTs(b.o);if(fa!==fb)return (fa<fb?-1:1)*_dirAlm;const na=String(a.o.num||''),nb=String(b.o.num||'');return na<nb?-_dirAlm:(na>nb?_dirAlm:0);});
 
   if(!visibles.length){cont.innerHTML='<div style="text-align:center;color:#aaa;padding:40px;font-size:14px">'+(_almTab==='entregado'?'Aún no hay pedidos entregados.':(_almTab==='porentregar'?'No hay pedidos por entregar. 🎉':'Sin pedidos para mostrar.'))+'</div>';return;}
 
-  cont.innerHTML='<div id="alm-wrap" data-no-invert>'+
-    '<div style="display:grid;grid-template-columns:68px 1fr 160px 95px 68px;gap:6px;padding:2px 10px;font-size:11px;color:var(--color-text-tertiary,#999);font-weight:500;margin-bottom:4px"><span>Pedido</span><span>Cliente</span><span>Ubicación</span><span>Estado</span><span></span></div>'+
-    visibles.map(({o,f,_estado})=>{
+  // Una tarjeta de pedido. Todo en palabras normales: el personal de piso no
+  // tiene por qué descifrar abreviaturas ni saber qué es una PO.
+  const tarjeta=({o,f,_estado})=>{
     const ri=f?facturas.indexOf(f):-1;
-    const estPO=_almEstadoDoc(f,'poNum','pdfPo');
-    const estFact=_almEstadoDoc(f,'factura','pdfFactNum');
-    const esEntregado=_estado==='entregado';
-    const listo=_estado==='listo';
-    // Determinar clase de color para toda la fila
-    let rowClass,stTxt,stClass;
-    if(esEntregado){rowClass='alm-row-b';stTxt='Entregado';stClass='alm-st-b';}
-    else if(listo){rowClass='alm-row-ok';stTxt='Listo';stClass='alm-st-ok';}
-    else{
-      const faltan=[];if(estPO==='falta')faltan.push('PO');if(estFact==='falta')faltan.push('Fact');
-      if(faltan.length&&estFact==='falta'&&!faltan.includes('PO')){rowClass='alm-row-e';stTxt='Falta factura';stClass='alm-st-e';}
-      else{rowClass='alm-row-w';stTxt='Falta '+faltan.join('+');stClass='alm-st-w';}
+    const d=_dias(o),viejo=d>60;
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    let cls,pill,pillTxt;
+    if(_estado==='entregado'){cls='a2-b';pill='a2-pb';pillTxt='Entregado';}
+    else if(viejo){cls='a2-o';pill='a2-po';pillTxt='Sin cerrar';}
+    else if(_estado==='listo'){cls='a2-r';pill='a2-pr';pillTxt='Listo';}
+    else{cls='a2-w';pill='a2-pw';pillTxt='Falta armar';}
+    // Ubicación: cuando el cliente pasa por él, el almacén no tiene que salir. Va resaltado.
+    const ub=(o.ubicacion||'').trim();
+    const recoge=/recoge|recoger|paqueter/i.test(ub);
+    let chipUbic='';
+    if(ub)chipUbic=recoge?`<span class="a2-chip hi">${esc(ub.length>40?ub.slice(0,38)+'…':ub)}</span>`
+                        :`<span class="a2-chip" onclick="verMapaInline(event,${o.id})">Ver mapa</span>`;
+    const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!l.tipo).length:0;
+    // Papeles: el almacén los imprime y se van con la entrega. Lo que hay se imprime,
+    // lo que falta se dice en gris — sin alarma, porque no es su trabajo conseguirlo.
+    let docs='';
+    if(_estado!=='falta'){
+      const bPed=(o.cotData||o.cotHTML)?`<button class="a2-doc" onclick="event.stopPropagation();verPedidoDesdeFactura('${esc(o.num)}')">Pedido <b>${esc(o.num)}</b> <i>Imprimir</i></button>`:'';
+      const hayPO=f&&typeof _hayAdj==='function'&&_hayAdj(f.pdfPo);
+      const bPO=hayPO?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'pdfPo')">Orden de compra${f.poNum?' <b>'+esc(f.poNum)+'</b>':''} <i>Imprimir</i></button>`
+                     :`<span class="a2-doc none">Sin orden de compra</span>`;
+      const hayFac=f&&typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura));
+      const bFac=hayFac?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'${_hayAdj(f.pdfFactNum)?'pdfFactNum':'pdfFactura'}')">Factura${f.factura?' <b>'+esc(f.factura)+'</b>':''} <i>Imprimir</i></button>`
+                       :`<span class="a2-doc none">Sin factura todavía</span>`;
+      docs=`<div class="a2-docs"><div class="a2-docs-t">Papeles para entregar</div><div class="a2-docrow">${bPed}${bFac}${bPO}</div></div>`;
     }
-    // Fecha corta
-    const _t=Number(o.id)||0;let fCorta='';
-    if(_t){const d=new Date(_t);fCorta=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');}
-    else if(o.fecha){const p=o.fecha.split('-');fCorta=p[2]+'/'+p[1];}
-    // Comercial completo
-    const comNombre=(o.comercial||'').trim();
-    // Ubicación corta
-    const ubic=(o.ubicacion||'').trim();
-    const ubicCorta=ubic.length>22?ubic.slice(0,20)+'…':ubic;
-    return `<div class="alm-row ${rowClass}" onclick="openModal(${o.id})">
-      <span class="alm-row-num">${o.num}</span>
-      <div class="alm-row-cli">${o.cliente||(f&&f.cliente)||''} <span class="alm-row-sub">${fCorta}${comNombre?' · '+comNombre:''}</span></div>
-      <div class="alm-row-loc">${ubicCorta?'📍 '+ubicCorta:''}</div>
-      <span class="${stClass}">${stTxt}</span>
-      <button class="alm-row-btn" onclick="event.stopPropagation();openModal(${o.id})">Entrega</button>
+    // Un solo botón principal, y solo el que aplica en ese momento.
+    let acciones='';
+    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`+
+      `<button class="a2-btn a2-done" onclick="event.stopPropagation();marcarArmadoListo('${esc(o.num)}')">Ya quedó armado</button>`;
+    else if(_estado==='listo'||viejo)acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
+      `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
+    return `<div class="a2-card ${cls}" onclick="openModal(${o.id})">
+      <div class="a2-top">
+        <div><div class="a2-folio">${esc(o.num)}</div><div class="a2-cli">${esc(o.cliente||(f&&f.cliente)||'')}</div></div>
+        <div class="a2-pill ${pill}">${pillTxt}</div>
+      </div>
+      <div class="a2-meta">
+        <span class="a2-dias${d>10?' bad':''}">${d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando')}</span>
+        ${chipUbic}${nPart?`<span class="a2-chip">${nPart} ${nPart===1?'partida':'partidas'}</span>`:''}
+      </div>
+      ${docs}${acciones}
     </div>`;
-  }).join('')+'</div>';
+  };
+  const bloque=(titulo,pista,lista)=>lista.length
+    ? `<div class="a2-sec"><div class="a2-sech"><b>${titulo}</b><span>${pista}</span></div>${lista.map(tarjeta).join('')}</div>`
+    : '';
+  let cuerpo='';
+  if(_almTab==='porentregar'){
+    const viejos=visibles.filter(it=>_dias(it.o)>60);
+    const resto=visibles.filter(it=>_dias(it.o)<=60);
+    const porArmar=resto.filter(it=>it._estado==='falta');
+    const listos=resto.filter(it=>it._estado==='listo');
+    cuerpo=bloque('Falta armar','empieza por estos',porArmar)
+          +bloque('Ya armados, esperando salida','solo falta entregarlos',listos)
+          +bloque('Muy viejos — revisar','seguro ya salieron y nadie los cerró',viejos);
+  }else{
+    cuerpo=visibles.map(tarjeta).join('');
+  }
+  cont.innerHTML='<div id="alm-wrap" data-no-invert>'+cuerpo+'</div>';
 }
 function imprimirTodoAlmacen(num){
   // Abre los documentos disponibles para imprimir. El usuario imprime cada uno.
