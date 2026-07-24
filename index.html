@@ -1139,7 +1139,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.07';
+const APP_VERSION='2026.07.24.08';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -5144,7 +5144,7 @@ function renderAlmacen(){
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();marcarArmadoListo('${esc(o.num)}')">Ya quedó armado</button>`;
     else if(_estado==='listo'||viejo)acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
-    return `<div class="a2-card ${cls}" onclick="openModal(${o.id})">
+    return `<div class="a2-card ${cls}">
       <div class="a2-top">
         <div><div class="a2-folio">${esc(o.num)}</div><div class="a2-cli">${esc(o.cliente||(f&&f.cliente)||'')}</div>${linCtx}</div>
         <div class="a2-pill ${pill}">${pillTxt}</div>
