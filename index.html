@@ -4834,6 +4834,67 @@ function asignarChoferAlmacen(num,sel){
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(orders[i]);
   showToast(sel.value?('🚛 Chofer asignado: '+orders[i].choferNombre):'Chofer quitado','#3B6D11');
 }
+// ── LISTA DE SURTIDO (jul 2026) ──
+// Lo que el almacén necesita para juntar el material, y nada más: cantidad, producto
+// y un cuadrito para ir palomeando en papel. Antes había que abrir el pedido completo
+// y buscarle entre datos de facturación, direcciones y PDFs.
+// Los marcos que se fabrican por BOM muestran sus piezas: eso es lo que se toma
+// físicamente del anaquel, no el marco terminado.
+function verListaSurtido(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return showToast('Pedido no encontrado','#c62828');
+  const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
+  const esServ=l=>(typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo);
+  const arts=lineas.filter(l=>l&&!esServ(l)&&(l.producto||l.sku));
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let dias=0;
+  if(o.fecha){const d=new Date(o.fecha+'T00:00:00');if(!isNaN(d))dias=Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
+  let filas='';
+  if(!arts.length){
+    filas='<tr><td colspan="3" style="padding:26px;text-align:center;color:#888;font-size:16px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</td></tr>';
+  }else arts.forEach(l=>{
+    // Solo lo que dice la orden. NO se desglosan las piezas del BOM: el marco ya
+    // incluye su pie base y sus diagonales, y se surte como una sola cosa. El BOM
+    // existe para descontar inventario, no para decirle al almacén qué juntar.
+    filas+='<tr>'+
+      '<td class="chk"><span class="box"></span></td>'+
+      '<td class="cant">'+esc(l.cantidad||0)+'</td>'+
+      '<td class="prod"><b>'+esc(l.producto||'')+'</b>'+(l.sku?'<span class="sku">'+esc(l.sku)+'</span>':'')+'</td>'+
+      '</tr>';
+  });
+  const ub=(o.ubicacion||'').trim();
+  const recoge=/recoge|recoger|paqueter/i.test(ub);
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+
+    'body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:34px 38px;color:#111;background:#fff}'+
+    'h1{font-size:31px;margin:0 0 2px;letter-spacing:-.5px}'+
+    '.cli{font-size:21px;margin:0 0 14px;color:#333}'+
+    '.tags{margin:0 0 22px;display:flex;gap:8px;flex-wrap:wrap}'+
+    '.tag{font-size:15px;padding:6px 13px;border-radius:7px;background:#f0eeea;color:#444}'+
+    '.tag.hi{background:#EAF3DE;color:#2E5A0C;font-weight:600}'+
+    '.tag.old{background:#FBEAE7;color:#8A2E1B;font-weight:600}'+
+    'table{width:100%;border-collapse:collapse;margin-top:6px}'+
+    'th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:#888;padding:0 0 9px;border-bottom:2px solid #ddd}'+
+    'td{padding:14px 8px;border-bottom:1px solid #eee;vertical-align:middle}'+
+    '.chk{width:46px}.box{display:block;width:26px;height:26px;border:2.5px solid #444;border-radius:5px}'+
+    '.cant{width:74px;font-size:25px;font-weight:700;text-align:right;padding-right:16px;white-space:nowrap}'+
+    '.prod{font-size:18px}.prod b{font-weight:600}'+
+    '.sku{display:block;font-size:13px;color:#999;margin-top:2px}'+
+    '.pie{margin-top:30px;padding-top:14px;border-top:1px solid #ddd;font-size:14px;color:#777;display:flex;justify-content:space-between;gap:20px}'+
+    '@media print{body{padding:14px}.tag{border:1px solid #ddd}}'+
+    '</style></head><body>'+
+    '<h1>Surtido · '+esc(o.num)+'</h1>'+
+    '<p class="cli">'+esc(o.cliente||'')+'</p>'+
+    '<div class="tags">'+
+      '<span class="tag'+(dias>10?' old':'')+'">'+(dias===0?'De hoy':(dias===1?'1 día esperando':dias+' días esperando'))+'</span>'+
+      (ub?'<span class="tag'+(recoge?' hi':'')+'">'+esc(ub.length>60?ub.slice(0,58)+'…':ub)+'</span>':'')+
+      (arts.length?'<span class="tag">'+arts.length+(arts.length===1?' partida':' partidas')+'</span>':'')+
+    '</div>'+
+    '<table><thead><tr><th></th><th style="text-align:right;padding-right:16px">Cant.</th><th>Qué hay que juntar</th></tr></thead>'+
+    '<tbody>'+filas+'</tbody></table>'+
+    '<div class="pie"><span>Surtió: ____________________</span><span>Fecha: ____________</span></div>'+
+    '</body></html>';
+  openHTMLViewer(html,'Surtido '+o.num);
+}
 function renderAlmacen(){
   const cont=document.getElementById('alm-lista');if(!cont)return;
   const q=(document.getElementById('alm-buscar')?.value||'').trim().toLowerCase();
@@ -4918,7 +4979,7 @@ function renderAlmacen(){
     }
     // Un solo botón principal, y solo el que aplica en ese momento.
     let acciones='';
-    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();openModal(${o.id})">Ver qué lleva este pedido</button>`;
+    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`;
     else if(_estado==='listo'||viejo)acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
       `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
     return `<div class="a2-card ${cls}" onclick="openModal(${o.id})">
