@@ -1103,7 +1103,7 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.23.01';
+const APP_VERSION='2026.07.24.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -9918,7 +9918,15 @@ function cambiarTipoVenta(ri,nuevoTipo){
       orderRef={id:Date.now(),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:Date.now()};
       try{if(typeof generarCotHTML==='function'){const _c=generarCotHTML(cotData);orderRef.cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}}catch(e){}
       integrarPedidoReutilizando(orderRef);
-      if(typeof desmarcarPedidoEliminado==='function')desmarcarPedidoEliminado(v.num); // re-confirmado a propósito
+      // Ya no se saca de la lista negra: la lápida tiene hora y este pedido es más nuevo, pasa solo.
+    }else if(orderRef.archivadoCotizacion){
+      // Al regresar a Presupuesto el pedido NO se borra: se marca archivadoCotizacion y se queda
+      // en la lista (línea ~9956). Al reconfirmar, orders.find SÍ lo encuentra, así que el bloque
+      // de arriba no corre y integrarPedidoReutilizando —que es quien borra esa marca (~10125)—
+      // nunca se ejecuta. El pedido se quedaba invisible en Seguimiento hasta que alguien editara
+      // la cotización (eso sí pasa por crearCotizacionVenta y sí desarchiva). Aquí se hace directo.
+      delete orderRef.archivadoCotizacion;
+      orderRef.updated=Date.now();
     }
     // Descontar inventario una sola vez
     let mensajeInv='';
@@ -11002,8 +11010,11 @@ try{
         const _cd={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
         _oRef={id:Date.now()+Math.floor(Math.random()*1000),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:_cd,cotVersion:2,updated:Date.now()};
         if(typeof integrarPedidoReutilizando==='function')integrarPedidoReutilizando(_oRef);else orders.unshift(_oRef);
-        if(typeof desmarcarPedidoEliminado==='function')desmarcarPedidoEliminado(v.num);
-      }else{_oRef.cotData=_oRef.cotData||{};_oRef.cotData.lineas=v.lineas||[];}
+        // Ya no se saca de la lista negra: la lápida tiene hora y este pedido es más nuevo, pasa solo.
+      }else{_oRef.cotData=_oRef.cotData||{};_oRef.cotData.lineas=v.lineas||[];
+        // Mismo caso que en cambiarTipoVenta: el pedido existía pero venía archivado desde que
+        // se regresó a Presupuesto. Sin desarchivarlo aquí, no reaparece en Seguimiento.
+        if(_oRef.archivadoCotizacion){delete _oRef.archivadoCotizacion;_oRef.updated=Date.now();}}
       if(!_oRef.inventarioDescontado&&typeof descontarInventarioPedido==='function'){
         const _r=descontarInventarioPedido(_oRef,v.lineas);
         if(_r&&!_r.ya&&!_r.nodata){
@@ -11984,24 +11995,69 @@ const PED_ELIM_KEY='isarack_pedidos_eliminados';
 function getPedidosEliminados(){
   try{const a=JSON.parse(localStorage.getItem(PED_ELIM_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}
 }
+// ── LÁPIDA CON FECHA (jul 2026) ──
+// Antes la lista negra guardaba solo el folio y mataba TODO lo que se llamara así, para
+// siempre. Al reactivar una venta el pedido se recreaba y esta misma lista lo volvía a
+// borrar en cada sync (S07253, y antes PLASCO S07212).
+// Ahora cada entrada es 'FOLIO|hora' y solo mata lo ANTERIOR a esa hora:
+//   · copia vieja en otro equipo   → anterior a la lápida → se sigue filtrando (anti-zombi)
+//   · pedido recreado al reactivar → posterior a la lápida → pasa limpio
+// La entrada NUNCA se saca de la lista: no se recupera nada, entra como pedido nuevo.
+// Formato viejo (folio suelto, sin '|') = hora 0 = bloquea siempre, igual que hoy.
+// Se usa texto y no objeto a propósito: una versión vieja de la app lo conserva intacto
+// en vez de corromper la lista al reescribirla.
+function _normEntradaElim(e){
+  if(e==null)return null;
+  if(typeof e==='object')return {k:String(e.k==null?'':e.k),ts:Number(e.ts)||0};
+  const s=String(e);
+  const i=s.lastIndexOf('|');
+  if(i<0)return {k:s,ts:0};
+  const ts=Number(s.slice(i+1));
+  if(!ts||isNaN(ts))return {k:s,ts:0};
+  return {k:s.slice(0,i),ts:ts};
+}
+// Solo los folios/ids, sin la hora. Para los paneles y chequeos que nada más listan.
+function getFoliosEliminados(){
+  return getPedidosEliminados().map(_normEntradaElim).filter(e=>e&&e.k).map(e=>e.k);
+}
+// Fecha real del pedido. CLAUDE.md caso 7: NO usar updated_at ni _horaCargado — el loop
+// cloudSyncTodosLosPedidos reescribe la tabla completa y le pone fecha nueva a TODOS.
+// La única confiable es payload.updated, que sobrevive el viaje a la nube.
+function _tsPedido(o){
+  const t=Number(o&&o.updated);
+  return (isNaN(t)||t<=0)?0:t;
+}
 function marcarPedidoEliminado(clave){
   if(clave==null||clave==='')return;
-  const set=new Set(getPedidosEliminados().map(String));set.add(String(clave));
-  const arr=Array.from(set);
+  const k=String(clave);
+  const arr=getPedidosEliminados().filter(e=>{const n=_normEntradaElim(e);return n&&n.k&&n.k!==k;});
+  arr.push(k+'|'+Date.now());
   localStorage.setItem(PED_ELIM_KEY,JSON.stringify(arr));
   _syncPedidosEliminados(arr);
 }
 // ¿este pedido está en la lista de borrados? Checa por id Y por num (cualquiera basta)
 function estaPedidoEliminado(o){
   if(!o)return false;
-  const set=new Set(getPedidosEliminados().map(String));
-  if(o.id!=null&&set.has(String(o.id)))return true;
-  if(o.num&&set.has(String(o.num)))return true;
+  const tsPed=_tsPedido(o);
+  const lista=getPedidosEliminados();
+  for(let i=0;i<lista.length;i++){
+    const e=_normEntradaElim(lista[i]);
+    if(!e||!e.k)continue;
+    const coincide=(o.id!=null&&String(o.id)===e.k)||(o.num&&String(o.num)===e.k);
+    if(!coincide)continue;
+    if(e.ts<=0)return true;   // lápida vieja sin hora → bloquea siempre (como antes)
+    if(tsPed>e.ts)continue;   // pedido MÁS NUEVO que la lápida → es otro, pasa limpio
+    return true;              // sin fecha o más viejo → sigue borrado
+  }
   return false;
 }
+// Se conserva para el botón manual de Diagnóstico y para rescatar lápidas viejas (hora 0).
+// Ojo: ahora normaliza, lo que de paso arregla un bug latente — antes comparaba n!==num
+// sin convertir a texto, así que un id numérico nunca se borraba de la lista.
 function desmarcarPedidoEliminado(num){
   if(!num)return;
-  const arr=getPedidosEliminados().filter(n=>n!==num);
+  const k=String(num);
+  const arr=getPedidosEliminados().filter(e=>{const n=_normEntradaElim(e);return n&&n.k&&n.k!==k;});
   localStorage.setItem(PED_ELIM_KEY,JSON.stringify(arr));
   _syncPedidosEliminados(arr);
 }
@@ -12013,31 +12069,18 @@ function desmarcarPedidoEliminado(num){
 // se repitio 3 veces con PLASCO S07212.
 // Regla: si el folio tiene una VENTA confirmada, no tiene nada que hacer en la lista negra.
 function reconciliarPedidosEliminados(){
-  try{
-    if(!Array.isArray(ventas))return 0;
-    const bloq=getPedidosEliminados().map(String);
-    if(!bloq.length)return 0;
-    const confirmadas=new Set();
-    ventas.forEach(v=>{
-      if(!v||!v.num)return;
-      if(v._historica)return;
-      const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada'||v.stage==='Pedido de venta';
-      if(esVenta)confirmadas.add(String(v.num));
-    });
-    const quedan=bloq.filter(n=>!confirmadas.has(String(n)));
-    const soltados=bloq.length-quedan.length;
-    if(soltados>0){
-      localStorage.setItem(PED_ELIM_KEY,JSON.stringify(quedan));
-      _syncPedidosEliminados(quedan);
-      console.log('[ISA-OS] Folios desbloqueados por tener venta confirmada:',soltados);
-    }
-    return soltados;
-  }catch(e){return 0;}
+  // NEUTRALIZADA (jul 2026). Antes sacaba de la lista negra los folios con venta
+  // confirmada. Ya no hace falta: la lápida lleva hora y el pedido recreado, al ser más
+  // nuevo, pasa solo. Además borrar la lápida era contraproducente por dos razones:
+  //   1) dejaba la puerta abierta a que una copia vieja en otro equipo reviviera el pedido;
+  //   2) reescribía la lista con .map(String) y degradaba el formato 'FOLIO|hora'.
+  // Las 2 llamadas (en la bajada de la nube) se conservan: ahora no hacen nada.
+  return 0;
 }
 function renderFoliosBloqueados(){
   const cont=document.getElementById('pap-bloqueados');
   if(!cont)return;
-  const bloq=getPedidosEliminados().map(String);
+  const bloq=getFoliosEliminados();
   if(!bloq.length){cont.innerHTML='<div style="text-align:center;padding:14px;color:#999;font-size:12px">Ningun folio bloqueado</div>';return;}
   let h='<div style="display:flex;flex-direction:column;gap:6px">';
   bloq.forEach(n=>{
@@ -12117,7 +12160,7 @@ function _diagChequeos(){
   const _facturas=(typeof facturas!=='undefined'&&Array.isArray(facturas))?facturas:[];
   const _inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
 
-  const bloq=(typeof getPedidosEliminados==='function')?getPedidosEliminados().map(String):[];
+  const bloq=(typeof getFoliosEliminados==='function')?getFoliosEliminados():[];
   const f1=[];
   bloq.forEach(n=>{
     const v=_ventas.find(x=>x&&String(x.num)===n);
@@ -12358,14 +12401,15 @@ function diagIrA(tab,folio){
   },220);
 }
 
-function _syncPedidosEliminados(arr){
-  if(typeof supabaseClient!=='undefined'&&supabaseClient){
-    try{
-      supabaseClient.from('empresa_config').upsert({clave:'pedidos_eliminados',valor:JSON.stringify(arr),updated_at:new Date().toISOString()},{onConflict:'clave'}).then(({error})=>{
-        if(error)console.warn('No se pudo subir pedidos_eliminados:',error.message);
-      });
-    }catch(e){}
-  }
+// async: quien necesite certeza puede await-earlo. Antes era dispara-y-olvida: si la app
+// bajaba datos antes de que llegara el upsert, regresaba la lista vieja y re-bloqueaba.
+async function _syncPedidosEliminados(arr){
+  if(typeof supabaseClient==='undefined'||!supabaseClient)return false;
+  try{
+    const {error}=await supabaseClient.from('empresa_config').upsert({clave:'pedidos_eliminados',valor:JSON.stringify(arr),updated_at:new Date().toISOString()},{onConflict:'clave'});
+    if(error){console.warn('No se pudo subir pedidos_eliminados:',error.message);return false;}
+    return true;
+  }catch(e){console.warn('No se pudo subir pedidos_eliminados:',e&&e.message);return false;}
 }
 async function cargarPedidosEliminadosNube(){
   if(typeof supabaseClient==='undefined'||!supabaseClient)return;
@@ -12406,7 +12450,7 @@ function limpiarHistoricasEnSeguimiento(){
 
 function repararVentasHuerfanas(){
   if(!Array.isArray(ventas)||!Array.isArray(orders))return;
-  const eliminados=new Set(getPedidosEliminados());
+  const eliminados=new Set(getFoliosEliminados());
   let reparados=0;
   ventas.forEach(v=>{
     const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada'||v.stage==='Pedido de venta';
