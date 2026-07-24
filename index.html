@@ -4844,14 +4844,23 @@ function verListaSurtido(num){
   const o=orders.find(x=>x&&x.num===num);
   if(!o)return showToast('Pedido no encontrado','#c62828');
   const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
-  const esServ=l=>(typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo);
+  // El montacargas ES un servicio, pero el almacén sí tiene que prepararlo (rentarlo/
+  // apartarlo), así que cuenta como algo que juntar. El resto de servicios -flete,
+  // instalación, maniobras- no llevan material y se omiten.
+  const esMontacargas=l=>/montacarga/i.test((l&&l.producto)||'');
+  const esServ=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!esMontacargas(l);
   const arts=lineas.filter(l=>l&&!esServ(l)&&(l.producto||l.sku));
+  // Si el pedido es puro servicio (sin material ni montacargas), no es que le falten
+  // partidas: es que no hay nada que surtir. Se dice claro, sin alarma.
+  const soloServicios=lineas.length>0 && !arts.length;
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   let dias=0;
   if(o.fecha){const d=new Date(o.fecha+'T00:00:00');if(!isNaN(d))dias=Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
   let filas='';
   if(!arts.length){
-    filas='<tr><td colspan="3" style="padding:26px;text-align:center;color:#888;font-size:16px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</td></tr>';
+    filas=soloServicios
+      ?'<tr><td colspan="3" style="padding:26px;text-align:center;color:#2E5A0C;font-size:17px;background:#EBF3DF;border-radius:8px">Este pedido es solo de servicio.<br><span style="font-size:14px;color:#4a6b2a">No hay material que juntar en el almacén.</span></td></tr>'
+      :'<tr><td colspan="3" style="padding:26px;text-align:center;color:#888;font-size:16px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</td></tr>';
   }else arts.forEach(l=>{
     // Solo lo que dice la orden. NO se desglosan las piezas del BOM: el marco ya
     // incluye su pie base y sus diagonales, y se surte como una sola cosa. El BOM
@@ -4978,7 +4987,10 @@ function renderAlmacen(){
     let chipUbic='';
     if(ub)chipUbic=recoge?`<span class="a2-chip hi">${esc(ub.length>40?ub.slice(0,38)+'…':ub)}</span>`
                         :`<span class="a2-chip" onclick="verMapaInline(event,${o.id})">Ver mapa</span>`;
-    const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!l.tipo).length:0;
+    // Mismo criterio que verListaSurtido: cuenta material y montacargas, no servicios.
+    const _esMont=l=>/montacarga/i.test((l&&l.producto)||'');
+    const _esSv=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!_esMont(l);
+    const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!_esSv(l)&&(l.producto||l.sku)).length:0;
     // Papeles: el almacén los imprime y se van con la entrega. Lo que hay se imprime,
     // lo que falta se dice en gris — sin alarma, porque no es su trabajo conseguirlo.
     let docs='';
