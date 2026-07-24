@@ -919,7 +919,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">F. Entrega</label><input id="f-entrega" type="date" style="width:100%;padding:6px 8px;border:1px solid #E5E5E0;border-radius:6px;font-size:11px"></div>
-          <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Entregado</label><div class="seg-group" id="seg-entregado" style="display:flex;gap:3px"><button class="seg-btn active" data-val="No" onclick="setSeg('seg-entregado',this)" style="flex:1">No</button><button class="seg-btn" data-val="Si" onclick="validarYSetEntregado(this)" style="flex:1" title="Requiere firma del cliente">Sí</button></div></div>
+          <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Entregado</label><div class="seg-group" id="seg-entregado" style="display:flex;gap:3px"><button class="seg-btn active" data-val="No" onclick="setSeg('seg-entregado',this)" style="flex:1">No</button><button class="seg-btn" data-val="Si" onclick="validarYSetEntregado(this)" style="flex:1" title="Requiere firma del cliente">Sí</button></div><button type="button" id="btn-cerrar-sin-firma" onclick="cerrarSinFirma()" title="Marca el pedido como entregado sin exigir firma. Solo admin." style="width:100%;padding:5px 8px;margin-top:5px;background:#fff;border:1px dashed #B8431C;border-radius:5px;font-size:10px;color:#B8431C;font-weight:600;cursor:pointer;display:none">🔓 Cerrar sin firma (admin)</button></div>
         </div>
         
         <div id="alerta-firma-requerida" style="display:none;background:#FCEBEB;border-left:3px solid #A32D2D;border-radius:0 6px 6px 0;padding:8px 10px;font-size:11px;color:#791F1F;margin-bottom:8px"><span style="font-weight:600">⚠ Falta firma del cliente.</span> Sube el PDF firmado en la zona de la derecha para marcar como entregado.</div>
@@ -1139,7 +1139,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.24.09';
+const APP_VERSION='2026.07.24.10';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -2963,6 +2963,29 @@ function inlineUbicacion(e,id,cur){
 }
 function notificarPorId(id){const o=orders.find(x=>x.id==id);if(!o||!o.instaladorCel)return showToast('Asigna instalador primero','#BA7517');const cel=o.instaladorCel,nom=o.instaladorNombre||'Instalador';const ct=o.contactoNombre?(o.contactoNombre+(o.whatsapp?' — '+o.whatsapp:'')):(o.whatsapp||'Sin contacto');let msg=`🔧 *ISARACK — Pedido Asignado*\nHola *${nom}*, se te asigna:\n📋 *N° Pedido:* ${o.num}\n👤 *Cliente:* ${o.cliente}\n📍 *Ubicación:* ${o.ubicacion||'Sin ubicación'}\n📞 *Contacto:* ${ct}`;window.open(`https://wa.me/52${cel}?text=${encodeURIComponent(msg)}`,'_blank');showToast(`✓ Enviado a ${nom}`,'#3B6D11');}
 function setSeg(g,b){document.querySelectorAll('#'+g+' .seg-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');}
+// Cierre administrativo sin firma: para casos donde el pedido ya se entregó (cliente
+// recogió en bodega, entrega ya hecha días atrás sin captura, etc.). Solo admin.
+// Marca el pedido como entregado y lo saca de "Por entregar", sin dejar rastro
+// especial — queda como cualquier otro entregado.
+function cerrarSinFirma(){
+  const u=(typeof getCurrentUser==='function')?getCurrentUser():null;
+  if(!u||u.rol!=='admin'){showToast('Solo admin puede cerrar sin firma','#c62828');return;}
+  if(currentOrderId==null){showToast('Sin pedido activo','#c62828');return;}
+  const i=orders.findIndex(o=>o&&o.id===currentOrderId);
+  if(i<0){showToast('Pedido no encontrado','#c62828');return;}
+  const o=orders[i];
+  if(!confirm('¿Marcar '+o.num+' como entregado SIN pedir firma del cliente?\n\nCliente: '+(o.cliente||'—')+'\n\nEsto lo saca de "Por entregar" y lo cierra como cualquier otro entregado.'))return;
+  o.entregado='Si';
+  o.estatus='Completado';
+  o.fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));
+  o.updated=Date.now();
+  saveOrders();
+  if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+  showToast('✓ '+o.num+' cerrado como entregado','#3B6D11');
+  const modal=document.getElementById('modal');if(modal)modal.style.display='none';
+  if(typeof renderAlmacen==='function')renderAlmacen();
+  if(typeof render==='function')render();
+}
 function validarYSetEntregado(b){
   // Validar que haya PDF de recepción antes de permitir Entregado: Sí
   if(!pdfRecepcion||pdfRecepcion.length===0){
@@ -3027,7 +3050,7 @@ function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectC
 const usrEdit=getCurrentUser();
 const selComEd=document.getElementById('f-comercial');
 if(usrEdit&&usrEdit.rol==='comercial'){selComEd.disabled=true;selComEd.style.background='#f0f0ee';selComEd.style.cursor='not-allowed';selComEd.title='Solo el admin puede cambiar el comercial';}else{selComEd.disabled=false;selComEd.style.background='';selComEd.style.cursor='';selComEd.title='';}
-document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
+document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);{const _u=(typeof getCurrentUser==='function')?getCurrentUser():null;const _bcsf=document.getElementById('btn-cerrar-sin-firma');if(_bcsf)_bcsf.style.display=(_u&&_u.rol==='admin')?'block':'none';}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
 // SNAPSHOT DEL MODAL: foto silenciosa de los campos críticos al abrir.
 // Sirve para detectar qué tocó el usuario realmente: si un campo estaba vacío al abrir
 // y sigue vacío al guardar, el usuario NO lo tocó → no debe sobreescribir lo que tenga la nube.
