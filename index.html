@@ -315,6 +315,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="cambiarTab('dashboard',this)">📊 Dashboard</button>
     <button class="nav-tab" onclick="cambiarTab('pedidos',this)">📦 Seguimiento Pedidos</button>
+    <button class="nav-tab" onclick="cambiarTab('instalaciones',this)">🔧 Instalaciones</button>
     <button class="nav-tab" onclick="cambiarTab('facturacion',this)">🧾 Facturación</button>
     <button class="nav-tab" onclick="cambiarTab('inventario',this)">📦 Inventario</button>
     <button class="nav-tab" onclick="cambiarTab('ventas',this)">🛒 Ventas / Cotización</button>
@@ -349,6 +350,13 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
           <table><thead><tr><th style="width:24px"></th><th></th><th>Factura</th><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Comercial</th><th>WhatsApp</th><th>Instalador</th><th>Ubicación</th><th>Estatus</th></tr></thead><tbody id="tbody"></tbody></table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB INSTALACIONES ══ -->
+  <div class="tab-content" id="tab-instalaciones">
+    <div class="tab-body">
+      <div id="inst-root" style="padding:4px"></div>
     </div>
   </div>
 
@@ -1141,7 +1149,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.27.03';
+const APP_VERSION='2026.07.27.04';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -1376,6 +1384,7 @@ function aplicarPermisos(){
     else if(tabName==='web'){visible=(u.rol==='admin');} // web (cotizaciones sitio) solo admin
     else if(tabName==='asistente'){visible=(u.rol==='admin');} // asistente 🤖 solo admin por ahora
     else if(tabName==='comisiones'){visible=(typeof esUsuarioComisiones==='function'&&esUsuarioComisiones(u));} // comisiones: solo admin + ejecutivos
+    else if(tabName==='instalaciones'){visible=true;} // Instalaciones: visible para todos los usuarios
     else{visible=permitidas.includes(tabName);} // comisiones incluida: se rige por la tabla de permisos
     tab.style.display=visible?'':'none';
   });
@@ -1385,7 +1394,7 @@ function aplicarPermisos(){
     const activa=document.querySelector('.tab-content.active');
     const idActiva=activa?activa.id.replace('tab-',''):'';
     const permitidasAhora=getPestanasDeUsuario(getCurrentUser()||u);
-    const okActiva=(idActiva==='config'&&u.rol==='admin')||(idActiva==='diagnostico'&&u.rol==='admin')||(idActiva==='asistente'&&u.rol==='admin')||permitidasAhora.includes(idActiva);
+    const okActiva=(idActiva==='config'&&u.rol==='admin')||(idActiva==='diagnostico'&&u.rol==='admin')||(idActiva==='asistente'&&u.rol==='admin')||(idActiva==='instalaciones')||permitidasAhora.includes(idActiva);
     if(!okActiva&&u.rol!=='almacen'){
       const destino=permitidasAhora.includes('pedidos')?'pedidos':(permitidasAhora[0]||'pedidos');
       const btn=Array.from(document.querySelectorAll('.nav-tab')).find(t=>(t.getAttribute('onclick')||'').includes("'"+destino+"'"));
@@ -2793,7 +2802,7 @@ async function abrirPanelDeficit(){
   document.getElementById('deficit-body').innerHTML=html;
 }
 
-function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='diagnostico')correrDiagnostico();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
+function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='instalaciones')renderInstalaciones();if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='diagnostico')correrDiagnostico();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
 
 // ── PEDIDOS ──
 function loadOrders(){const keys=['isarack-v3','isarack-v2','isarack_pedidos_v2'];let found=[];for(const k of keys){try{const d=localStorage.getItem(k);if(d){const p=JSON.parse(d);if(Array.isArray(p)&&p.length>found.length)found=p;}}catch(e){}}orders=found;if(orders.length){window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}render();}
@@ -4019,6 +4028,155 @@ async function importarPDFVenta(input){
     }catch(e){console.error('importarPDFVenta:',e);showToast('⚠ No se pudo leer el PDF','#BA7517');}
   };
   r.readAsDataURL(f);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PESTAÑA INSTALACIONES — registro de asistencia (REPSE) + tablero
+// Lee/escribe la tabla instalaciones_activas (la misma que la app satélite).
+// Historial permanente: por obra (quién fue) y por persona (a qué obras fue).
+// ════════════════════════════════════════════════════════════════════
+var INST={rows:[],modo:'board',q:''};
+var INST_EDIT=null;
+function _ie(s){return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function _instMiembros(r){return (r&&Array.isArray(r.instaladores))?r.instaladores:[];}
+function _fmtF(iso){if(!iso)return'';var p=(''+iso).slice(0,10).split('-');if(p.length<3)return iso;var M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return (+p[2])+' '+M[(+p[1])-1]+' '+p[0];}
+function _instFecha(r){var a=r.fecha_inicio||'',b=r.fecha_fin||'';if(a&&b&&(''+a).slice(0,10)!==(''+b).slice(0,10))return _fmtF(a)+' – '+_fmtF(b);return a?_fmtF(a):(b?_fmtF(b):'—');}
+function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r).forEach(function(n){if(n)set[n]=1;});});return Object.keys(set).sort(function(a,b){return a.localeCompare(b);});}
+
+async function renderInstalaciones(){
+  var root=document.getElementById('inst-root');if(!root)return;
+  root.innerHTML='<div style="padding:36px;text-align:center;color:#999">Cargando instalaciones…</div>';
+  var rows=null;
+  try{rows=await cloudFetchAll('instalaciones_activas');}catch(e){console.warn('inst fetch',e);}
+  INST.rows=Array.isArray(rows)?rows:[];
+  _instPintar();
+}
+function _instSeg(m,label){var on=INST.modo===m;return '<button onclick="INST.modo=\''+m+'\';INST.q=\'\';_instPintar()" style="border:none;border-radius:18px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:'+(on?'600':'400')+';background:'+(on?'#fff':'transparent')+';color:'+(on?'#DA6635':'#666')+';box-shadow:'+(on?'0 1px 3px rgba(0,0,0,.12)':'none')+'">'+label+'</button>';}
+function _instPintar(){
+  var root=document.getElementById('inst-root');if(!root)return;
+  var head='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">'+
+    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px">'+_instSeg('board','📋 Tablero')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+'</div>'+
+    (INST.modo!=='board'?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
+    '<button onclick="abrirInstEditor(null)" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Registrar obra</button></div>';
+  var body='';
+  if(INST.modo==='persona')body=_instPorPersona();
+  else if(INST.modo==='obra')body=_instPorObra();
+  else{
+    var enP=INST.rows.filter(function(r){return (r.estatus||'')==='En proceso';});
+    var pend=INST.rows.filter(function(r){return (r.estatus||'')==='Pendiente';});
+    var comp=INST.rows.filter(function(r){return (r.estatus||'')==='Completado';});
+    var otras=INST.rows.filter(function(r){return ['En proceso','Pendiente','Completado'].indexOf(r.estatus||'')<0;});
+    body=_instSeccion('🔧 En proceso',enP)+_instSeccion('⏳ Pendiente',pend)+_instSeccion('✓ Completadas',comp)+_instSeccion('• Otras',otras);
+    if(!INST.rows.length)body='<div style="padding:44px;text-align:center;color:#999">Sin instalaciones registradas todavía.<br>Usa <b>+ Registrar obra</b> para empezar el historial.</div>';
+  }
+  root.innerHTML=head+body;
+}
+function _instSeccion(titulo,arr){
+  if(!arr.length)return '';
+  return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+titulo+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instCard).join('')+'</div></div>';
+}
+function _instCard(r){
+  var m=_instMiembros(r);
+  return '<div onclick="abrirInstEditor('+r.id+')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
+    '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(r.obra||r.cliente||r.folio||'—')+'</div>'+
+    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(r.folio||'')+'</span> · '+_instFecha(r)+'</div>'+
+    (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:11px;color:#c62828">Sin personal registrado</div>')+'</div>';
+}
+function _instPorPersona(){
+  var q=(INST.q||'').toLowerCase().trim();
+  if(!q)return '<div style="padding:30px;text-align:center;color:#999">Escribe un nombre para ver en qué instalaciones participó (REPSE).</div>';
+  var hits=INST.rows.filter(function(r){return _instMiembros(r).some(function(n){return (''+n).toLowerCase().indexOf(q)>=0;});});
+  if(!hits.length)return '<div style="padding:30px;text-align:center;color:#999">Sin instalaciones para "'+_ie(INST.q)+'".</div>';
+  var body=hits.map(function(r){
+    var otros=_instMiembros(r).filter(function(n){return (''+n).toLowerCase().indexOf(q)<0;});
+    return '<tr style="border-top:1px solid #f0f0ee;cursor:pointer" onclick="abrirInstEditor('+r.id+')"><td style="padding:8px;font-family:monospace;color:#DA6635">'+_ie(r.folio||'')+'</td><td style="padding:8px">'+_ie(r.obra||r.cliente||'')+'</td><td style="padding:8px;white-space:nowrap">'+_instFecha(r)+'</td><td style="padding:8px;color:#666;font-size:12px">'+(otros.length?_ie(otros.join(', ')):'—')+'</td></tr>';
+  }).join('');
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px"><div style="font-size:13px;color:#666">Instalaciones donde participó <b style="color:#1a1a1a">'+_ie(INST.q)+'</b> — '+hits.length+' registro'+(hits.length===1?'':'s')+'</div><button onclick="_instExportCSV()" style="border:1px solid #ddd;background:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">⬇ Exportar CSV</button></div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px"><thead><tr style="text-align:left;color:#999;font-size:10px;text-transform:uppercase"><th style="padding:6px 8px">Folio</th><th style="padding:6px 8px">Obra / Cliente</th><th style="padding:6px 8px">Fechas</th><th style="padding:6px 8px">Otros de la cuadrilla</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+}
+function _instPorObra(){
+  var q=(INST.q||'').toLowerCase().trim();
+  if(!q)return '<div style="padding:30px;text-align:center;color:#999">Escribe un folio o cliente para ver quién fue.</div>';
+  var hits=INST.rows.filter(function(r){return ((r.folio||'')+' '+(r.obra||'')+' '+(r.cliente||'')).toLowerCase().indexOf(q)>=0;});
+  if(!hits.length)return '<div style="padding:30px;text-align:center;color:#999">Sin obras para "'+_ie(INST.q)+'".</div>';
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+hits.map(_instCard).join('')+'</div>';
+}
+function _instExportCSV(){
+  var q=(INST.q||'').toLowerCase().trim();
+  var hits=INST.rows.filter(function(r){return _instMiembros(r).some(function(n){return (''+n).toLowerCase().indexOf(q)>=0;});});
+  var lines=[['Folio','Obra','Fecha inicio','Fecha fin','Cuadrilla completa'].join(',')];
+  hits.forEach(function(r){lines.push([r.folio||'','"'+(''+(r.obra||r.cliente||'')).replace(/"/g,'""')+'"',r.fecha_inicio||'',r.fecha_fin||'','"'+_instMiembros(r).join(' | ').replace(/"/g,'""')+'"'].join(','));});
+  var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='REPSE_'+(INST.q||'obra').replace(/\s+/g,'_')+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},100);
+  if(typeof showToast==='function')showToast('CSV exportado','#3B6D11');
+}
+// ── Editor / captura ──
+function abrirInstEditor(id){
+  var r=(id!=null)?INST.rows.find(function(x){return x.id===id;}):null;
+  INST_EDIT=r?JSON.parse(JSON.stringify(r)):{id:null,folio:'',obra:'',cliente:'',ubicacion:'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:'En proceso'};
+  if(!Array.isArray(INST_EDIT.instaladores))INST_EDIT.instaladores=[];
+  _instModal();
+}
+function _instModal(){
+  var ex=document.getElementById('inst-modal');if(ex)ex.remove();
+  var e=INST_EDIT;
+  var roster=_instRoster().filter(function(n){return e.instaladores.indexOf(n)<0;});
+  var m=document.createElement('div');m.id='inst-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:4000;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
+  m.onclick=function(ev){if(ev.target===m)m.remove();};
+  m.innerHTML='<div style="width:100%;max-width:560px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)">'+
+    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">'+(e.id?'Editar registro':'Registrar obra')+'</span><button onclick="document.getElementById(\'inst-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
+    '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:110px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Folio</label><input id="ie-folio" value="'+_ie(e.folio)+'" onchange="INST_EDIT.folio=this.value.trim();_instAutollenar()" placeholder="S07240" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:2;min-width:160px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Obra / Cliente</label><input id="ie-obra" value="'+_ie(e.obra||e.cliente)+'" onchange="INST_EDIT.obra=this.value.trim()" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
+      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:5px">Personal que asistió</label><div id="ie-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">'+_instChips()+'</div><div style="display:flex;gap:6px"><input id="ie-nuevo" list="ie-roster" placeholder="Agregar nombre (de la lista o libre)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div><datalist id="ie-roster">'+roster.map(function(n){return '<option value="'+_ie(n)+'">';}).join('')+'</datalist></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+['En proceso','Pendiente','Completado'].map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
+      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7">'+(e.id?'<button onclick="_instEliminar()" style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer">🗑 Eliminar</button>':'<span></span>')+'<button onclick="guardarInst()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">💾 Guardar en historial</button></div>'+
+  '</div>';
+  document.body.appendChild(m);
+}
+function _instChips(){
+  return INST_EDIT.instaladores.map(function(n,i){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instDelMiembro('+i+')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join('')||'<span style="font-size:12px;color:#c62828">Aún sin personal</span>';
+}
+function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.indexOf(v)<0)INST_EDIT.instaladores.push(v);inp.value='';_instRefreshChips();inp.focus();}
+function _instDelMiembro(i){INST_EDIT.instaladores.splice(i,1);_instRefreshChips();}
+function _instRefreshChips(){
+  var c=document.getElementById('ie-chips');if(c)c.innerHTML=_instChips();
+  var l=document.getElementById('ie-lider');if(l){var cur=INST_EDIT.lider;l.innerHTML='<option value="">—</option>'+INST_EDIT.instaladores.map(function(n){return '<option'+(cur===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('');}
+  var dl=document.getElementById('ie-roster');if(dl){var ros=_instRoster().filter(function(n){return INST_EDIT.instaladores.indexOf(n)<0;});dl.innerHTML=ros.map(function(n){return '<option value="'+_ie(n)+'">';}).join('');}
+}
+function _instAutollenar(){
+  var f=INST_EDIT.folio;if(!f)return;
+  var o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(function(x){return x&&x.num===f;}):null;
+  var v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(function(x){return x&&x.num===f;}):null;
+  var cli=(o&&o.cliente)||(v&&v.cliente)||'';
+  var ub=(o&&o.ubicacion)||(v&&v.dir)||'';
+  if(cli&&!INST_EDIT.obra){INST_EDIT.obra=cli;var eo=document.getElementById('ie-obra');if(eo)eo.value=cli;}
+  if(ub&&!INST_EDIT.ubicacion)INST_EDIT.ubicacion=ub;
+}
+async function guardarInst(){
+  var e=INST_EDIT;if(!e)return;
+  var g=function(id){var x=document.getElementById(id);return x?x.value:'';};
+  e.folio=(g('ie-folio')||e.folio||'').trim();
+  e.obra=(g('ie-obra')||e.obra||'').trim();
+  e.notas=g('ie-notas');
+  if(!e.instaladores.length&&!confirm('No registraste personal. ¿Guardar de todas formas?'))return;
+  var payload={folio:e.folio,obra:e.obra,cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores,lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',updated_at:new Date().toISOString()};
+  try{
+    var res;
+    if(e.id){res=await supabaseClient.from('instalaciones_activas').update(payload).eq('id',e.id);}
+    else{payload.creado=new Date().toISOString();res=await supabaseClient.from('instalaciones_activas').insert(payload);}
+    if(res&&res.error)throw res.error;
+    var mm=document.getElementById('inst-modal');if(mm)mm.remove();
+    if(typeof showToast==='function')showToast('✓ Guardado en historial','#3B6D11');
+    renderInstalaciones();
+  }catch(err){console.error('guardarInst',err);if(typeof showToast==='function')showToast('⚠ No se pudo guardar','#BA7517');}
+}
+async function _instEliminar(){
+  var e=INST_EDIT;if(!e||!e.id)return;
+  if(!confirm('¿Eliminar este registro del historial REPSE? Esta acción no se puede deshacer.'))return;
+  try{var res=await supabaseClient.from('instalaciones_activas').delete().eq('id',e.id);if(res&&res.error)throw res.error;var mm=document.getElementById('inst-modal');if(mm)mm.remove();if(typeof showToast==='function')showToast('Registro eliminado','#BA7517');renderInstalaciones();}catch(err){console.error('_instEliminar',err);if(typeof showToast==='function')showToast('⚠ No se pudo eliminar','#BA7517');}
 }
 // ── FUNCIÓN CENTRAL: Descuenta inventario desde las líneas de un pedido ──
 // Maneja marcos Selectivo, marcos Picking y productos normales
