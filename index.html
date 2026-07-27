@@ -2151,6 +2151,7 @@ let _versionAvisada=false;
 function _cmpVer(a,b){const pa=String(a||'').split('.').map(Number),pb=String(b||'').split('.').map(Number);for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function publicarVersion(){
   // El archivo que arranca publica SU versión en la nube (la más nueva desplegada gana).
+  if(location.protocol==='file:')return; // NUNCA publicar desde un archivo local
   if(!supabaseClient||cloudStatus!=='online')return;
   try{
     const {data}=await supabaseClient.from('empresa_config').select('valor').eq('clave','app_version').maybeSingle();
@@ -2179,6 +2180,7 @@ function _bloquearPorVersion(minima){
 }
 function actualizarAppSilencioso(){try{actualizarApp();}catch(e){}}
 async function checarVersion(){
+  if(location.protocol==='file:')return; // NUNCA publicar/bloquear desde un archivo local: una pestaña de pruebas con versión alta bloquearía a todo el equipo
   if(!supabaseClient||cloudStatus!=='online')return;
   try{
     const {data:dm}=await supabaseClient.from('empresa_config').select('valor').eq('clave','min_version').maybeSingle();
