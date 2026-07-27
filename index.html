@@ -1141,7 +1141,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.27.02';
+const APP_VERSION='2026.07.27.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -3867,7 +3867,10 @@ async function _pdfVentaExtraer(dataURL){
   let text='';const items=[];
   for(let p=1;p<=pdf.numPages;p++){
     const pg=await pdf.getPage(p);const ct=await pg.getTextContent();
-    ct.items.forEach(it=>{if(it.str&&it.str.trim()){items.push({str:it.str.trim(),x:it.transform[4],y:it.transform[5]});text+=it.str+'\n';}});
+    // Restamos un offset grande por página para que la pág. 1 quede "arriba" de la 2
+    // (si no, los renglones de páginas distintas se mezclan al agrupar por Y).
+    const yoff=(p-1)*100000;
+    ct.items.forEach(it=>{if(it.str&&it.str.trim()){items.push({str:it.str.trim(),x:it.transform[4],y:it.transform[5]-yoff});text+=it.str+'\n';}});
   }
   return{text,items};
 }
@@ -3899,7 +3902,7 @@ function _parsePresupuestoVenta(text,items){
   const low=text.toLowerCase();
   for(const c of COMS){if(low.indexOf(c.k)>=0){out.comercial=c.n;break;}}
   // Cliente: primera línea válida debajo del slogan; si no, arriba de "RFC:"
-  const esBasura=t=>/^isa\s*rack|isarack|libramiento|tijuana|salvador rosas|en tu almac|seguro!!|presupuesto|^#|^s\d{4}|fecha|vencimiento|comercial|^rfc\s*:|^descripci|^cantidad|^precio|^impuesto|^importe|p[áa]gina/i.test(t);
+  const esBasura=t=>/^isa\s*rack|isarack|libramiento|tijuana|salvador rosas|en tu almac|seguro!!|presupuesto|^pedido|su\s+referencia|^#|^s\d{4}|fecha|vencimiento|comercial|^rfc\s*:|^descripci|^cantidad|^precio|^impuesto|^importe|p[áa]gina/i.test(t);
   // Filtra por ITEM (no por renglón completo): en el mismo renglón que el cliente
   // suele venir "Presupuesto # S0XXXX" a la derecha, así que cortamos al toparlo.
   // esRFC descarta el RFC de ISARACK (IRA-111102-354) y cualquier folio/RFC: tokens
