@@ -1141,7 +1141,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.27.01';
+const APP_VERSION='2026.07.27.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -3902,7 +3902,10 @@ function _parsePresupuestoVenta(text,items){
   const esBasura=t=>/^isa\s*rack|isarack|libramiento|tijuana|salvador rosas|en tu almac|seguro!!|presupuesto|^#|^s\d{4}|fecha|vencimiento|comercial|^rfc\s*:|^descripci|^cantidad|^precio|^impuesto|^importe|p[áa]gina/i.test(t);
   // Filtra por ITEM (no por renglón completo): en el mismo renglón que el cliente
   // suele venir "Presupuesto # S0XXXX" a la derecha, así que cortamos al toparlo.
-  const clienteDeFila=its=>{const parts=[];for(const it of its){const s=it.str.trim();if(!s)continue;if(esBasura(s)||/^[\d.,\/#$%-]+$/.test(s)){if(parts.length)break;else continue;}parts.push(s);}const c=parts.join(' ').replace(/\s+/g,' ').trim();return c.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g,'').length>=3?c:'';};
+  // esRFC descarta el RFC de ISARACK (IRA-111102-354) y cualquier folio/RFC: tokens
+  // con una corrida de 6+ dígitos. Un nombre de empresa no tiene eso.
+  const esRFC=s=>/\d{6,}/.test(s)||/^[A-ZÑ&]{3,4}-?\d{6}/i.test(s);
+  const clienteDeFila=its=>{const parts=[];for(const it of its){const s=it.str.trim();if(!s)continue;if(esBasura(s)||esRFC(s)||/^[\d.,\/#$%-]+$/.test(s)){if(parts.length)break;else continue;}parts.push(s);}const c=parts.join(' ').replace(/\s+/g,' ').trim();return c.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g,'').length>=3?c:'';};
   const sloganIdx=rows.findIndex(r=>/en\s+tu\s+almac[eé]n|seguro!!/i.test(r.text));
   if(sloganIdx>=0){for(let k=sloganIdx+1;k<Math.min(rows.length,sloganIdx+9);k++){const c=clienteDeFila(rows[k].items);if(c){out.cliente=c;break;}}}
   if(!out.cliente){const ri=rows.findIndex(r=>/\bRFC\s*:/i.test(r.text));if(ri>0){for(let k=ri-1;k>=Math.max(0,ri-3);k--){const c=clienteDeFila(rows[k].items);if(c){out.cliente=c;break;}}}}
