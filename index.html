@@ -1149,7 +1149,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.27.04';
+const APP_VERSION='2026.07.28.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4049,31 +4049,77 @@ async function renderInstalaciones(){
   var rows=null;
   try{rows=await cloudFetchAll('instalaciones_activas');}catch(e){console.warn('inst fetch',e);}
   INST.rows=Array.isArray(rows)?rows:[];
+  INST.docs=undefined;
   _instPintar();
 }
 function _instSeg(m,label){var on=INST.modo===m;return '<button onclick="INST.modo=\''+m+'\';INST.q=\'\';_instPintar()" style="border:none;border-radius:18px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:'+(on?'600':'400')+';background:'+(on?'#fff':'transparent')+';color:'+(on?'#DA6635':'#666')+';box-shadow:'+(on?'0 1px 3px rgba(0,0,0,.12)':'none')+'">'+label+'</button>';}
 function _instPintar(){
   var root=document.getElementById('inst-root');if(!root)return;
   var head='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">'+
-    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px">'+_instSeg('board','📋 Tablero')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+'</div>'+
-    (INST.modo!=='board'?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
+    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('docs','📁 Documentos')+'</div>'+
+    ((INST.modo==='obra'||INST.modo==='persona')?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
     '<button onclick="abrirInstEditor(null)" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Registrar obra</button></div>';
   var body='';
   if(INST.modo==='persona')body=_instPorPersona();
   else if(INST.modo==='obra')body=_instPorObra();
-  else{
-    var enP=INST.rows.filter(function(r){return (r.estatus||'')==='En proceso';});
-    var pend=INST.rows.filter(function(r){return (r.estatus||'')==='Pendiente';});
-    var comp=INST.rows.filter(function(r){return (r.estatus||'')==='Completado';});
-    var otras=INST.rows.filter(function(r){return ['En proceso','Pendiente','Completado'].indexOf(r.estatus||'')<0;});
-    body=_instSeccion('🔧 En proceso',enP)+_instSeccion('⏳ Pendiente',pend)+_instSeccion('✓ Completadas',comp)+_instSeccion('• Otras',otras);
-    if(!INST.rows.length)body='<div style="padding:44px;text-align:center;color:#999">Sin instalaciones registradas todavía.<br>Usa <b>+ Registrar obra</b> para empezar el historial.</div>';
-  }
+  else if(INST.modo==='docs')body=_instDocsView();
+  else body=_instBoardPedidos();
   root.innerHTML=head+body;
 }
 function _instSeccion(titulo,arr){
   if(!arr.length)return '';
   return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+titulo+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instCard).join('')+'</div></div>';
+}
+// Tablero operativo: pedidos (orders, ya en memoria) agrupados por estatus,
+// con la cuadrilla registrada sobrepuesta desde instalaciones_activas.
+function _instBoardPedidos(){
+  var byFolio={};INST.rows.forEach(function(r){if(r.folio)byFolio[r.folio]=r;});
+  var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
+  var enP=[],pend=[];
+  ords.forEach(function(o){if(!o||!o.num)return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:byFolio[o.num]||null};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
+  var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
+  if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Usa <b>+ Registrar obra</b> o registra desde Seguimiento de pedidos.</div>';
+  return out;
+}
+function _instOrdCard(x){
+  var r=x.rec,m=r?_instMiembros(r):[];
+  var f=r?_instFecha(r):(x.fecha?_fmtF(x.fecha):'');
+  return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
+    '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(x.cliente||x.folio)+'</div>'+
+    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+'</div>'+
+    (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'</div>';
+}
+// Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
+// prellenado con los datos del pedido.
+function _instObra(folio){
+  var r=INST.rows.find(function(x){return x.folio===folio;});
+  if(r){abrirInstEditor(r.id);return;}
+  var o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(function(x){return x&&x.num===folio;}):null;
+  INST_EDIT={id:null,folio:folio,obra:(o&&o.cliente)||'',cliente:(o&&o.cliente)||'',ubicacion:(o&&o.ubicacion)||'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:(o&&o.estatus)||'En proceso'};
+  _instModal();
+}
+// Vista de documentos de personal (tabla documentos) agrupados por persona.
+function _instDocsView(){
+  if(INST.docs===undefined){setTimeout(_instCargarDocs,0);return '<div style="padding:30px;text-align:center;color:#999">Cargando documentos…</div>';}
+  if(!INST.docs.length)return '<div style="padding:30px;text-align:center;color:#999">Sin documentos de personal todavía.</div>';
+  var groups={};INST.docs.forEach(function(d){var k=d.persona||'— Empresa (seguro / IMSS / permisos) —';(groups[k]=groups[k]||[]).push(d);});
+  var keys=Object.keys(groups).sort(function(a,b){return a.localeCompare(b);});
+  var CERT={'DC-3 Alturas':'#3B6D11','DC-3 Montacargas':'#185FA5','Antidoping':'#7c5cbf'};
+  return '<div style="font-size:12px;color:#666;margin-bottom:10px">'+INST.docs.length+' documentos · agrupados por persona · clic para ver</div>'+keys.map(function(k){
+    var arr=groups[k];
+    return '<div style="margin-bottom:12px;background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">'+_ie(k)+' <span style="color:#999;font-weight:400">· '+arr.length+'</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">'+arr.map(function(d){var col=CERT[d.categoria]||'#888';return '<button onclick="_instVerDoc('+d.id+')" title="'+_ie(d.nombre||'')+'" style="border:1px solid #ddd;background:#faf9f7;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:'+col+'"></span>'+_ie(d.categoria)+'</button>';}).join('')+'</div></div>';
+  }).join('');
+}
+async function _instCargarDocs(){
+  try{var res=await supabaseClient.from('documentos').select('id,categoria,nombre,persona').order('persona',{ascending:true});INST.docs=(res&&res.data)||[];}catch(e){console.warn('inst docs',e);INST.docs=[];}
+  if(INST.modo==='docs')_instPintar();
+}
+async function _instVerDoc(id){
+  try{var res=await supabaseClient.from('documentos').select('archivo,nombre').eq('id',id).single();var d=res&&res.data;
+    if(d&&d.archivo&&d.archivo.data){if(typeof openPDFData==='function')openPDFData(d.archivo.data,d.nombre||'Documento');else window.open(d.archivo.data,'_blank');}
+    else if(typeof showToast==='function')showToast('Documento sin archivo','#BA7517');
+  }catch(e){console.error('verDoc',e);if(typeof showToast==='function')showToast('No se pudo abrir el documento','#BA7517');}
 }
 function _instCard(r){
   var m=_instMiembros(r);
