@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.10';
+const APP_VERSION='2026.07.28.11';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4046,6 +4046,40 @@ function _instMiembros(r){return (r&&Array.isArray(r.instaladores))?r.instalador
 function _fmtF(iso){if(!iso)return'';var p=(''+iso).slice(0,10).split('-');if(p.length<3)return iso;var M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return (+p[2])+' '+M[(+p[1])-1]+' '+p[0];}
 function _instFecha(r){var a=r.fecha_inicio||'',b=r.fecha_fin||'';if(a&&b&&(''+a).slice(0,10)!==(''+b).slice(0,10))return _fmtF(a)+' – '+_fmtF(b);return a?_fmtF(a):(b?_fmtF(b):'—');}
 function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r).forEach(function(n){if(n)set[n]=1;});});return Object.keys(set).sort(function(a,b){return a.localeCompare(b);});}
+// Cuadrillas para el selector rápido (grupos como en la app de instalaciones)
+var INST_CUAD=[
+  {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez']},
+  {nombre:'Personal de Brayan',miembros:['Brayan Alexis','Joel','Jose Alberto','Fermin','Delmar Velazquez','Brayan Martin','Miguel Angel Rios','Jhonatan']},
+  {nombre:'Personal de Samuel',miembros:['Samuel Alfredo Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']},
+  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar','Jose Alfredo','Adrián','Abel','Octavio']}
+];
+var INST_DC3=null; // {personaLower:{alt,mon}} desde documentos
+async function _instCargarDC3(){
+  try{var r=await supabaseClient.from('documentos').select('categoria,persona').not('persona','is',null);var docs=(r&&r.data)||[];var st={};docs.forEach(function(d){var k=(''+(d.persona||'')).toLowerCase().trim();if(!k)return;st[k]=st[k]||{alt:false,mon:false};if(/alturas/i.test(d.categoria||''))st[k].alt=true;if(/montacargas/i.test(d.categoria||''))st[k].mon=true;});INST_DC3=st;}catch(e){INST_DC3={};}
+}
+function _ieAttr(s){return (''+(s==null?'':s)).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var i=arr.findIndex(function(x){return (''+x).toLowerCase()===(''+n).toLowerCase();});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();}
+function _instPersonaChip(n,on){
+  var st=(INST_DC3&&INST_DC3[(''+n).toLowerCase()])||null;
+  var bd=function(txt,ok){return '<span style="display:inline-block;min-width:15px;height:15px;line-height:15px;text-align:center;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px;background:'+(ok?'#e8f5e9':'#fdecea')+';color:'+(ok?'#2f7d32':'#c62828')+'">'+txt+'</span>';};
+  var badges=st?(bd('A',st.alt)+bd('M',st.mon)):'';
+  return '<button onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="border:1px solid '+(on?'#185FA5':'#ddd')+';background:'+(on?'#185FA5':'#fff')+';color:'+(on?'#fff':'#333')+';border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center">'+_ie(n)+badges+'</button>';
+}
+function _instPersonalHtml(){
+  var sel=INST_EDIT.instaladores||[];var selLow={};sel.forEach(function(n){selLow[(''+n).toLowerCase()]=1;});
+  var chips=sel.length?sel.map(function(n){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join(''):'<span style="font-size:12px;color:#c62828">Toca abajo a los que asistieron</span>';
+  var cub={};INST_CUAD.forEach(function(g){g.miembros.forEach(function(n){cub[(''+n).toLowerCase()]=1;});});
+  var grupos=INST_CUAD.slice();
+  var extra=_instRoster().filter(function(n){return !cub[(''+n).toLowerCase()];});
+  sel.forEach(function(n){var k=(''+n).toLowerCase();if(!cub[k]&&extra.map(function(x){return (''+x).toLowerCase();}).indexOf(k)<0)extra.push(n);});
+  if(extra.length)grupos=grupos.concat([{nombre:'Otros (del historial)',miembros:extra}]);
+  var grid=grupos.map(function(g){return '<div style="margin-bottom:7px"><div style="font-size:11px;color:#888;font-weight:600;margin-bottom:4px">'+_ie(g.nombre)+'</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+g.miembros.map(function(n){return _instPersonaChip(n,!!selLow[(''+n).toLowerCase()]);}).join('')+'</div></div>';}).join('');
+  return '<label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:5px">Personal que asistió ('+sel.length+')</label>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">'+chips+'</div>'+
+    '<div style="max-height:200px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa">'+grid+'</div>'+
+    '<div style="display:flex;gap:6px;margin-top:6px"><input id="ie-nuevo" placeholder="Otro nombre (libre)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div>';
+}
+function _instRenderPersonal(){var c=document.getElementById('ie-personal');if(c)c.innerHTML=_instPersonalHtml();var l=document.getElementById('ie-lider');if(l){var cur=INST_EDIT.lider;l.innerHTML='<option value="">—</option>'+INST_EDIT.instaladores.map(function(n){return '<option'+(cur===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('');}}
 
 async function renderInstalaciones(){
   var root=document.getElementById('inst-root');if(!root)return;
@@ -4054,6 +4088,7 @@ async function renderInstalaciones(){
   try{rows=await cloudFetchAll('instalaciones_activas');}catch(e){console.warn('inst fetch',e);}
   INST.rows=Array.isArray(rows)?rows:[];
   INST.docs=undefined;
+  if(!INST_DC3)_instCargarDC3();
   _instPintar();
 }
 function _instSeg(m,label){var on=INST.modo===m;return '<button onclick="INST.modo=\''+m+'\';INST.q=\'\';_instPintar()" style="border:none;border-radius:18px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:'+(on?'600':'400')+';background:'+(on?'#fff':'transparent')+';color:'+(on?'#DA6635':'#666')+';box-shadow:'+(on?'0 1px 3px rgba(0,0,0,.12)':'none')+'">'+label+'</button>';}
@@ -4377,7 +4412,7 @@ function _instModal(){
     '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">'+(e.id?'Editar registro':'Registrar obra')+'</span><button onclick="document.getElementById(\'inst-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
     '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:110px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Folio</label><input id="ie-folio" value="'+_ie(e.folio)+'" onchange="INST_EDIT.folio=this.value.trim();_instAutollenar()" placeholder="S07240" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:2;min-width:160px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Obra / Cliente</label><input id="ie-obra" value="'+_ie(e.obra||e.cliente)+'" onchange="INST_EDIT.obra=this.value.trim()" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
-      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:5px">Personal que asistió</label><div id="ie-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">'+_instChips()+'</div><div style="display:flex;gap:6px"><input id="ie-nuevo" list="ie-roster" placeholder="Agregar nombre (de la lista o libre)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div><datalist id="ie-roster">'+roster.map(function(n){return '<option value="'+_ie(n)+'">';}).join('')+'</datalist></div>'+
+      '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+['En proceso','Pendiente','Completado'].map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
@@ -4390,7 +4425,7 @@ function _instModal(){
 function _instChips(){
   return INST_EDIT.instaladores.map(function(n,i){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instDelMiembro('+i+')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join('')||'<span style="font-size:12px;color:#c62828">Aún sin personal</span>';
 }
-function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.indexOf(v)<0)INST_EDIT.instaladores.push(v);inp.value='';_instRefreshChips();inp.focus();}
+function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.map(function(x){return (''+x).toLowerCase();}).indexOf(v.toLowerCase())<0)INST_EDIT.instaladores.push(v);inp.value='';_instRenderPersonal();}
 function _instDelMiembro(i){INST_EDIT.instaladores.splice(i,1);_instRefreshChips();}
 function _instRefreshChips(){
   var c=document.getElementById('ie-chips');if(c)c.innerHTML=_instChips();
