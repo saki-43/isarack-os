@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.07';
+const APP_VERSION='2026.07.28.08';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4142,6 +4142,75 @@ async function _instVerDoc(id){
     else{var lk=document.createElement('a');lk.href=a.data;lk.download=nm;document.body.appendChild(lk);lk.click();setTimeout(function(){lk.remove();},150);if(typeof showToast==='function')showToast('⬇ Descargando '+nm,'#185FA5');}
   }catch(e){console.error('verDoc',e);if(typeof showToast==='function')showToast('No se pudo abrir el documento','#BA7517');}
 }
+// ── Paquete de documentos para llevar: ZIP con DC-3/antidoping de la cuadrilla + docs de empresa ──
+function _izCrc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++){let x=(c^b[i])&0xFF;for(let k=0;k<8;k++)x=x&1?(0xEDB88320^(x>>>1)):(x>>>1);c=(c>>>8)^x;}return (c^0xFFFFFFFF)>>>0;}
+function _izCat(arrs){let len=0;arrs.forEach(a=>len+=a.length);const out=new Uint8Array(len);let o=0;arrs.forEach(a=>{out.set(a,o);o+=a.length;});return out;}
+function _izU16(n){return new Uint8Array([n&0xff,(n>>8)&0xff]);}
+function _izU32(n){return new Uint8Array([n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24)&0xff]);}
+function _izBytes(dataUrl){const i=(''+dataUrl).indexOf(',');const bin=atob((''+dataUrl).slice(i+1));const u=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)u[j]=bin.charCodeAt(j);return u;}
+function _izMakeZip(files){const enc=new TextEncoder();const chunks=[],central=[];let offset=0;files.forEach(f=>{const nb=enc.encode(f.name);const crc=_izCrc32(f.bytes);const sz=f.bytes.length;const local=_izCat([_izU32(0x04034b50),_izU16(20),_izU16(0x0800),_izU16(0),_izU16(0),_izU16(0),_izU32(crc),_izU32(sz),_izU32(sz),_izU16(nb.length),_izU16(0),nb,f.bytes]);chunks.push(local);central.push(_izCat([_izU32(0x02014b50),_izU16(20),_izU16(20),_izU16(0x0800),_izU16(0),_izU16(0),_izU16(0),_izU32(crc),_izU32(sz),_izU32(sz),_izU16(nb.length),_izU16(0),_izU16(0),_izU16(0),_izU16(0),_izU32(0),_izU32(offset),nb]));offset+=local.length;});const cb=_izCat(central);const end=_izCat([_izU32(0x06054b50),_izU16(0),_izU16(0),_izU16(files.length),_izU16(files.length),_izU32(cb.length),_izU32(offset),_izU16(0)]);return new Blob([_izCat(chunks),cb,end],{type:'application/zip'});}
+
+var INST_PKG=null;
+async function _instPaquete(){
+  var crew=(INST_EDIT&&Array.isArray(INST_EDIT.instaladores))?INST_EDIT.instaladores.slice():[];
+  if(typeof showToast==='function')showToast('Armando paquete…','#185FA5');
+  var res;try{res=await supabaseClient.from('documentos').select('id,categoria,nombre,persona').order('categoria',{ascending:true});}catch(e){res=null;}
+  var docs=(res&&res.data)||[];
+  var low=function(s){return (''+(s||'')).toLowerCase().trim();};
+  var crewLow=crew.map(low);
+  var empresa=docs.filter(function(d){return !d.persona;});
+  var personal=docs.filter(function(d){return d.persona&&crewLow.indexOf(low(d.persona))>=0;});
+  var tieneDC3={};docs.forEach(function(d){if(d.persona&&/dc-?3/i.test(d.categoria||''))tieneDC3[low(d.persona)]=1;});
+  var faltan=crew.filter(function(n){return !tieneDC3[low(n)];});
+  INST_PKG={obra:(INST_EDIT&&(INST_EDIT.obra||INST_EDIT.folio))||'obra',empresa:empresa,personal:personal,faltan:faltan,sel:{}};
+  empresa.concat(personal).forEach(function(d){INST_PKG.sel[d.id]=true;});
+  _instPkgModal();
+}
+function _instPkgRow(d){
+  return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:12px;cursor:pointer"><input type="checkbox" '+(INST_PKG.sel[d.id]?'checked':'')+' onchange="INST_PKG.sel['+d.id+']=this.checked"> <span style="flex:1;min-width:0">'+_ie(d.nombre||d.categoria)+' <span style="color:#999">· '+_ie(d.categoria)+'</span></span></label>';
+}
+function _instPkgModal(){
+  var ex=document.getElementById('inst-pkg-modal');if(ex)ex.remove();
+  var p=INST_PKG;
+  var byP={};p.personal.forEach(function(d){(byP[d.persona]=byP[d.persona]||[]).push(d);});
+  var pkeys=Object.keys(byP).sort();
+  var faltanHtml=p.faltan.length?'<div style="background:#fff3cd;border-left:3px solid #BA7517;padding:8px 10px;font-size:12px;color:#7a5306;margin-bottom:10px">⚠ Sin DC-3 en el sistema: <b>'+p.faltan.map(_ie).join(', ')+'</b></div>':'';
+  var personalHtml=pkeys.length?pkeys.map(function(k){return '<div style="margin-bottom:6px"><div style="font-size:12px;font-weight:600;color:#185FA5">'+_ie(k)+'</div>'+byP[k].map(_instPkgRow).join('')+'</div>';}).join(''):'<div style="font-size:12px;color:#999">La cuadrilla no tiene documentos personales cargados.</div>';
+  var empresaHtml=p.empresa.length?p.empresa.map(_instPkgRow).join(''):'<div style="font-size:12px;color:#999">Sin documentos de empresa.</div>';
+  var m=document.createElement('div');m.id='inst-pkg-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:4200;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
+  m.onclick=function(ev){if(ev.target===m)m.remove();};
+  m.innerHTML='<div style="width:100%;max-width:520px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)">'+
+    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">📦 Paquete de documentos</span><button onclick="document.getElementById(\'inst-pkg-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
+    '<div style="padding:14px 18px;max-height:60vh;overflow:auto">'+faltanHtml+
+      '<div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;margin:2px 0 4px">DC-3 / Antidoping de la cuadrilla</div>'+personalHtml+
+      '<div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;margin:12px 0 4px">Documentos de empresa</div>'+empresaHtml+
+    '</div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7"><button onclick="document.getElementById(\'inst-pkg-modal\').remove()" style="border:1px solid #ddd;background:#fff;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer">Cancelar</button><button onclick="_instPkgDescargar()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">⬇ Descargar ZIP</button></div>'+
+  '</div>';
+  document.body.appendChild(m);
+}
+async function _instPkgDescargar(){
+  var ids=Object.keys(INST_PKG.sel).filter(function(k){return INST_PKG.sel[k];}).map(function(k){return parseInt(k);});
+  if(!ids.length){if(typeof showToast==='function')showToast('Selecciona al menos un documento','#BA7517');return;}
+  if(typeof showToast==='function')showToast('Preparando '+ids.length+' documento(s)…','#185FA5');
+  var res;try{res=await supabaseClient.from('documentos').select('id,nombre,archivo').in('id',ids);}catch(e){res=null;}
+  var rows=(res&&res.data)||[];
+  var files=[],usados={};
+  rows.forEach(function(r){
+    if(!r.archivo||!r.archivo.data)return;
+    var nm=(r.archivo.name||r.nombre||('doc-'+r.id)).replace(/[\/\\:*?"<>|]+/g,'_');
+    if(!/\.[a-z0-9]{2,5}$/i.test(nm)&&/pdf/i.test((r.archivo.mime||''))) nm+='.pdf';
+    while(usados[nm])nm=nm.replace(/(\.[^.]*)?$/,'_'+r.id+'$1');
+    usados[nm]=1;
+    try{files.push({name:nm,bytes:_izBytes(r.archivo.data)});}catch(e){}
+  });
+  if(!files.length){if(typeof showToast==='function')showToast('No se pudieron leer los archivos','#BA7517');return;}
+  var blob=_izMakeZip(files);
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Paquete_'+(''+INST_PKG.obra).replace(/[^\w]+/g,'_').slice(0,40)+'.zip';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},200);
+  var mm=document.getElementById('inst-pkg-modal');if(mm)mm.remove();
+  if(typeof showToast==='function')showToast('✓ ZIP con '+files.length+' documento(s)','#3B6D11');
+}
 function _instCard(r){
   var m=_instMiembros(r);
   return '<div onclick="abrirInstEditor('+r.id+')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
@@ -4198,6 +4267,7 @@ function _instModal(){
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+['En proceso','Pendiente','Completado'].map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
+      '<button onclick="_instPaquete()" style="width:100%;padding:11px;border:1px solid #DA6635;background:#fff5f0;color:#c2410c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Paquete de documentos para llevar</button>'+
     '</div>'+
     '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7">'+(e.id?'<button onclick="_instEliminar()" style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer">🗑 Eliminar</button>':'<span></span>')+'<button onclick="guardarInst()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">💾 Guardar en historial</button></div>'+
   '</div>';
