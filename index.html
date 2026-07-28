@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.12';
+const APP_VERSION='2026.07.28.13';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4058,7 +4058,7 @@ async function _instCargarDC3(){
   try{var r=await supabaseClient.from('documentos').select('categoria,persona').not('persona','is',null);var docs=(r&&r.data)||[];var st={};docs.forEach(function(d){var k=(''+(d.persona||'')).toLowerCase().trim();if(!k)return;st[k]=st[k]||{alt:false,mon:false};if(/alturas/i.test(d.categoria||''))st[k].alt=true;if(/montacargas/i.test(d.categoria||''))st[k].mon=true;});INST_DC3=st;}catch(e){INST_DC3={};}
 }
 function _ieAttr(s){return (''+(s==null?'':s)).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
-function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var i=arr.findIndex(function(x){return (''+x).toLowerCase()===(''+n).toLowerCase();});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();}
+function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var i=arr.findIndex(function(x){return (''+x).toLowerCase()===(''+n).toLowerCase();});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
 function _instPersonaChip(n,on){
   var st=(INST_DC3&&INST_DC3[(''+n).toLowerCase()])||null;
   var bd=function(txt,ok){return '<span style="display:inline-block;min-width:15px;height:15px;line-height:15px;text-align:center;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px;background:'+(ok?'#e8f5e9':'#fdecea')+';color:'+(ok?'#2f7d32':'#c62828')+'">'+txt+'</span>';};
@@ -4416,9 +4416,9 @@ function _instModal(){
   var roster=_instRoster().filter(function(n){return e.instaladores.indexOf(n)<0;});
   var m=document.createElement('div');m.id='inst-modal';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:4000;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
-  m.onclick=function(ev){if(ev.target===m)m.remove();};
+  m.onclick=function(ev){if(ev.target===m)guardarInst();};
   m.innerHTML='<div style="width:100%;max-width:560px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)">'+
-    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">'+(e.id?'Editar registro':'Registrar obra')+'</span><button onclick="document.getElementById(\'inst-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
+    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">'+(e.id?'Editar registro':'Registrar obra')+'</span><button onclick="guardarInst()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
     '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:110px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Folio</label><input id="ie-folio" value="'+_ie(e.folio)+'" onchange="INST_EDIT.folio=this.value.trim();_instAutollenar()" placeholder="S07240" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:2;min-width:160px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Obra / Cliente</label><input id="ie-obra" value="'+_ie(e.obra||e.cliente)+'" onchange="INST_EDIT.obra=this.value.trim()" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
@@ -4427,14 +4427,16 @@ function _instModal(){
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
       '<button onclick="_instPaquete()" style="width:100%;padding:11px;border:1px solid #DA6635;background:#fff5f0;color:#c2410c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Paquete de documentos para llevar</button>'+
     '</div>'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7">'+(e.id?'<button onclick="_instEliminar()" style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer">🗑 Eliminar</button>':'<span></span>')+'<button onclick="guardarInst()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">💾 Guardar en historial</button></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7">'+(e.id?'<button onclick="_instEliminar()" style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer">🗑 Eliminar</button>':'<span></span>')+'<div style="display:flex;align-items:center;gap:12px"><span id="ie-save" style="font-size:12px;color:#3B6D11">'+(e.id?'✓ Guardado':'')+'</span><button onclick="guardarInst()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">✓ Listo</button></div></div>'+
   '</div>';
   document.body.appendChild(m);
+  m.addEventListener('input',_instAutosave);
+  m.addEventListener('change',_instAutosave);
 }
 function _instChips(){
   return INST_EDIT.instaladores.map(function(n,i){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instDelMiembro('+i+')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join('')||'<span style="font-size:12px;color:#c62828">Aún sin personal</span>';
 }
-function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.map(function(x){return (''+x).toLowerCase();}).indexOf(v.toLowerCase())<0)INST_EDIT.instaladores.push(v);inp.value='';_instRenderPersonal();}
+function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.map(function(x){return (''+x).toLowerCase();}).indexOf(v.toLowerCase())<0)INST_EDIT.instaladores.push(v);inp.value='';_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
 function _instDelMiembro(i){INST_EDIT.instaladores.splice(i,1);_instRefreshChips();}
 function _instRefreshChips(){
   var c=document.getElementById('ie-chips');if(c)c.innerHTML=_instChips();
@@ -4450,28 +4452,52 @@ function _instAutollenar(){
   if(cli&&!INST_EDIT.obra){INST_EDIT.obra=cli;var eo=document.getElementById('ie-obra');if(eo)eo.value=cli;}
   if(ub&&!INST_EDIT.ubicacion)INST_EDIT.ubicacion=ub;
 }
-async function guardarInst(){
-  var e=INST_EDIT;if(!e)return;
-  var g=function(id){var x=document.getElementById(id);return x?x.value:'';};
-  e.folio=(g('ie-folio')||e.folio||'').trim();
-  e.obra=(g('ie-obra')||e.obra||'').trim();
-  e.notas=g('ie-notas');
-  if(!e.instaladores.length&&!confirm('No registraste personal. ¿Guardar de todas formas?'))return;
-  var payload={folio:e.folio,obra:e.obra,cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores,lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',updated_at:new Date().toISOString()};
+// ── Guardado AUTOMÁTICO del registro de obra ──
+var _instSaveTimer=null,_instSaving=false,_instDirty=false;
+function _instSaveIndicador(s){var el=document.getElementById('ie-save');if(!el)return;if(s==='…'){el.textContent='Guardando…';el.style.color='#888';}else if(s==='ok'){el.textContent='✓ Guardado';el.style.color='#3B6D11';}else if(s==='err'){el.textContent='⚠ Sin guardar';el.style.color='#c62828';}else el.textContent='';}
+function _instSyncEditor(){
+  if(!INST_EDIT)return;
+  var g=function(id){var x=document.getElementById(id);return x?x.value:undefined;};var v;
+  v=g('ie-folio');if(v!==undefined)INST_EDIT.folio=(''+v).trim();
+  v=g('ie-obra');if(v!==undefined)INST_EDIT.obra=(''+v).trim();
+  v=g('ie-notas');if(v!==undefined)INST_EDIT.notas=v;
+  v=g('ie-fi');if(v!==undefined)INST_EDIT.fecha_inicio=v;
+  v=g('ie-ff');if(v!==undefined)INST_EDIT.fecha_fin=v;
+  v=g('ie-lider');if(v!==undefined)INST_EDIT.lider=v;
+  v=g('ie-estatus');if(v!==undefined)INST_EDIT.estatus=v;
+}
+function _instMergeRow(e){if(!e.id)return;var row={id:e.id,folio:e.folio,obra:e.obra,cliente:e.obra,ubicacion:e.ubicacion,instaladores:(e.instaladores||[]).slice(),lider:e.lider,fecha_inicio:e.fecha_inicio,fecha_fin:e.fecha_fin,notas:e.notas,estatus:e.estatus};var i=INST.rows.findIndex(function(r){return r.id===e.id;});if(i>=0)INST.rows[i]=row;else INST.rows.push(row);}
+async function _instSaveCore(){
+  if(!INST_EDIT)return;
+  if(_instSaving){_instDirty=true;return;}
+  _instSyncEditor();
+  var e=INST_EDIT;
+  if(!(e.obra||e.folio||(e.instaladores&&e.instaladores.length))){_instSaveIndicador('');return;} // no guardar vacíos
+  _instSaving=true;_instDirty=false;_instSaveIndicador('…');
+  var payload={folio:e.folio||'',obra:e.obra||'',cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores||[],lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',updated_at:new Date().toISOString()};
   try{
     var res;
     if(e.id){res=await supabaseClient.from('instalaciones_activas').update(payload).eq('id',e.id);}
-    else{payload.creado=new Date().toISOString();res=await supabaseClient.from('instalaciones_activas').insert(payload);}
+    else{payload.creado=new Date().toISOString();res=await supabaseClient.from('instalaciones_activas').insert(payload).select('id').single();if(res&&res.data&&res.data.id)e.id=res.data.id;}
     if(res&&res.error)throw res.error;
-    var mm=document.getElementById('inst-modal');if(mm)mm.remove();
-    if(typeof showToast==='function')showToast('✓ Guardado en historial','#3B6D11');
-    renderInstalaciones();
-  }catch(err){console.error('guardarInst',err);if(typeof showToast==='function')showToast('⚠ No se pudo guardar','#BA7517');}
+    _instMergeRow(e);_instSaveIndicador('ok');
+  }catch(err){console.error('inst save',err);_instSaveIndicador('err');}
+  _instSaving=false;
+  if(_instDirty)_instSaveCore();
+}
+function _instAutosave(){clearTimeout(_instSaveTimer);_instSaveIndicador('…');_instSaveTimer=setTimeout(_instSaveCore,800);}
+async function guardarInst(){
+  clearTimeout(_instSaveTimer);_instDirty=false;
+  for(var k=0;k<40&&_instSaving;k++){await new Promise(function(r){setTimeout(r,80);});}
+  await _instSaveCore();
+  var mm=document.getElementById('inst-modal');if(mm)mm.remove();
+  renderInstalaciones();
 }
 async function _instEliminar(){
   var e=INST_EDIT;if(!e||!e.id)return;
   if(!confirm('¿Eliminar este registro del historial REPSE? Esta acción no se puede deshacer.'))return;
-  try{var res=await supabaseClient.from('instalaciones_activas').delete().eq('id',e.id);if(res&&res.error)throw res.error;var mm=document.getElementById('inst-modal');if(mm)mm.remove();if(typeof showToast==='function')showToast('Registro eliminado','#BA7517');renderInstalaciones();}catch(err){console.error('_instEliminar',err);if(typeof showToast==='function')showToast('⚠ No se pudo eliminar','#BA7517');}
+  clearTimeout(_instSaveTimer);_instDirty=false;
+  try{var res=await supabaseClient.from('instalaciones_activas').delete().eq('id',e.id);if(res&&res.error)throw res.error;INST_EDIT=null;var mm=document.getElementById('inst-modal');if(mm)mm.remove();if(typeof showToast==='function')showToast('Registro eliminado','#BA7517');renderInstalaciones();}catch(err){console.error('_instEliminar',err);if(typeof showToast==='function')showToast('⚠ No se pudo eliminar','#BA7517');}
 }
 // ── FUNCIÓN CENTRAL: Descuenta inventario desde las líneas de un pedido ──
 // Maneja marcos Selectivo, marcos Picking y productos normales
