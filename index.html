@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.06';
+const APP_VERSION='2026.07.28.07';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4135,8 +4135,11 @@ async function _instCargarDocs(){
 }
 async function _instVerDoc(id){
   try{var res=await supabaseClient.from('documentos').select('archivo,nombre').eq('id',id).single();var d=res&&res.data;
-    if(d&&d.archivo&&d.archivo.data){if(typeof openPDFData==='function')openPDFData(d.archivo.data,d.nombre||'Documento');else window.open(d.archivo.data,'_blank');}
-    else if(typeof showToast==='function')showToast('Documento sin archivo','#BA7517');
+    if(!d||!d.archivo||!d.archivo.data){if(typeof showToast==='function')showToast('Documento sin archivo','#BA7517');return;}
+    var a=d.archivo,nm=a.name||d.nombre||'documento';
+    var esPDF=/\.pdf$/i.test(nm)||/pdf/i.test(a.mime||'')||/^data:application\/pdf/i.test(a.data);
+    if(esPDF&&typeof openPDFData==='function'){openPDFData(a.data,d.nombre||nm);}
+    else{var lk=document.createElement('a');lk.href=a.data;lk.download=nm;document.body.appendChild(lk);lk.click();setTimeout(function(){lk.remove();},150);if(typeof showToast==='function')showToast('⬇ Descargando '+nm,'#185FA5');}
   }catch(e){console.error('verDoc',e);if(typeof showToast==='function')showToast('No se pudo abrir el documento','#BA7517');}
 }
 function _instCard(r){
