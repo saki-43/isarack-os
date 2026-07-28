@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.04';
+const APP_VERSION='2026.07.28.05';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -10994,19 +10994,30 @@ function nextVtaNum(){let max=7000;ventas.forEach(v=>{const m=v.num?.match(/S(\d
 async function _reservarFolioNube(){try{if(typeof supabaseClient==='undefined'||!supabaseClient)return null;let n=7000;const rv=await supabaseClient.from('ventas').select('num').order('num',{ascending:false}).limit(1);if(rv&&rv.data&&rv.data[0]&&rv.data[0].num){const m=String(rv.data[0].num).match(/(\d+)/);if(m)n=Math.max(n,parseInt(m[1]));}const ro=await supabaseClient.from('orders').select('num').order('num',{ascending:false}).limit(1);if(ro&&ro.data&&ro.data[0]&&ro.data[0].num){const m=String(ro.data[0].num).match(/(\d+)/);if(m)n=Math.max(n,parseInt(m[1]));}return 'S'+String(n+1).padStart(5,'0');}catch(e){return null;}}
 async function _folioLibreNube(propuesto){
   try{
-    if(typeof supabaseClient==='undefined'||!supabaseClient)return propuesto;
-    const r1=await supabaseClient.from('ventas').select('num').eq('num',propuesto).maybeSingle();
-    if(r1&&r1.error)return propuesto;
-    if(!r1||!r1.data)return propuesto;
+    if(typeof supabaseClient==='undefined'||!supabaseClient||cloudStatus!=='online')return propuesto;
+    // ¿Está OCUPADO el folio propuesto? Con reintentos: un error transitorio de red NO debe
+    // hacernos creer que está libre — ese era el hueco que dejaba encimar cotizaciones.
+    let ocupado=null;
+    for(let intento=0;intento<3&&ocupado===null;intento++){
+      const r=await supabaseClient.from('ventas').select('num').eq('num',propuesto).maybeSingle();
+      if(r&&r.error){if(intento===2)return propuesto;continue;}
+      ocupado=!!(r&&r.data);
+    }
+    if(!ocupado)return propuesto; // libre → se conserva
+    // Ocupado → siguiente folio libre en ventas Y orders, desde el máximo real de la nube.
     let n=7000;
     const rmx=await supabaseClient.from('ventas').select('num').order('num',{ascending:false}).limit(1);
     if(rmx&&rmx.data&&rmx.data[0]&&rmx.data[0].num){const m=String(rmx.data[0].num).match(/(\d+)/);if(m)n=Math.max(n,parseInt(m[1]));}
     const mp=String(propuesto).match(/(\d+)/);if(mp)n=Math.max(n,parseInt(mp[1]));
-    for(let i=0;i<60;i++){
+    for(let i=0;i<80;i++){
       n++;const cand='S'+String(n).padStart(5,'0');
       const rc=await supabaseClient.from('ventas').select('num').eq('num',cand).maybeSingle();
-      if(rc&&rc.error)return cand;
-      if(!rc||!rc.data)return cand;
+      if(rc&&rc.error)continue;
+      if(rc&&rc.data)continue; // ocupado en ventas
+      const ro=await supabaseClient.from('orders').select('num').eq('num',cand).maybeSingle();
+      if(ro&&ro.error)continue;
+      if(ro&&ro.data)continue; // ocupado en orders
+      return cand; // libre en ambas
     }
     return propuesto;
   }catch(e){return propuesto;}
@@ -11718,7 +11729,7 @@ function _resumenCambioPartidas(prev,next){
   });
   return {cambios, texto:cambios.map(c=>'  • '+c.texto).join('\n')};
 }
-async function guardarVenta(){let num=document.getElementById('vta-form-num').textContent;let cli=document.getElementById('vf-cliente').value.trim();if(!cli){alert('Ingresa cliente');return;}let _hist=false;if(/^#H\s+/i.test(cli)){_hist=true;cli=cli.replace(/^#H\s+/i,'').trim();if(!cli){alert('Ingresa cliente después de #H');return;}}if(editVtaIdx>=0&&ventas[editVtaIdx]&&ventas[editVtaIdx]._historica)_hist=true;if(vtaHist)_hist=true;const _g=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};const _esVenta=(vtaTipoDoc==='Venta')||(vtaStage==='Pedido de venta');if(_esVenta&&!_hist){const _dir=_g('vf-dir'),_cel=_g('vf-cel');const _faltan=[];if(!_dir)_faltan.push('ubicación');if(!_cel)_faltan.push('celular');if(_faltan.length){const _prev=ventas[editVtaIdx>=0?editVtaIdx:ventas.findIndex(x=>x&&x.num===num)];const _yaConf=!!(_prev&&(_prev.estatus==='Confirmada'||_prev.stage==='Pedido de venta'));if(_yaConf){/* ya estaba confirmada: NO se degrada sola — solo se avisa */showToast&&showToast('⚠ Falta '+_faltan.join(' y ')+'. La venta sigue confirmada; complétalos cuando puedas.','#BA7517');}else{alert('No puede pasar a VENTA: falta '+_faltan.join(' y ')+'.\nSe guarda como COTIZACIÓN; llena esos datos para confirmarla como venta.');vtaTipoDoc='Cotización';vtaStage='Presupuesto';if(typeof setTipoDoc==='function')setTipoDoc('Cotización');if(typeof setVtaStage==='function')setVtaStage('Presupuesto');}}}const _esNuevaVta=(editVtaIdx<0)&&(ventas.findIndex(x=>x&&x.num===num)<0);if(_esNuevaVta){try{const _libre=await _folioLibreNube(num);if(_libre&&_libre!==num){num=_libre;const _eln=document.getElementById('vta-form-num');if(_eln)_eln.textContent=num;if(typeof showToast==='function')showToast('⚠ Folio reasignado a '+num+' (el anterior ya estaba en uso por otra cotización)','#D85A30');}}catch(_e){}}if(typeof sincronizarFleteVenta==='function')sincronizarFleteVenta();if(typeof sincronizarInstalacionVenta==='function')sincronizarInstalacionVenta();let sub=0;vtaLineas.forEach(l=>{if(!l.tipo)sub+=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);});const get=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};const v={num,fecha:document.getElementById('vf-fecha').value,cliente:cli,comercial:document.getElementById('vf-comercial').value,rfc:document.getElementById('vf-rfc').value.trim(),razon:get('vf-razon'),email:get('vf-email'),tel:get('vf-tel'),contacto:get('vf-contacto'),cel:get('vf-cel'),dir:get('vf-dir'),tipo:vtaTipoDoc,stage:vtaStage,moneda:document.getElementById('vf-moneda').value,plazo:document.getElementById('vf-plazo').value,plantilla:document.getElementById('vf-plantilla').value,tiempoEntrega:document.getElementById('vf-entrega').value,instalacion:document.getElementById('vf-instalacion').value,domicilio:document.getElementById('vf-domicilio').value,maniobra:document.getElementById('vf-maniobra').value,lineas:vtaLineas,planos:vtaPlanos.slice(),planosEstado:vtaPlanosEstado,total:sub,estatus:vtaStage==='Pedido de venta'?'Confirmada':'Borrador'};if(_hist)v._historica=true;
+async function guardarVenta(){let num=document.getElementById('vta-form-num').textContent;let cli=document.getElementById('vf-cliente').value.trim();if(!cli){alert('Ingresa cliente');return;}let _hist=false;if(/^#H\s+/i.test(cli)){_hist=true;cli=cli.replace(/^#H\s+/i,'').trim();if(!cli){alert('Ingresa cliente después de #H');return;}}if(editVtaIdx>=0&&ventas[editVtaIdx]&&ventas[editVtaIdx]._historica)_hist=true;if(vtaHist)_hist=true;const _g=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};const _esVenta=(vtaTipoDoc==='Venta')||(vtaStage==='Pedido de venta');if(_esVenta&&!_hist){const _dir=_g('vf-dir'),_cel=_g('vf-cel');const _faltan=[];if(!_dir)_faltan.push('ubicación');if(!_cel)_faltan.push('celular');if(_faltan.length){const _prev=ventas[editVtaIdx>=0?editVtaIdx:ventas.findIndex(x=>x&&x.num===num)];const _yaConf=!!(_prev&&(_prev.estatus==='Confirmada'||_prev.stage==='Pedido de venta'));if(_yaConf){/* ya estaba confirmada: NO se degrada sola — solo se avisa */showToast&&showToast('⚠ Falta '+_faltan.join(' y ')+'. La venta sigue confirmada; complétalos cuando puedas.','#BA7517');}else{alert('No puede pasar a VENTA: falta '+_faltan.join(' y ')+'.\nSe guarda como COTIZACIÓN; llena esos datos para confirmarla como venta.');vtaTipoDoc='Cotización';vtaStage='Presupuesto';if(typeof setTipoDoc==='function')setTipoDoc('Cotización');if(typeof setVtaStage==='function')setVtaStage('Presupuesto');}}}const _esNuevaVta=(editVtaIdx<0);if(_esNuevaVta){try{const _libre=await _folioLibreNube(num);if(_libre&&_libre!==num){num=_libre;const _eln=document.getElementById('vta-form-num');if(_eln)_eln.textContent=num;if(typeof showToast==='function')showToast('⚠ Folio reasignado a '+num+' (el anterior ya estaba en uso por otra cotización)','#D85A30');}}catch(_e){}}if(typeof sincronizarFleteVenta==='function')sincronizarFleteVenta();if(typeof sincronizarInstalacionVenta==='function')sincronizarInstalacionVenta();let sub=0;vtaLineas.forEach(l=>{if(!l.tipo)sub+=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);});const get=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};const v={num,fecha:document.getElementById('vf-fecha').value,cliente:cli,comercial:document.getElementById('vf-comercial').value,rfc:document.getElementById('vf-rfc').value.trim(),razon:get('vf-razon'),email:get('vf-email'),tel:get('vf-tel'),contacto:get('vf-contacto'),cel:get('vf-cel'),dir:get('vf-dir'),tipo:vtaTipoDoc,stage:vtaStage,moneda:document.getElementById('vf-moneda').value,plazo:document.getElementById('vf-plazo').value,plantilla:document.getElementById('vf-plantilla').value,tiempoEntrega:document.getElementById('vf-entrega').value,instalacion:document.getElementById('vf-instalacion').value,domicilio:document.getElementById('vf-domicilio').value,maniobra:document.getElementById('vf-maniobra').value,lineas:vtaLineas,planos:vtaPlanos.slice(),planosEstado:vtaPlanosEstado,total:sub,estatus:vtaStage==='Pedido de venta'?'Confirmada':'Borrador'};if(_hist)v._historica=true;
 // ── v.14: snapshot del estado anterior ──
 const _vPrev=(editVtaIdx>=0&&ventas[editVtaIdx])?ventas[editVtaIdx]:((function(){const _ix=ventas.findIndex(x=>x&&x.num===num);return _ix>=0?ventas[_ix]:null;})());
 const _prevEstatus=_vPrev?_vPrev.estatus:null;
