@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.09';
+const APP_VERSION='2026.07.28.10';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4111,7 +4111,7 @@ function _instDocsView(){
   var CERT={'DC-3 Alturas':'#3B6D11','DC-3 Montacargas':'#185FA5','Antidoping':'#7c5cbf'};
   var groups={};INST.docs.forEach(function(d){var c=d.categoria||'Otros';(groups[c]=groups[c]||[]).push(d);});
   var order=CATS.filter(function(c){return groups[c];}).concat(Object.keys(groups).filter(function(c){return CATS.indexOf(c)<0;}).sort());
-  return '<div style="font-size:12px;color:#666;margin-bottom:10px">'+INST.docs.length+' documentos · por categoría</div>'+order.map(function(c){
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;color:#666">'+INST.docs.length+' documentos · por categoría</div><button onclick="_instSubirDoc()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer">+ Subir documento</button></div>'+order.map(function(c){
     var arr=groups[c].slice().sort(function(a,b){return (''+(a.persona||a.nombre||'')).localeCompare(''+(b.persona||b.nombre||''));});
     var col=CERT[c]||'#888';
     var rows=arr.map(function(d){
@@ -4253,6 +4253,77 @@ function _instPkgCorreo(){
   var w=window.open(url,'_blank');
   if(!w){if(typeof showToast==='function')showToast('El navegador bloqueó la ventana — permite pop-ups para abrir Outlook','#BA7517');}
   else{if(typeof showToast==='function')showToast('Se abrió Outlook — adjunta la carpeta que descargaste','#185FA5');}
+}
+// ── Subir documento nuevo a la biblioteca ──
+var INST_UP=null;
+function _instSubirDoc(){INST_UP={categoria:'DC-3 Alturas',persona:'',nombre:'',dataUrl:'',mime:'',fileName:''};_instUpModal();}
+function _instUpSync(){var n=document.getElementById('up-nombre');if(n)INST_UP.nombre=n.value;var p=document.getElementById('up-persona');if(p)INST_UP.persona=p.value;}
+function _instUpFile(input){
+  var f=input.files&&input.files[0];if(!f)return;
+  if(typeof validarTamanoArchivo==='function'&&!validarTamanoArchivo(f,'Documento'))return;
+  var r=new FileReader();
+  r.onload=async function(ev){
+    INST_UP.dataUrl=ev.target.result;INST_UP.mime=f.type||'';INST_UP.fileName=f.name;
+    if(!INST_UP.nombre)INST_UP.nombre=f.name.replace(/\.[^.]+$/,'');
+    if(/pdf/i.test(f.type)||/\.pdf$/i.test(f.name)){
+      if(typeof showToast==='function')showToast('Analizando PDF…','#185FA5');
+      var det=await _instUpDetect(INST_UP.dataUrl);
+      if(det){if(det.cat)INST_UP.categoria=det.cat;if(det.persona&&!INST_UP.persona)INST_UP.persona=det.persona;}
+    }
+    _instUpModal();
+  };
+  r.readAsDataURL(f);
+}
+async function _instUpDetect(dataUrl){
+  try{
+    var b=atob(dataUrl.split(',')[1]);var u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+    var pdf=await pdfjsLib.getDocument({data:u}).promise;var t='';
+    for(var p=1;p<=Math.min(pdf.numPages,3);p++){var pg=await pdf.getPage(p);var ct=await pg.getTextContent();ct.items.forEach(function(it){t+=' '+it.str;});}
+    var T=t.toUpperCase();var out={};
+    if(/MONTACARGAS/.test(T))out.cat='DC-3 Montacargas';
+    else if(/ALTURAS/.test(T))out.cat='DC-3 Alturas';
+    else if(/ANTIDOPING|TOXICOL/.test(T))out.cat='Antidoping';
+    var roster=_instRoster();
+    for(var j=0;j<roster.length;j++){if(roster[j]&&roster[j].length>=3&&T.indexOf((''+roster[j]).toUpperCase())>=0){out.persona=roster[j];break;}}
+    return out;
+  }catch(e){return null;}
+}
+function _instUpModal(){
+  var ex=document.getElementById('inst-up-modal');if(ex)ex.remove();
+  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','Antidoping','Permisos','Otros'];
+  var u=INST_UP;var esPersonal=/DC-3|Antidoping/i.test(u.categoria);var roster=_instRoster();
+  var m=document.createElement('div');m.id='inst-up-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:4300;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
+  m.onclick=function(ev){if(ev.target===m)m.remove();};
+  m.innerHTML='<div style="width:100%;max-width:480px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)">'+
+    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">+ Subir documento</span><button onclick="document.getElementById(\'inst-up-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
+    '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
+      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:4px">Archivo (PDF, imagen, ods, xlsx…)</label><input type="file" accept=".pdf,image/*,.ods,.xls,.xlsx,.csv" onchange="_instUpFile(this)" style="width:100%;font-size:12px">'+(u.fileName?'<div style="font-size:11px;color:#3B6D11;margin-top:4px">✓ '+_ie(u.fileName)+'</div>':'')+'</div>'+
+      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Categoría</label><select id="up-cat" onchange="_instUpSync();INST_UP.categoria=this.value;_instUpModal()" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+CATS.map(function(c){return '<option'+(u.categoria===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
+      (esPersonal?'<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Persona (DC-3 / antidoping)</label><input id="up-persona" list="up-roster" value="'+_ie(u.persona)+'" placeholder="Nombre del trabajador" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><datalist id="up-roster">'+roster.map(function(n){return '<option value="'+_ie(n)+'">';}).join('')+'</datalist></div>':'')+
+      '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Nombre del documento</label><input id="up-nombre" value="'+_ie(u.nombre)+'" placeholder="Ej. DC-3 Fulano Alturas" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #eee;background:#faf9f7"><button onclick="document.getElementById(\'inst-up-modal\').remove()" style="border:1px solid #ddd;background:#fff;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer">Cancelar</button><button onclick="_instUpGuardar()" style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">💾 Subir</button></div>'+
+  '</div>';
+  document.body.appendChild(m);
+}
+async function _instUpGuardar(){
+  _instUpSync();
+  var g=function(id){var e=document.getElementById(id);return e?e.value:'';};
+  INST_UP.categoria=g('up-cat')||INST_UP.categoria;
+  INST_UP.nombre=(g('up-nombre')||INST_UP.nombre||INST_UP.fileName||'Documento').trim();
+  if(!INST_UP.dataUrl){if(typeof showToast==='function')showToast('Elige un archivo primero','#BA7517');return;}
+  var esPersonal=/DC-3|Antidoping/i.test(INST_UP.categoria);
+  var persona=esPersonal?((INST_UP.persona||'').trim()||null):null;
+  var payload={categoria:INST_UP.categoria,nombre:INST_UP.nombre,persona:persona,archivo:{data:INST_UP.dataUrl,mime:INST_UP.mime||'application/octet-stream',name:INST_UP.fileName||INST_UP.nombre},updated_at:new Date().toISOString()};
+  try{
+    if(typeof showToast==='function')showToast('Subiendo…','#185FA5');
+    var res=await supabaseClient.from('documentos').insert(payload);
+    if(res&&res.error)throw res.error;
+    var mm=document.getElementById('inst-up-modal');if(mm)mm.remove();
+    if(typeof showToast==='function')showToast('✓ Documento subido','#3B6D11');
+    INST.docs=undefined;if(INST.modo==='docs')_instCargarDocs();
+  }catch(e){console.error('subir doc',e);if(typeof showToast==='function')showToast('No se pudo subir el documento','#BA7517');}
 }
 function _instCard(r){
   var m=_instMiembros(r);
