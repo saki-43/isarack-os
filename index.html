@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.11';
+const APP_VERSION='2026.07.28.12';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4095,13 +4095,14 @@ function _instSeg(m,label){var on=INST.modo===m;return '<button onclick="INST.mo
 function _instPintar(){
   var root=document.getElementById('inst-root');if(!root)return;
   var head='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">'+
-    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('docs','📁 Documentos')+'</div>'+
+    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('fin','✓ Terminadas')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('docs','📁 Documentos')+'</div>'+
     ((INST.modo==='obra'||INST.modo==='persona')?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
     '<button onclick="abrirInstEditor(null)" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Registrar obra</button></div>';
   var body='';
   if(INST.modo==='persona')body=_instPorPersona();
   else if(INST.modo==='obra')body=_instPorObra();
   else if(INST.modo==='docs')body=_instDocsView();
+  else if(INST.modo==='fin')body=_instTerminadas();
   else body=_instBoardPedidos();
   root.innerHTML=head+body;
 }
@@ -4111,11 +4112,17 @@ function _instSeccion(titulo,arr){
 }
 // Tablero operativo: pedidos (orders, ya en memoria) agrupados por estatus,
 // con la cuadrilla registrada sobrepuesta desde instalaciones_activas.
+function _instEsFin(r){return /termin|complet/i.test((r&&r.estatus)||'');}
+function _instTerminadas(){
+  var arr=INST.rows.filter(_instEsFin).slice().sort(function(a,b){return (''+(b.fecha_fin||b.fecha_inicio||'')).localeCompare(''+(a.fecha_fin||a.fecha_inicio||''));});
+  if(!arr.length)return '<div style="padding:40px;text-align:center;color:#999">Sin obras terminadas todavía.<br>Marca una obra como <b>Terminada</b> en su editor y aparecerá aquí (y sigue en el historial REPSE).</div>';
+  return '<div style="font-size:12px;color:#666;margin-bottom:8px">'+arr.length+' obra(s) terminada(s) · siguen en el historial REPSE</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instCard).join('')+'</div>';
+}
 function _instBoardPedidos(){
   var byFolio={};INST.rows.forEach(function(r){if(r.folio)byFolio[r.folio]=r;});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
   var enP=[],pend=[];
-  ords.forEach(function(o){if(!o||!o.num)return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:byFolio[o.num]||null};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  ords.forEach(function(o){if(!o||!o.num)return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
   var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
   var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
   if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Usa <b>+ Registrar obra</b> o registra desde Seguimiento de pedidos.</div>';
@@ -4124,9 +4131,10 @@ function _instBoardPedidos(){
 function _instOrdCard(x){
   var r=x.rec,m=r?_instMiembros(r):[];
   var f=r?_instFecha(r):(x.fecha?_fmtF(x.fecha):'');
+  var estChip=(r&&r.estatus&&r.estatus!=='En proceso'&&!_instEsFin(r))?' <span style="background:#fff3cd;color:#7a5306;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600">'+_ie(r.estatus)+'</span>':'';
   return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
     '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(x.cliente||x.folio)+'</div>'+
-    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+'</div>'+
+    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+estChip+'</div>'+
     (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'</div>';
 }
 // Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
@@ -4404,6 +4412,7 @@ function abrirInstEditor(id){
 function _instModal(){
   var ex=document.getElementById('inst-modal');if(ex)ex.remove();
   var e=INST_EDIT;
+  var estOpts=['En proceso','Falta material','Por terminar','Terminada'];if(e.estatus&&estOpts.indexOf(e.estatus)<0)estOpts.unshift(e.estatus);
   var roster=_instRoster().filter(function(n){return e.instaladores.indexOf(n)<0;});
   var m=document.createElement('div');m.id='inst-modal';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:4000;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
@@ -4413,7 +4422,7 @@ function _instModal(){
     '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:110px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Folio</label><input id="ie-folio" value="'+_ie(e.folio)+'" onchange="INST_EDIT.folio=this.value.trim();_instAutollenar()" placeholder="S07240" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:2;min-width:160px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Obra / Cliente</label><input id="ie-obra" value="'+_ie(e.obra||e.cliente)+'" onchange="INST_EDIT.obra=this.value.trim()" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
-      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+['En proceso','Pendiente','Completado'].map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+estOpts.map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
       '<button onclick="_instPaquete()" style="width:100%;padding:11px;border:1px solid #DA6635;background:#fff5f0;color:#c2410c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Paquete de documentos para llevar</button>'+
