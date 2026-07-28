@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.13';
+const APP_VERSION='2026.07.28.14';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4135,7 +4135,7 @@ function _instOrdCard(x){
   return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
     '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(x.cliente||x.folio)+'</div>'+
     '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+estChip+'</div>'+
-    (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'</div>';
+    (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'<div style="margin-top:8px;border-top:1px solid #f2f2f0;padding-top:6px"><button onclick="event.stopPropagation();_instVerPedido(\''+_ie(x.folio)+'\')" style="background:none;border:none;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:0">📋 Ver pedido · estimar tiempo</button></div>'+'</div>';
 }
 // Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
 // prellenado con los datos del pedido.
@@ -4145,6 +4145,60 @@ function _instObra(folio){
   var o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(function(x){return x&&x.num===folio;}):null;
   INST_EDIT={id:null,folio:folio,obra:(o&&o.cliente)||'',cliente:(o&&o.cliente)||'',ubicacion:(o&&o.ubicacion)||'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:(o&&o.estatus)||'En proceso'};
   _instModal();
+}
+// ── Ver pedido + Estimado de instalación (usa los renglones de la venta, ya en memoria) ──
+var INST_PED=null;
+function _instVerPedido(folio){
+  var v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(function(x){return x&&x.num===folio;}):null;
+  var o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(function(x){return x&&x.num===folio;}):null;
+  var lineas=(v&&Array.isArray(v.lineas))?v.lineas:((o&&o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[]);
+  if(!lineas.length){if(typeof showToast==='function')showToast('No se encontraron partidas para '+folio,'#BA7517');return;}
+  var vigas=0,rejillas=0,anclas=0,inst=0,flete=0,total=0;
+  lineas.forEach(function(l){
+    if(l.tipo)return;
+    var cant=parseFloat(l.cantidad)||0,prec=parseFloat(l.precio)||0,prod=(''+(l.producto||'')).toLowerCase();
+    total+=cant*prec*(1-((parseFloat(l.descuento)||0)/100));
+    if(/viga/.test(prod))vigas+=cant;
+    else if(/rejilla/.test(prod))rejillas+=cant;
+    else if(/ancla/.test(prod))anclas+=cant;
+    if(/servicio de instalaci/.test(prod))inst+=cant*prec;
+    else if(/servicio de flete/.test(prod))flete+=cant*prec;
+  });
+  INST_PED={folio:folio,cliente:(v&&v.cliente)||(o&&o.cliente)||folio,moneda:(v&&v.moneda)||'USD',lineas:lineas,vigas:vigas,rejillas:rejillas,anclas:anclas,inst:inst,flete:flete,total:total,personas:4};
+  _instPedModal();
+}
+function _instDiasEst(p){var d=INST_PED;return d.vigas/(80*p)+d.rejillas/(100*p)+d.anclas/(80*p);}
+function _instPedPersonas(p){INST_PED.personas=p;var e=document.getElementById('ped-est');if(e)e.innerHTML=_instEstHtml();}
+function _instEstHtml(){
+  var d=INST_PED;var p=d.personas;var t=_instDiasEst(p);var dias=Math.max(1,Math.ceil(t));
+  if(d.vigas+d.rejillas+d.anclas<=0)return '<div style="color:#888;font-size:12px">Sin material para estimar (puede ser servicio/desmontaje). Revisa las notas del pedido.</div>';
+  var btn=[3,4,5,6].map(function(n){return '<button onclick="_instPedPersonas('+n+')" style="border:1px solid '+(n===p?'#185FA5':'#ccc')+';background:'+(n===p?'#185FA5':'#fff')+';color:'+(n===p?'#fff':'#333')+';border-radius:8px;padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer">'+n+'</button>';}).join(' ');
+  return '<div style="font-size:12px;color:#555;margin-bottom:6px">Vigas '+d.vigas+' · Rejillas '+d.rejillas+' · Anclas '+d.anclas+'</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:#555">Personas:</span>'+btn+'</div>'+
+    '<div style="font-size:20px;font-weight:700;color:#185FA5">≈ '+dias+' día'+(dias===1?'':'s')+' con '+p+' personas</div>'+
+    '<div style="font-size:11px;color:#888">Vigas '+(d.vigas/(80*p)).toFixed(1)+'d · Rejillas '+(d.rejillas/(100*p)).toFixed(1)+'d · Anclas '+(d.anclas/(80*p)).toFixed(1)+'d (total '+_instDiasEst(p).toFixed(1)+'d)</div>';
+}
+function _instPedModal(){
+  var ex=document.getElementById('inst-ped-modal');if(ex)ex.remove();
+  var d=INST_PED;var money=function(x){return '$'+(Number(x)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var arts=d.lineas.filter(function(l){return !l.tipo;});
+  var filas=d.lineas.map(function(l){
+    if(l.tipo==='nota'||l.tipo==='seccion')return '<tr><td colspan="2" style="padding:5px 8px;font-size:11px;font-style:italic;color:#888">'+_ie(l.texto||'')+'</td></tr>';
+    if(l.tipo)return '';
+    return '<tr style="border-top:1px solid #f2f2f0"><td style="padding:6px 8px;font-size:12px">'+_ie(l.producto||'')+'</td><td style="padding:6px 8px;font-size:12px;text-align:right;white-space:nowrap">'+(parseFloat(l.cantidad)||0)+'</td></tr>';
+  }).join('');
+  var m=document.createElement('div');m.id='inst-ped-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:4200;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
+  m.onclick=function(ev){if(ev.target===m)m.remove();};
+  m.innerHTML='<div style="width:100%;max-width:540px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)">'+
+    '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:15px">'+_ie(d.cliente)+'</div><div style="font-size:11px;color:#888"><span style="font-family:monospace;color:#DA6635">'+_ie(d.folio)+'</span> · '+money(d.total)+' '+_ie(d.moneda)+' · '+arts.length+' partidas</div></div><button onclick="document.getElementById(\'inst-ped-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:13px;padding:5px 12px">Cerrar</button></div>'+
+    '<div style="padding:14px 18px;max-height:64vh;overflow:auto">'+
+      '<div style="background:#eaf1fb;border-radius:10px;padding:12px 14px;margin-bottom:12px"><div style="font-weight:600;font-size:13px;color:#185FA5;margin-bottom:6px">⏱️ Estimado de instalación</div><div id="ped-est">'+_instEstHtml()+'</div></div>'+
+      ((d.inst||d.flete)?'<div style="display:flex;gap:10px;margin-bottom:12px">'+(d.inst?'<div style="flex:1;background:#eafaea;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:#2f7d32">Servicio de instalación</div><div style="font-size:15px;font-weight:700;color:#2f7d32">'+money(d.inst)+'</div></div>':'')+(d.flete?'<div style="flex:1;background:#fff5f0;border-radius:8px;padding:8px 12px"><div style="font-size:11px;color:#c2410c">Servicio de flete</div><div style="font-size:15px;font-weight:700;color:#c2410c">'+money(d.flete)+'</div></div>':'')+'</div>':'')+
+      '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:#999;font-size:10px;text-transform:uppercase;text-align:left"><th style="padding:4px 8px">Producto</th><th style="padding:4px 8px;text-align:right">Cant.</th></tr></thead><tbody>'+filas+'</tbody></table>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(m);
 }
 // Vista de documentos de personal (tabla documentos) agrupados por persona.
 function _instDocsView(){
@@ -4421,6 +4475,7 @@ function _instModal(){
     '<div style="padding:14px 18px;border-bottom:3px solid #DA6635;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:15px">'+(e.id?'Editar registro':'Registrar obra')+'</span><button onclick="guardarInst()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:2px 9px">✕</button></div>'+
     '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:110px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Folio</label><input id="ie-folio" value="'+_ie(e.folio)+'" onchange="INST_EDIT.folio=this.value.trim();_instAutollenar()" placeholder="S07240" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:2;min-width:160px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Obra / Cliente</label><input id="ie-obra" value="'+_ie(e.obra||e.cliente)+'" onchange="INST_EDIT.obra=this.value.trim()" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
+      '<div><button onclick="_instVerPedido(((document.getElementById(\'ie-folio\')||{}).value||INST_EDIT.folio||\'\').trim())" style="background:#eaf1fb;border:1px solid #cfe0f5;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:8px;width:100%">📋 Ver pedido · estimar tiempo e instalación</button></div>'+
       '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+estOpts.map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
