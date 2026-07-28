@@ -1149,7 +1149,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.01';
+const APP_VERSION='2026.07.28.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4103,13 +4103,27 @@ function _instObra(folio){
 function _instDocsView(){
   if(INST.docs===undefined){setTimeout(_instCargarDocs,0);return '<div style="padding:30px;text-align:center;color:#999">Cargando documentos…</div>';}
   if(!INST.docs.length)return '<div style="padding:30px;text-align:center;color:#999">Sin documentos de personal todavía.</div>';
-  var groups={};INST.docs.forEach(function(d){var k=d.persona||'— Empresa (seguro / IMSS / permisos) —';(groups[k]=groups[k]||[]).push(d);});
-  var keys=Object.keys(groups).sort(function(a,b){return a.localeCompare(b);});
+  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','Antidoping','Permisos','Otros'];
   var CERT={'DC-3 Alturas':'#3B6D11','DC-3 Montacargas':'#185FA5','Antidoping':'#7c5cbf'};
-  return '<div style="font-size:12px;color:#666;margin-bottom:10px">'+INST.docs.length+' documentos · agrupados por persona · clic para ver</div>'+keys.map(function(k){
-    var arr=groups[k];
-    return '<div style="margin-bottom:12px;background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">'+_ie(k)+' <span style="color:#999;font-weight:400">· '+arr.length+'</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">'+arr.map(function(d){var col=CERT[d.categoria]||'#888';return '<button onclick="_instVerDoc('+d.id+')" title="'+_ie(d.nombre||'')+'" style="border:1px solid #ddd;background:#faf9f7;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:'+col+'"></span>'+_ie(d.categoria)+'</button>';}).join('')+'</div></div>';
+  var groups={};INST.docs.forEach(function(d){var c=d.categoria||'Otros';(groups[c]=groups[c]||[]).push(d);});
+  var order=CATS.filter(function(c){return groups[c];}).concat(Object.keys(groups).filter(function(c){return CATS.indexOf(c)<0;}).sort());
+  return '<div style="font-size:12px;color:#666;margin-bottom:10px">'+INST.docs.length+' documentos · por categoría</div>'+order.map(function(c){
+    var arr=groups[c].slice().sort(function(a,b){return (''+(a.persona||a.nombre||'')).localeCompare(''+(b.persona||b.nombre||''));});
+    var col=CERT[c]||'#888';
+    var rows=arr.map(function(d){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-top:1px solid #f2f2f0">'+
+        '<span style="width:7px;height:7px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'+
+        '<span style="flex:1;min-width:0;font-size:13px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_ie(d.nombre||'')+(d.persona?' <span style="color:#999">· '+_ie(d.persona)+'</span>':'')+'</span>'+
+        '<button onclick="_instVerDoc('+d.id+')" style="border:1px solid #ddd;background:#fff;border-radius:6px;padding:4px 13px;font-size:12px;cursor:pointer;color:#185FA5">Ver</button>'+
+        '<button onclick="_instBorrarDoc('+d.id+')" title="Eliminar documento" style="border:none;background:none;cursor:pointer;color:#c0392b;font-size:14px;padding:2px 4px">🗑</button>'+
+      '</div>';
+    }).join('');
+    return '<div style="margin-bottom:10px;background:#fff;border:1px solid #eee;border-radius:12px;padding:10px 14px"><div style="font-weight:600;font-size:13px;margin-bottom:2px">'+_ie(c)+' <span style="color:#999;font-weight:400">· '+arr.length+'</span></div>'+rows+'</div>';
   }).join('');
+}
+async function _instBorrarDoc(id){
+  if(!confirm('¿Eliminar este documento del historial de personal?'))return;
+  try{var res=await supabaseClient.from('documentos').delete().eq('id',id);if(res&&res.error)throw res.error;INST.docs=(INST.docs||[]).filter(function(d){return d.id!==id;});_instPintar();if(typeof showToast==='function')showToast('Documento eliminado','#BA7517');}catch(e){console.error('borrarDoc',e);if(typeof showToast==='function')showToast('No se pudo eliminar','#BA7517');}
 }
 async function _instCargarDocs(){
   try{var res=await supabaseClient.from('documentos').select('id,categoria,nombre,persona').order('persona',{ascending:true});INST.docs=(res&&res.data)||[];}catch(e){console.warn('inst docs',e);INST.docs=[];}
