@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.28.14';
+const APP_VERSION='2026.07.29.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4649,10 +4649,10 @@ function descontarInventarioPedido(orderObj,lineas){
       faltantes.push(l.producto+' ('+cant+') — NO en inventario');
     }
   });
-  // Marcar como descontado para no repetir
-  orderObj.inventarioDescontado=true;
-  orderObj.fechaDescuento=Date.now();
   if(descuentos.length>0||bomDescontados.length>0){
+    // Marcar como descontado para no repetir (solo si de verdad hubo descuentos)
+    orderObj.inventarioDescontado=true;
+    orderObj.fechaDescuento=Date.now();
     guardarLS('isarack_inventario_v4',inventario);
     // KARDEX: registrar cada descuento por venta
     try{lineas.forEach(l=>{if(!l||l.tipo)return;const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
