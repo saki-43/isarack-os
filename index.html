@@ -1150,7 +1150,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.29.02';
+const APP_VERSION='2026.07.31.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4112,7 +4112,15 @@ function _instSeccion(titulo,arr){
 }
 // Tablero operativo: pedidos (orders, ya en memoria) agrupados por estatus,
 // con la cuadrilla registrada sobrepuesta desde instalaciones_activas.
-function _instEsFin(r){return /termin|complet/i.test((r&&r.estatus)||'');}
+// Una obra cuenta como terminada si su registro de instalación está Terminada,
+// O si su pedido (orders) ya está Completado — así aparece en Terminadas aunque
+// solo se haya cerrado el pedido y no se haya tocado el estatus de instalación.
+function _instOrderFin(folio){
+  if(!folio||typeof orders==='undefined'||!Array.isArray(orders))return false;
+  var o=orders.find(function(x){return x&&x.num===folio;});
+  return !!(o&&/complet|termin/i.test(o.estatus||''));
+}
+function _instEsFin(r){return /termin|complet/i.test((r&&r.estatus)||'')||_instOrderFin(r&&r.folio);}
 function _instTerminadas(){
   var arr=INST.rows.filter(_instEsFin).slice().sort(function(a,b){return (''+(b.fecha_fin||b.fecha_inicio||'')).localeCompare(''+(a.fecha_fin||a.fecha_inicio||''));});
   if(!arr.length)return '<div style="padding:40px;text-align:center;color:#999">Sin obras terminadas todavía.<br>Marca una obra como <b>Terminada</b> en su editor y aparecerá aquí (y sigue en el historial REPSE).</div>';
