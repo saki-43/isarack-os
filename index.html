@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.07.31.02';
+const APP_VERSION='2026.08.03.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4007,8 +4007,11 @@ function _llenarVentaDesdePDF(p){
   const folioConsec=numEl?numEl.textContent:'';
   let folioNota='';
   if(p.num){
-    folioNota=' · consecutivo '+folioConsec+' (presup. original '+p.num+')';
-    p.lineas.unshift({tipo:'nota',texto:'📄 Importado del presupuesto '+p.num});
+    folioNota=' · folio ISA-OS '+folioConsec+' (origen Odoo '+p.num+')';
+    // Nota INTERNA: referencia al presupuesto de Odoo. NO se imprime al cliente
+    // (generarCotHTML salta las notas con _interna). El folio de esta venta es el
+    // consecutivo de ISA-OS, no el de Odoo.
+    p.lineas.unshift({tipo:'nota',texto:'📄 Origen: presupuesto Odoo '+p.num+' · el folio de esta venta ('+folioConsec+') es el consecutivo de ISA-OS',_interna:true});
   }
   setV('vf-cliente',p.cliente);
   setV('vf-fecha',p.fecha);
@@ -12031,7 +12034,7 @@ function capacidadVigaCarga(nombre){
  return 'Capacidad: '+lbs.toLocaleString('en-US')+' lbs / '+kg.toLocaleString('en-US')+' kg';
 }
 function renderLineas(){if(typeof sincronizarFleteVenta==='function')sincronizarFleteVenta();if(typeof sincronizarInstalacionVenta==='function')sincronizarInstalacionVenta();if(!_vtaColapManual)colapsarDatosVenta(vtaLineas.length>0);const tb=document.getElementById('vta-lineas');if(!vtaLineas.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin productos — usa los botones de abajo para agregar</td></tr>';calcTotales();return;}
-tb.innerHTML=vtaLineas.map((l,i)=>{if(l.tipo==='seccion')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})" style="background:#f0f0ee"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7"><input value="${l.texto||''}" onchange="vtaLineas[${i}].texto=this.value" style="border:none;background:transparent;font-size:14px;font-weight:700;width:100%;outline:none;padding:4px 0"></td></tr>`;if(l.tipo==='nota')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7"><input value="${l.texto||''}" onchange="vtaLineas[${i}].texto=this.value" placeholder="Nota..." style="border:none;background:transparent;font-size:13px;font-style:italic;color:#888;width:100%;outline:none;padding:4px 0"></td></tr>`;const imp=((l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100));
+tb.innerHTML=vtaLineas.map((l,i)=>{if(l.tipo==='seccion')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})" style="background:#f0f0ee"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7"><input value="${l.texto||''}" onchange="vtaLineas[${i}].texto=this.value" style="border:none;background:transparent;font-size:14px;font-weight:700;width:100%;outline:none;padding:4px 0"></td></tr>`;if(l.tipo==='nota')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7">${l._interna?'<span style="display:inline-block;background:#eef3fb;color:#185FA5;border:1px solid #d0e2f3;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:6px;vertical-align:middle">🔒 INTERNA · no se imprime</span>':''}<input value="${l.texto||''}" onchange="vtaLineas[${i}].texto=this.value" placeholder="Nota..." style="border:none;background:transparent;font-size:13px;font-style:italic;color:#888;width:${l._interna?'65%':'100%'};outline:none;padding:4px 0"></td></tr>`;const imp=((l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100));
 const marcoPicking=detectarMarcoPicking(l.producto);
 const marco=marcoPicking||detectarMarco(l.producto);
 let bomRow='';
@@ -12248,7 +12251,7 @@ const _pesoDeSKU=(sku,nombre)=>{
   if(!it&&nombre)it=inventario.find(p=>p.producto&&p.producto.toUpperCase()===String(nombre).toUpperCase());
   return (it&&it.peso)?Number(it.peso)||0:0;
 };
-lineas.forEach(l=>{if(l.tipo==='seccion'){secciones.push({tipo:'sec',texto:l.texto});return;}if(l.tipo==='nota'){secciones.push({tipo:'nota',texto:l.texto});return;}const base=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);sub+=base;iva+=base*(l.impuesto||0)/100;
+lineas.forEach(l=>{if(l.tipo==='seccion'){secciones.push({tipo:'sec',texto:l.texto});return;}if(l.tipo==='nota'){if(l._interna)return;secciones.push({tipo:'nota',texto:l.texto});return;}const base=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);sub+=base;iva+=base*(l.impuesto||0)/100;
 // Peso de esta línea
 if(l.esGondola&&Array.isArray(l.moduloComponentes)){
   l.moduloComponentes.forEach(c=>{const pu=_pesoDeSKU(c.sku,c.nombre);pesoTotal+=pu*(parseFloat(c.cantidad)||0);});
