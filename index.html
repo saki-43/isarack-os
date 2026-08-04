@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.03.01';
+const APP_VERSION='2026.08.04.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7562,16 +7562,16 @@ function abrirAjusteManual(i){if(!puedeEditarInventario()){alert('⚠ Permiso de
 function guardarAjuste(){const i=parseInt(document.getElementById('ov-inv').dataset.idx);if(isNaN(i))return;const t=document.querySelector('#sg-inv-tipo .seg-btn.active')?.textContent||'Agregar (+)';const c=parseInt(document.getElementById('inv-ajuste-cant').value)||0;const mn=parseInt(document.getElementById('inv-alerta-min').value);const pr=parseFloat(document.getElementById('inv-precio').value)||0;const p=inventario[i];const nm=document.getElementById('inv-prod-nombre').value.trim();if(nm)p.producto=nm;if(c>0||t==='Establecer'){if(t.includes('Agregar'))p.cantidad+=c;else if(t.includes('Quitar'))p.cantidad=Math.max(0,p.cantidad-c);else p.cantidad=c;}if(!isNaN(mn)&&mn>=0)p.alerta_minimo=mn;p.precio=pr;saveInv();document.getElementById('ov-inv').classList.remove('open');renderInventario();showToast('✓ '+p.producto,'#3B6D11');}
 function estInv(p){
   if(p&&p.esServicio)return{l:'Servicio',c:'inv-normal',cl:'#6B5BA5'};
-  try{if(typeof _comprometidoSKU==='function'&&p&&p.sku){const _cS=_comprometidoSKU(p.sku);const _fS=(typeof _fabricableDesdePadre==='function')?_fabricableDesdePadre(p.sku):0;const _dS=(Number(p.cantidad||0)-_cS)+_fS;if(_dS<0)return{l:'⚠ Sobreventa',c:'inv-cero',cl:'#A32D2D'};}}catch(_e){}
+  try{if(typeof _comprometidoSKU==='function'&&p&&p.sku){const _cS=_comprometidoSKU(p.sku);const _fS=(typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;const _dS=(Number(p.cantidad||0)-_cS)+_fS;if(_dS<0)return{l:'⚠ Sobreventa',c:'inv-cero',cl:'#A32D2D'};}}catch(_e){}
   if(p.deficit&&Number(p.deficit)>0)return{l:'⚠ Déficit -'+Number(p.deficit),c:'inv-cero',cl:'#c62828'};
   if(p.cantidad>0){
     if(p.cantidad<=p.alerta_minimo)return{l:'Stock bajo',c:'inv-bajo',cl:'#BA7517'};
     return{l:'Normal',c:'inv-normal',cl:'#3B6D11'};
   }
-  if(typeof calcularDisponiblesFabricables==='function'){
-    const disp=calcularDisponiblesFabricables(p);
-    if(disp&&disp.fabricable>0)return{l:'✅ Disponible (BOM)',c:'inv-bom',cl:'#185FA5'};
-  }
+  // Físico 0 pero se puede ARMAR de piezas (marco desde postes+diagonales) o cortar de la
+  // madre (diagonales) → cuenta como EXISTENTE (verde), no como "fabricable" ni "Sin stock".
+  const _deriv=(typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;
+  if(_deriv>0)return{l:'Disponible',c:'inv-normal',cl:'#3B6D11'};
   if(p.bajoPedido)return{l:'🛒 Bajo pedido',c:'inv-bajopedido',cl:'#185FA5'};
   return{l:'Sin stock',c:'inv-cero',cl:'#c62828'};
 }
@@ -8332,6 +8332,53 @@ function _fabricableDesdePadre(sku){
   }catch(e){return 0;}
 }
 
+// Disponible real de una pieza: físico − comprometido + lo cortable de su madre (bom_rules)
+function _dispPiezaReal(x){
+  if(!x)return 0;
+  const fis=Number(x.cantidad||0);
+  const comp=(typeof _comprometidoSKU==='function'&&x.sku)?_comprometidoSKU(x.sku):0;
+  const fab=(typeof _fabricableDesdePadre==='function'&&x.sku)?_fabricableDesdePadre(x.sku):0;
+  return Math.max(0,(fis-comp)+fab);
+}
+// Marcos que se pueden ARMAR con las piezas en stock (postes + diagonales), TODOS los
+// tamaños vía MARCO_BOM. 2 postes por marco (300 marcos = 600 postes). El pie no limita:
+// si hay poste y diagonales del color/tamaño correcto, el marco cuenta como existente.
+function _marcoDispDesdePiezas(p){
+  if(!p)return 0;
+  const nombre=(p.producto||'').toUpperCase();
+  if(nombre.indexOf('MARCO')!==0)return 0;
+  const esPicking=nombre.includes('PICKING');
+  const mm=nombre.match(/(\d+)"?\s*X\s*(\d+)/); // "MARCO 312" X 42""
+  if(!mm)return 0;
+  const alto=mm[1],fondo=mm[2];
+  const BOM=esPicking?(typeof MARCO_BOM_PICKING!=='undefined'?MARCO_BOM_PICKING:{}):(typeof MARCO_BOM!=='undefined'?MARCO_BOM:{});
+  const bom=BOM[alto];
+  if(!bom||!bom.posteSize)return 0;
+  const cm=nombre.match(/AZUL|VERDE|ROJO/);
+  const color=cm?cm[0]:null;
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  // Postes del tamaño (posteSize) y color del marco
+  const postes=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize+'"')&&(!color||u.includes(color));}).reduce((s,x)=>s+_dispPiezaReal(x),0);
+  // Diagonales D/H del fondo (nombre real "D DIAGONAL <fondo>"); si no hay del color, usar neutras (picking)
+  const diag=(letra)=>{
+    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondo+'"');});
+    const conColor=color?items.filter(x=>(x.producto||'').toUpperCase().includes(color)):[];
+    const usar=conColor.length?conColor:items;
+    return usar.reduce((s,x)=>s+_dispPiezaReal(x),0);
+  };
+  const diagD=diag('D'),diagH=diag('H');
+  const maxPostes=Math.floor((postes*(bom.postePartes||1))/2); // 2 postes por marco
+  const maxDiagD=bom.diagonalD>0?Math.floor(diagD/bom.diagonalD):Infinity;
+  const maxDiagH=bom.diagonalH>0?Math.floor(diagH/bom.diagonalH):Infinity;
+  return Math.max(0,Math.min(maxPostes,maxDiagD,maxDiagH));
+}
+// Disponible derivado de un producto: marco desde piezas, o corte desde la madre (diagonales)
+function _dispDerivadaDe(p){
+  if(!p)return 0;
+  try{const m=_marcoDispDesdePiezas(p);if(m>0)return m;}catch(_e){}
+  return (typeof _fabricableDesdePadre==='function'&&p.sku)?_fabricableDesdePadre(p.sku):0;
+}
+
 // ══ KARDEX / MOVIMIENTOS DE INVENTARIO ══
 async function _kardexRegistrar(mov){
   try{
@@ -8521,7 +8568,7 @@ function editarPesoInv(ri){
 }
 function renderInventario(){
 aplicarPermisosInventarioUI();
-const q=(document.getElementById('inv-buscar')?.value||'').toLowerCase(),fs=document.getElementById('inv-filtro-sis')?.value||'',fe=document.getElementById('inv-filtro-estado')?.value||'';const fl=inventario.filter(p=>{if(q&&!(p.producto.toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)))return false;if(fs&&p.sistema!==fs)return false;if(fe){const e=estInv(p);if(fe==='ok'&&e.l!=='Normal')return false;if(fe==='bajo'&&e.l!=='Stock bajo')return false;if(fe==='cero'&&e.l!=='Sin stock')return false;if(fe==='deficit'&&!(deficitCache&&deficitCache.find(d=>(d.sku&&d.sku===p.sku)||d.nombre===p.producto)))return false;}return true;});let ok=0,bj=0,cr=0,nServ=0;inventario.forEach(p=>{if(p.esServicio){nServ++;return;}const e=estInv(p);if(e.l==='Normal')ok++;else if(e.l==='Stock bajo')bj++;else cr++;});document.getElementById('inv-total').textContent=inventario.length-nServ;document.getElementById('inv-ok').textContent=ok;document.getElementById('inv-bajo').textContent=bj;document.getElementById('inv-cero').textContent=cr;const _ic=document.getElementById('inv-count');if(_ic)_ic.textContent=fl.length+' productos';const _im={'':0,'ok':1,'bajo':2,'cero':3};document.querySelectorAll('#tab-inventario .stats .stat').forEach((s,i)=>s.classList.toggle('active',i===_im[fe]));const tb=document.getElementById('tbody-inv');if(!fl.length){tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin productos</td></tr>';return;}
+const q=(document.getElementById('inv-buscar')?.value||'').toLowerCase(),fs=document.getElementById('inv-filtro-sis')?.value||'',fe=document.getElementById('inv-filtro-estado')?.value||'';const fl=inventario.filter(p=>{if(q&&!(p.producto.toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)))return false;if(fs&&p.sistema!==fs)return false;if(fe){const e=estInv(p);if(fe==='ok'&&e.l!=='Normal'&&e.l!=='Disponible')return false;if(fe==='bajo'&&e.l!=='Stock bajo')return false;if(fe==='cero'&&e.l!=='Sin stock')return false;if(fe==='deficit'&&!(deficitCache&&deficitCache.find(d=>(d.sku&&d.sku===p.sku)||d.nombre===p.producto)))return false;}return true;});let ok=0,bj=0,cr=0,nServ=0;inventario.forEach(p=>{if(p.esServicio){nServ++;return;}const e=estInv(p);if(e.l==='Normal'||e.l==='Disponible')ok++;else if(e.l==='Stock bajo')bj++;else cr++;});document.getElementById('inv-total').textContent=inventario.length-nServ;document.getElementById('inv-ok').textContent=ok;document.getElementById('inv-bajo').textContent=bj;document.getElementById('inv-cero').textContent=cr;const _ic=document.getElementById('inv-count');if(_ic)_ic.textContent=fl.length+' productos';const _im={'':0,'ok':1,'bajo':2,'cero':3};document.querySelectorAll('#tab-inventario .stats .stat').forEach((s,i)=>s.classList.toggle('active',i===_im[fe]));const tb=document.getElementById('tbody-inv');if(!fl.length){tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin productos</td></tr>';return;}
 // Build deficit lookup
 const defLookup={};
 if(deficitCache){deficitCache.forEach(d=>{const key=d.sku||d.nombre;defLookup[key]=d;});}
@@ -8532,7 +8579,7 @@ const stockInner=puedeEdit
   ?`<span style="font-weight:700;color:${e.cl}">${p.cantidad.toLocaleString()}</span>`
   :`<span style="font-weight:700;color:${e.cl}">${p.cantidad.toLocaleString()}</span>`;
 const cantidadHtml=(disp&&disp.fabricable>0)?`<div>${stockInner}<span style="color:#185FA5;font-size:10px;font-weight:600"> + ${disp.fabricable.toLocaleString()} fab.</span></div>`:stockInner;
-const _comp=(typeof _comprometidoSKU==='function')?_comprometidoSKU(p.sku):0;const _dispFisico=Number(p.cantidad||0)-_comp;const _fabricable=(typeof _fabricableDesdePadre==='function')?_fabricableDesdePadre(p.sku):0;const _dispTotal=_dispFisico+_fabricable;const _isSobre=_dispTotal<0;const _rowRed=_isSobre?'background:#FCEBEB;':'';const _minV=Number(p.alerta_minimo||0);const _dispBg=_isSobre?'#A32D2D':(_dispTotal<=_minV?'#FAEEDA':'#EAF3DE');const _dispTxt=_isSobre?'#fff':(_dispTotal<=_minV?'#412402':'#173404');const _fabBadge=_fabricable>0?`<span style="font-size:10px;color:#185FA5;margin-left:4px" title="Fabricable desde el padre">+${_fabricable.toLocaleString()} fab.</span>`:'';const dispCell=`<td style="text-align:right"><span style="background:${_dispBg};color:${_dispTxt};font-weight:600;padding:2px 10px;border-radius:12px;display:inline-block">${_isSobre?'⚠ ':''}${_dispTotal.toLocaleString()}</span>${_fabBadge}</td>`;const compCell=`<td style="text-align:right;color:#854F0B;font-weight:500">${_comp.toLocaleString()}</td>`;
+const _comp=(typeof _comprometidoSKU==='function')?_comprometidoSKU(p.sku):0;const _dispFisico=Number(p.cantidad||0)-_comp;const _fabricable=(typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;const _dispTotal=_dispFisico+_fabricable;const _isSobre=_dispTotal<0;const _rowRed=_isSobre?'background:#FCEBEB;':'';const _minV=Number(p.alerta_minimo||0);const _dispBg=_isSobre?'#A32D2D':(_dispTotal<=_minV?'#FAEEDA':'#EAF3DE');const _dispTxt=_isSobre?'#fff':(_dispTotal<=_minV?'#412402':'#173404');const _fabBadge=(_fabricable>0&&Number(p.cantidad||0)>0)?`<span style="font-size:10px;color:#185FA5;margin-left:4px" title="Incluye lo cortable/armable de las piezas">+${_fabricable.toLocaleString()} de piezas</span>`:'';const dispCell=`<td style="text-align:right"><span style="background:${_dispBg};color:${_dispTxt};font-weight:600;padding:2px 10px;border-radius:12px;display:inline-block">${_isSobre?'⚠ ':''}${_dispTotal.toLocaleString()}</span>${_fabBadge}</td>`;const compCell=`<td style="text-align:right;color:#854F0B;font-weight:500">${_comp.toLocaleString()}</td>`;
 const fotoCell=p.foto?'<td style="text-align:center"><img loading="lazy" src="'+p.foto+'" onclick="verFotoProducto('+ri+')" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #e0e0d8;cursor:pointer" title="Ver foto">'+(_puedeFoto?'<div style="font-size:9px;margin-top:1px;line-height:1.2"><span onclick="subirFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer">cambiar</span> · <span onclick="quitarFotoProducto('+ri+')" style="color:#c62828;cursor:pointer">quitar</span></div>':'')+'</td>':(_puedeFoto?'<td style="text-align:center"><div onclick="subirFotoProducto('+ri+')" style="width:38px;height:38px;border-radius:6px;border:1.4px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#bbb;cursor:pointer;font-size:15px" title="Subir foto">📷</div></td>':'<td style="text-align:center;color:#ccc">—</td>');
 const _pv=Number(p.peso||0);const _pesoPill=`<span onclick="${puedeEdit?`editarPesoInv(${ri})`:''}" style="background:${_pv>0?'#E6F1FB':'#f4f3ed'};color:${_pv>0?'#185FA5':'#999'};font-weight:700;padding:2px 9px;border-radius:10px;${puedeEdit?'cursor:pointer':''}" title="${puedeEdit?'Editar peso':''}">${_pv>0?_pv.toLocaleString('es-MX',{maximumFractionDigits:2}):'—'}${puedeEdit?' ✎':''}</span>`;const pesoCell=`<td style="text-align:right">${_pesoPill}</td>`;
 return sep+`<tr style="${_rowRed}${rowBg}"><td style="font-family:monospace;font-size:11px;color:#D85A30;font-weight:700;white-space:nowrap">${p.sku||'—'}</td>`+fotoCell+`<td style="font-size:11px;color:#888">${p.sistema}</td><td style="font-weight:500">${e.l==='Sin stock'?'🔴 ':e.l==='Stock bajo'?'🟡 ':''}${p.producto}${defBadge}</td><td style="text-align:right;font-weight:600;color:#3B6D11">${p.precio?'$ '+p.precio.toFixed(2):'—'}</td>${pesoCell}<td style="text-align:right">${cantidadHtml}</td>${compCell}${dispCell}<td><span class="inv-estado ${e.c}">${e.l}</span></td><td style="white-space:nowrap">${accionesFinal}</td></tr>`}).join('');
