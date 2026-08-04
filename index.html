@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.01';
+const APP_VERSION='2026.08.04.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -8372,11 +8372,22 @@ function _marcoDispDesdePiezas(p){
   const maxDiagH=bom.diagonalH>0?Math.floor(diagH/bom.diagonalH):Infinity;
   return Math.max(0,Math.min(maxPostes,maxDiagD,maxDiagH));
 }
-// Disponible derivado de un producto: marco desde piezas, o corte desde la madre (diagonales)
+// Disponible derivado de un producto: marco desde piezas, corte desde la madre
+// (diagonales, bom_rules), o paneles beige chicos cortados del grande.
 function _dispDerivadaDe(p){
   if(!p)return 0;
   try{const m=_marcoDispDesdePiezas(p);if(m>0)return m;}catch(_e){}
-  return (typeof _fabricableDesdePadre==='function'&&p.sku)?_fabricableDesdePadre(p.sku):0;
+  const d=(typeof _fabricableDesdePadre==='function'&&p.sku)?_fabricableDesdePadre(p.sku):0;
+  if(d>0)return d;
+  // Paneles beige chicos y otras reglas de calcularDisponiblesFabricables (NO re-cuenta
+  // marcos: esos ya los tomó _marcoDispDesdePiezas arriba).
+  try{
+    if(typeof calcularDisponiblesFabricables==='function'){
+      const cf=calcularDisponiblesFabricables(p);
+      if(cf&&cf.fabricable>0)return cf.fabricable;
+    }
+  }catch(_e){}
+  return 0;
 }
 
 // ══ KARDEX / MOVIMIENTOS DE INVENTARIO ══
