@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.03';
+const APP_VERSION='2026.08.04.04';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4670,6 +4670,29 @@ function descontarInventarioPedido(orderObj,lineas){
       l.bomPiezas=piezas;l.esMarco=true;
       piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
       return;
+    }
+    // ── PANEL CHICO BEIGE: usa stock del hijo si lo hay; si no, CORTA DEL PADRE 75¾" ──
+    // (los chicos se sacan del panel grande, así que el descuento debe bajar del padre)
+    const esPanelChicoMixto=nombre.includes('PANEL')&&nombre.includes('BEIGE')&&nombre.includes('GRADO B')&&!nombre.includes('75');
+    if(esPanelChicoMixto){
+      const idxP=inventario.findIndex(p=>p.producto.toUpperCase()===nombre||(p.sku&&l.sku&&p.sku===l.sku));
+      if(idxP>=0&&(inventario[idxP].cantidad||0)>=cant){
+        const prev=inventario[idxP].cantidad;
+        inventario[idxP].cantidad=Math.max(0,prev-cant);
+        l.sku=inventario[idxP].sku||l.sku||'';l.producto=inventario[idxP].producto;
+        _skusTocados.push(inventario[idxP].sku);
+        descuentos.push(inventario[idxP].producto+': '+prev+' → '+inventario[idxP].cantidad);
+        return;
+      }
+      const panelInfo=(typeof detectarPanelChico==='function')?detectarPanelChico(nombre):null;
+      if(panelInfo){
+        const piezas=descontarPanelBOM(panelInfo,cant);
+        bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
+        piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': -'+p.cantidad);});
+        l.bomPiezas=piezas;l.esPanel=true;
+        piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
+        return;
+      }
     }
     // Producto normal - búsqueda flexible
     let idx=inventario.findIndex(p=>p.producto.toUpperCase()===nombre);
