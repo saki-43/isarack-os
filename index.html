@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.04';
+const APP_VERSION='2026.08.04.05';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11489,7 +11489,7 @@ async function eliminarVtaPlano(i){
   if(p.path&&typeof borrarPlanoStorage==='function')await borrarPlanoStorage(p.path);
   vtaPlanos.splice(i,1);renderVtaPlanosChips();
 }
-function abrirVentaForm(){_vtaColapManual=false;editVtaIdx=-1;vtaLineas=[];vtaPlanos=[];setTimeout(()=>{setVtaPlanosEstado('No aplica');renderVtaPlanosChips();},0);vtaTipoDoc='Cotización';vtaStage='Presupuesto';vtaMonedaOrig='USD';document.getElementById('vta-lista-view').style.display='none';document.getElementById('vta-form-view').style.display='block';const n=nextVtaNum();document.getElementById('vta-form-num').textContent=n;if(typeof _reservarFolioNube==='function')_reservarFolioNube().then(_rf=>{const _e=document.getElementById('vta-form-num');if(_rf&&_e&&_e.textContent===n)_e.textContent=_rf;});document.getElementById('vf-cliente').value='';document.getElementById('vf-rfc').value='';['vf-razon','vf-email','vf-tel','vf-contacto','vf-cel','vf-dir'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});document.getElementById('vf-fecha').value=new Date().toISOString().slice(0,10);const exp=new Date();exp.setDate(exp.getDate()+15);document.getElementById('vf-expira').value=exp.toISOString().slice(0,10);if(typeof actualizarHintRazon==='function')actualizarHintRazon()
+function abrirVentaForm(){if(typeof _initBorradorLocal==='function')_initBorradorLocal();_vtaColapManual=false;editVtaIdx=-1;vtaLineas=[];vtaPlanos=[];setTimeout(()=>{setVtaPlanosEstado('No aplica');renderVtaPlanosChips();},0);vtaTipoDoc='Cotización';vtaStage='Presupuesto';vtaMonedaOrig='USD';document.getElementById('vta-lista-view').style.display='none';document.getElementById('vta-form-view').style.display='block';const n=nextVtaNum();document.getElementById('vta-form-num').textContent=n;if(typeof _reservarFolioNube==='function')_reservarFolioNube().then(_rf=>{const _e=document.getElementById('vta-form-num');if(_rf&&_e&&_e.textContent===n)_e.textContent=_rf;});document.getElementById('vf-cliente').value='';document.getElementById('vf-rfc').value='';['vf-razon','vf-email','vf-tel','vf-contacto','vf-cel','vf-dir'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});document.getElementById('vf-fecha').value=new Date().toISOString().slice(0,10);const exp=new Date();exp.setDate(exp.getDate()+15);document.getElementById('vf-expira').value=exp.toISOString().slice(0,10);if(typeof actualizarHintRazon==='function')actualizarHintRazon()
 // AUTO-ASIGNAR COMERCIAL al usuario actual (TODOS los roles)
 const usrV=getCurrentUser();
 const selVf=document.getElementById('vf-comercial');
@@ -11540,6 +11540,89 @@ function irAVentasLista(){
   const lv=document.getElementById('vta-lista-view');if(lv)lv.style.display='flex';
 }
 function cerrarVentaForm(){document.getElementById('vta-form-view').style.display='none';document.getElementById('vta-lista-view').style.display='flex';renderVentas();}
+
+// ══ AUTO-GUARDADO LOCAL DE COTIZACIÓN (cero costo de datos — solo el navegador) ══
+// Para que NUNCA se pierda una cotización si se refresca/cierra sin guardar.
+const _VTA_BORRADOR_KEY='isarack_vta_borrador_v1';
+const _VTA_BORRADOR_CAMPOS=['vf-cliente','vf-rfc','vf-razon','vf-email','vf-tel','vf-contacto','vf-cel','vf-dir','vf-comercial','vf-moneda','vf-plazo','vf-entrega','vf-instalacion','vf-domicilio','vf-maniobra','vf-plantilla','vf-fecha','vf-expira'];
+let _vtaBorradorTimer=null;
+function _agendarBorradorLocal(){if(_vtaBorradorTimer)clearTimeout(_vtaBorradorTimer);_vtaBorradorTimer=setTimeout(_guardarBorradorLocal,1000);}
+function _guardarBorradorLocal(){
+  try{
+    const fv=document.getElementById('vta-form-view');
+    if(!fv||fv.style.display==='none')return;
+    const get=id=>(document.getElementById(id)?.value||'');
+    const cliente=get('vf-cliente').trim();
+    const arts=(typeof vtaLineas!=='undefined'&&Array.isArray(vtaLineas))?vtaLineas.filter(l=>l&&!l.tipo).length:0;
+    if(!cliente&&arts===0){localStorage.removeItem(_VTA_BORRADOR_KEY);return;}
+    const snap={num:(document.getElementById('vta-form-num')?.textContent||'').trim(),f:{},
+      lineas:(typeof vtaLineas!=='undefined')?vtaLineas:[],
+      tipoDoc:(typeof vtaTipoDoc!=='undefined')?vtaTipoDoc:'Cotización',
+      stage:(typeof vtaStage!=='undefined')?vtaStage:'Presupuesto',
+      monedaOrig:(typeof vtaMonedaOrig!=='undefined')?vtaMonedaOrig:'USD',
+      hist:(typeof vtaHist!=='undefined')?!!vtaHist:false,ts:Date.now()};
+    _VTA_BORRADOR_CAMPOS.forEach(id=>{snap.f[id]=get(id);});
+    localStorage.setItem(_VTA_BORRADOR_KEY,JSON.stringify(snap));
+    _marcarBorradorGuardado();
+  }catch(e){}
+}
+function _limpiarBorradorLocal(){try{localStorage.removeItem(_VTA_BORRADOR_KEY);}catch(e){}}
+function _leerBorradorLocal(){
+  try{
+    const raw=localStorage.getItem(_VTA_BORRADOR_KEY);if(!raw)return null;
+    const snap=JSON.parse(raw);if(!snap)return null;
+    // Si ese folio YA se guardó en ventas, el borrador ya no aplica.
+    if(snap.num&&typeof ventas!=='undefined'&&Array.isArray(ventas)&&ventas.some(v=>v&&v.num===snap.num)){_limpiarBorradorLocal();return null;}
+    const cli=((snap.f&&snap.f['vf-cliente'])||'').trim();
+    const arts=(Array.isArray(snap.lineas)?snap.lineas.filter(l=>l&&!l.tipo).length:0);
+    if(!cli&&arts===0)return null;
+    return snap;
+  }catch(e){return null;}
+}
+function _marcarBorradorGuardado(){
+  try{
+    let el=document.getElementById('vta-borrador-status');
+    if(!el){const nb=document.getElementById('vta-form-num');if(!nb||!nb.parentNode)return;el=document.createElement('span');el.id='vta-borrador-status';el.style.cssText='font-size:11px;color:#3B6D11;margin-left:8px;font-weight:600;opacity:0;transition:opacity .25s';nb.parentNode.insertBefore(el,nb.nextSibling);}
+    el.textContent='💾 Guardado';el.style.opacity='1';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.opacity='0';},1800);
+  }catch(e){}
+}
+function _restaurarBorradorLocal(snap){
+  try{
+    if(typeof abrirVentaForm==='function')abrirVentaForm();
+    const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.value=v;};
+    if(snap.f)_VTA_BORRADOR_CAMPOS.forEach(id=>set(id,snap.f[id]));
+    const nb=document.getElementById('vta-form-num');if(nb&&snap.num)nb.textContent=snap.num;
+    const lbl=document.getElementById('vta-form-comercial');if(lbl&&snap.f&&snap.f['vf-comercial'])lbl.textContent='💼 '+snap.f['vf-comercial'];
+    vtaLineas=Array.isArray(snap.lineas)?snap.lineas:[];
+    vtaMonedaOrig=snap.monedaOrig||'USD';editVtaIdx=-1;
+    if(typeof setTipoDoc==='function')setTipoDoc(snap.tipoDoc||'Cotización');
+    if(typeof setVtaStage==='function')setVtaStage(snap.stage||'Presupuesto');
+    if(typeof setVtaHist==='function')setVtaHist(!!snap.hist);
+    if(typeof renderLineas==='function')renderLineas();
+    if(typeof showToast==='function')showToast('✓ Cotización restaurada','#3B6D11');
+  }catch(e){console.error('restaurar borrador',e);}
+}
+function _ofrecerRestaurarBorrador(){
+  const snap=_leerBorradorLocal();if(!snap)return;
+  const fv=document.getElementById('vta-form-view');if(fv&&fv.style.display!=='none')return;
+  if(document.getElementById('vta-borrador-banner'))return;
+  const cli=((snap.f&&snap.f['vf-cliente'])||'').trim()||'sin cliente';
+  const arts=(Array.isArray(snap.lineas)?snap.lineas.filter(l=>l&&!l.tipo).length:0);
+  const mins=Math.max(1,Math.round((Date.now()-(snap.ts||Date.now()))/60000));
+  const b=document.createElement('div');b.id='vta-borrador-banner';
+  b.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#fff;border:2px solid #D85A30;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.2);padding:14px 18px;z-index:5000;display:flex;align-items:center;gap:14px;max-width:92vw';
+  b.innerHTML='<div style="font-size:13px;color:#1a1a1a"><b>📝 Cotización sin guardar</b><div style="font-size:12px;color:#666;margin-top:2px">'+cli+' · '+arts+' partida(s) · hace ~'+mins+' min</div></div>'
+   +'<button id="_bres" style="background:#D85A30;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">Restaurar</button>'
+   +'<button id="_bdes" style="background:#fff;color:#888;border:1px solid #ddd;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Descartar</button>';
+  document.body.appendChild(b);
+  document.getElementById('_bres').onclick=()=>{b.remove();_restaurarBorradorLocal(snap);};
+  document.getElementById('_bdes').onclick=()=>{b.remove();_limpiarBorradorLocal();};
+}
+function _initBorradorLocal(){
+  try{const fv=document.getElementById('vta-form-view');if(fv&&!fv._borradorHook){fv._borradorHook=true;fv.addEventListener('input',_agendarBorradorLocal);fv.addEventListener('change',_agendarBorradorLocal);}}catch(e){}
+}
+_initBorradorLocal();
+setTimeout(_ofrecerRestaurarBorrador,2500);
 function setVtaHist(on){vtaHist=!!on;const b=document.getElementById('btn-hist');if(!b)return;if(vtaHist){b.style.background='#f3eef8';b.style.borderColor='#7c5cbf';b.style.color='#7c5cbf';b.style.fontWeight='700';b.title='Venta HISTÓRICA activada: no crea pedido ni toca inventario';}else{b.style.background='#fff';b.style.borderColor='#ddd';b.style.color='#888';b.style.fontWeight='600';b.title='Marcar como venta histórica (sin pedido ni inventario)';}}
 function toggleVtaHist(){setVtaHist(!vtaHist);if(vtaHist)showToast('🕓 Histórica activada: al guardar no crea pedido ni toca inventario','#7c5cbf');}
 function setTipoDoc(t){vtaTipoDoc=t;const c=document.getElementById('tipo-cot');const v=document.getElementById('tipo-vta');if(c)c.className='tipo-btn'+(t==='Cotización'?' active-cot':'');if(v)v.className='tipo-btn'+(t==='Venta'?' active-vta':'');}
@@ -12323,6 +12406,7 @@ try{
     showToast('✓ Guardado','#3B6D11');
   }
 }catch(e){console.error('Error vinculando venta a pedido:',e);showToast('✓ Guardado','#3B6D11');}
+if(typeof _limpiarBorradorLocal==='function')_limpiarBorradorLocal(); // ya se guardó: quitar borrador local
 cerrarVentaForm();}
 function cambiarMoneda(nueva){const prev=vtaMonedaOrig;if(nueva===prev)return;vtaLineas.forEach(l=>{if(l.tipo)return;if(nueva==='MXN'&&prev==='USD'){l.precio=(l.precio||0)*TC_DOF;}else if(nueva==='USD'&&prev==='MXN'){l.precio=(l.precio||0)/TC_DOF;}l.precio=Math.round(l.precio*100)/100;});vtaMonedaOrig=nueva;renderLineas();showToast(nueva==='MXN'?'Precios convertidos a MXN (TC: $'+TC_DOF+')':'Precios convertidos a USD','#185FA5');}
 function generarCotHTML(dataIn){const useData=!!dataIn;const num=useData?dataIn.num:document.getElementById('vta-form-num').textContent;const cli=useData?dataIn.cliente:(document.getElementById('vf-cliente').value.trim()||'CLIENTE');const rfc=useData?(dataIn.rfc||''):(document.getElementById('vf-rfc').value.trim()||'');const razon=useData?(dataIn.razon||''):((document.getElementById('vf-razon')?.value||'').trim());const fecha=useData?(dataIn.fecha||''):(document.getElementById('vf-fecha').value||'');const fechaFmt=fecha?fecha.split('-').reverse().join('/'):'';let expira=useData?(dataIn.expira||''):(document.getElementById('vf-expira').value||'');if(!expira&&fecha){const _ev=new Date(fecha+'T00:00:00');if(!isNaN(_ev)){_ev.setDate(_ev.getDate()+15);expira=_ev.toISOString().slice(0,10);}}const expFmt=expira?expira.split('-').reverse().join('/'):'';const comercial=useData?(dataIn.comercial||''):(document.getElementById('vf-comercial').value||'');const moneda=useData?(dataIn.moneda||'USD'):(document.getElementById('vf-moneda').value||'USD');const plazo=useData?(dataIn.plazo||''):(document.getElementById('vf-plazo').value||'');const tEntrega=useData?(dataIn.tEntrega||'5 A 6 DIAS HABILES'):(document.getElementById('vf-entrega').value||'5 A 6 DIAS HABILES');const incInst=useData?(dataIn.incInst||'NO'):(document.getElementById('vf-instalacion').value||'NO');const incDom=useData?(dataIn.incDom||'SI'):(document.getElementById('vf-domicilio').value||'SI');const _vRefF=useData?(ventas.find(x=>x.num===dataIn.num)||{}):{};const contacto=useData?(dataIn.contacto||_vRefF.contacto||''):((document.getElementById('vf-contacto')?.value||'').trim());const cel=useData?(dataIn.cel||_vRefF.cel||''):((document.getElementById('vf-cel')?.value||'').trim());const dir=useData?(dataIn.dir||_vRefF.dir||''):((document.getElementById('vf-dir')?.value||'').trim());const incMan=useData?(dataIn.incMan||'SI'):(document.getElementById('vf-maniobra').value||'SI');const lineas=useData?(dataIn.lineas||[]):vtaLineas;let sub=0,iva=0;const secciones=[];
