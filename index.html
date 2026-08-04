@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.02';
+const APP_VERSION='2026.08.04.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -6539,11 +6539,14 @@ const MARCO_PICKING_FONDOS=['18','24','36'];
 // ══ PANEL BOM ══
 // Panel grande BEIGE 75 3/4" × 8" → se corta para hacer paneles chicos.
 // Proporción entera: 1 grande = N chicos según el ancho del corte.
+// Padre real = SEL-0435 "PANEL BEIGE 75 3/4''" (75.75"). De ahí se cortan todos los
+// paneles chicos beige. panelesPorCorte = floor(75.75 / ancho).
 const PANEL_BOM={
-  '18':{panelGrandeSku:'SEL-PNL-BEIGE-LRG',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:4},
-  '24':{panelGrandeSku:'SEL-PNL-BEIGE-LRG',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:3},
-  '36':{panelGrandeSku:'SEL-PNL-BEIGE-LRG',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:2},
-  '48':{panelGrandeSku:'SEL-PNL-BEIGE-LRG',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:1},
+  '18':{panelGrandeSku:'SEL-0435',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:4},
+  '24':{panelGrandeSku:'SEL-0435',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:3},
+  '36':{panelGrandeSku:'SEL-0435',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:2},
+  '42':{panelGrandeSku:'SEL-0435',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:1},
+  '48':{panelGrandeSku:'SEL-0435',panelGrandeNombre:'PANEL BEIGE 75 3/4"X8"',panelesPorCorte:1},
 };
 
 // Detecta si un producto es panel chico cortable (con o sin "PICKING").
