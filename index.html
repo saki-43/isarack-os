@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.02';
+const APP_VERSION='2026.08.05.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -14710,7 +14710,9 @@ function comReporteImprimir(){
   `.tot small{font-weight:400;color:#888;font-size:11px}`+
   `.firmas{display:flex;justify-content:space-around;margin-top:70px;text-align:center}`+
   `.firmas div{border-top:1px solid #333;padding-top:6px;width:230px;font-weight:700}`+
-  `.firmas small{font-weight:400;color:#666;display:block;font-size:11px}</style></head><body>`+
+  `.firmas small{font-weight:400;color:#666;display:block;font-size:11px}`+
+  `@media print{.no-print{display:none!important}}</style></head><body>`+
+  `<div class="no-print" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px"><button onclick="window.print()" style="background:#D85A30;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">🖨 Imprimir</button><button onclick="window.close()" style="background:#fff;color:#888;border:1px solid #ddd;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Cerrar</button></div>`+
   `<h1>ISA RACK SA</h1>`+
   `<div class="sub"><b>REPORTE ${_e(comBimLabel(comFiltroBim).toUpperCase())}</b> &nbsp;·&nbsp; Comercial: <b>${_e(nombreCom)}</b> &nbsp;·&nbsp; Comisiones a pagar (facturas cobradas 100%)</div>`+
   `<table><thead><tr><th style="text-align:left">Folio</th><th style="text-align:center">Factura</th><th style="text-align:left">Cliente</th><th>Dólares</th><th>Pesos</th><th style="text-align:center">%</th><th>Comisión</th></tr></thead><tbody>${rows}</tbody></table>`+
@@ -14720,7 +14722,7 @@ function comReporteImprimir(){
   const w=window.open('','_blank');
   if(!w){showToast('Permite ventanas emergentes para el reporte','#BA7517');return;}
   w.document.write(html);w.document.close();
-  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},400);
+  try{w.focus();}catch(e){}
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // 🤖 ASISTENTE SAKI · Chat de texto + dictado por voz + respuesta hablada
