@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.05';
+const APP_VERSION='2026.08.04.06';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -8380,6 +8380,11 @@ function _marcoDispDesdePiezas(p){
   const BOM=esPicking?(typeof MARCO_BOM_PICKING!=='undefined'?MARCO_BOM_PICKING:{}):(typeof MARCO_BOM!=='undefined'?MARCO_BOM:{});
   const bom=BOM[alto];
   if(!bom||!bom.posteSize)return 0;
+  // Solo el marco ESTÁNDAR (MARCO N" X N" [color]) se arma de los postes normales.
+  // Las variantes que describen una característica especial (DOBLE POSTE, DOUBLE DEEP,
+  // GA12/GA13, SISMO, USADO, BACKER, PSA, poste 5"…) NO: quedan con su stock real (0).
+  const _resto=nombre.replace(/MARCO(\s+PICKING)?\s+\d+"?\s*X\s*\d+"?/,'').replace(/AZUL|VERDE|ROJO/g,'').replace(/[^A-Z0-9]/g,'');
+  if(_resto.length>0)return 0;
   const cm=nombre.match(/AZUL|VERDE|ROJO/);
   const color=cm?cm[0]:null;
   const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
