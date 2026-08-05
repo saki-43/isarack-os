@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.01';
+const APP_VERSION='2026.08.05.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -14681,7 +14681,8 @@ function comReporteImprimir(){
   const _u=getCurrentUser();const _esAdmin=_u&&(_u.rol==='admin'||_u.rol==='ceo');
   const comSel=comFiltroComercial||(_esAdmin?'':(_u&&_u.nombre)||'');
   if(!comSel){showToast('⚠ Selecciona un comercial arriba para el reporte','#BA7517');return;}
-  const filas=comFilas(comFiltroBim).filter(f=>f.estado==='LIB' && comNombreMatch(f.v.comercial)===comNombreMatch(comSel));
+  // LIB (factura cobrada 100%) y SIN efectivo: el efectivo se liquida aparte, no va en este reporte.
+  const filas=comFilas(comFiltroBim).filter(f=>f.estado==='LIB' && !_comEsEfectivo(f.v) && comNombreMatch(f.v.comercial)===comNombreMatch(comSel));
   if(!filas.length){showToast('Sin comisiones a pagar de este comercial en el bimestre','#BA7517');return;}
   const tc=(typeof TC_DOF==='number'&&TC_DOF>0)?TC_DOF:17.2623;
   const nombreCom=filas[0].v.comercial||comSel;
@@ -14693,9 +14694,9 @@ function comReporteImprimir(){
     if(esUSD)comUSD+=f.comTot;else comMXN+=f.comTot;
     return `<tr><td>${_e(f.v.num)}</td><td style="text-align:center">${_e(fac.factura||'—')}</td>`+
       `<td style="text-align:left">${_e((f.v.cliente||'').toString().slice(0,42))}</td>`+
-      `<td>${esUSD?'$'+money(f.base):'—'}</td><td>${esUSD?'—':'$'+money(f.base)}</td>`+
+      `<td>${esUSD?money(f.base):'—'}</td><td>${esUSD?'—':money(f.base)}</td>`+
       `<td style="text-align:center">${Number(f.pcom).toFixed(2)}%</td>`+
-      `<td style="font-weight:700">$${money(f.comTot)} ${f.mon}</td></tr>`;
+      `<td style="font-weight:700">${money(f.comTot)} ${f.mon}</td></tr>`;
   }).join('');
   const totalMXN=comUSD*tc+comMXN;
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>Comisiones ${_e(nombreCom)} · ${_e(comBimLabel(comFiltroBim))}</title>`+
@@ -14713,7 +14714,7 @@ function comReporteImprimir(){
   `<h1>ISA RACK SA</h1>`+
   `<div class="sub"><b>REPORTE ${_e(comBimLabel(comFiltroBim).toUpperCase())}</b> &nbsp;·&nbsp; Comercial: <b>${_e(nombreCom)}</b> &nbsp;·&nbsp; Comisiones a pagar (facturas cobradas 100%)</div>`+
   `<table><thead><tr><th style="text-align:left">Folio</th><th style="text-align:center">Factura</th><th style="text-align:left">Cliente</th><th>Dólares</th><th>Pesos</th><th style="text-align:center">%</th><th>Comisión</th></tr></thead><tbody>${rows}</tbody></table>`+
-  `<div class="tot">TOTAL COMISIONES A PAGAR &nbsp;→&nbsp; $${money(totalMXN)} MXN<br><small>${comUSD>0?'USD $'+money(comUSD)+' · ':''}${comMXN>0?'MXN $'+money(comMXN)+' · ':''}TC ${tc.toFixed(4)}</small></div>`+
+  `<div class="tot">TOTAL COMISIONES A PAGAR &nbsp;→&nbsp; ${money(totalMXN)} MXN<br><small>${comUSD>0?'USD '+money(comUSD)+' · ':''}${comMXN>0?'MXN '+money(comMXN)+' · ':''}TC ${tc.toFixed(4)}</small></div>`+
   `<div class="firmas"><div>${_e(nombreCom)}<small>Vendedor</small></div><div>Gildardo Osuna Rueda<small>CEO</small></div></div>`+
   `</body></html>`;
   const w=window.open('','_blank');
