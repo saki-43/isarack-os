@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.04.06';
+const APP_VERSION='2026.08.05.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -14539,7 +14539,8 @@ function renderComisiones(){
       <h2 style="margin:0;font-size:22px">💰 Comisiones</h2>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         ${selCom}<span style="background:#fff;border:1px solid #e5e5e0;border-radius:6px;padding:6px 12px;font-size:12px;color:#555">TC DOF: <b style="color:#1a1a1a">$${tc.toFixed(4)}</b></span>${selBim}<div style="display:flex;gap:8px;align-items:center"><input type="search" id="com-search" placeholder="🔍 Buscar pedido, cliente..." value="${(comFiltroBusqueda||'').replace(/"/g,'&quot;')}" oninput="comFiltroBusqueda=this.value;renderComisiones();var _s=document.getElementById('com-search');if(_s){_s.focus();var _v=_s.value.length;try{_s.setSelectionRange(_v,_v);}catch(e){}}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:180px;flex:0 1 220px">
-        <button onclick="comExportarExcel()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer">📥 Exportar Excel</button></div>
+        <button onclick="comExportarExcel()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer">📥 Exportar Excel</button>
+        <button onclick="comReporteImprimir()" style="background:#D85A30;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer">📄 Reporte a pagar</button></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
@@ -14674,6 +14675,51 @@ function comExportarExcel(){
   XLSX.utils.book_append_sheet(wb,ws,comBimLabel(comFiltroBim).replace(/[\\/?*\[\]]/g,'-'));
   XLSX.writeFile(wb,'comisiones_'+comBimLabel(comFiltroBim).replace(' ','_')+(comFiltroComercial?'_'+comFiltroComercial.split(' ')[0]:'')+'.xlsx');
   showToast('✓ Excel generado','#3B6D11');
+}
+/* ── Reporte imprimible de comisiones A PAGAR (por comercial, solo liberadas) ── */
+function comReporteImprimir(){
+  const _u=getCurrentUser();const _esAdmin=_u&&(_u.rol==='admin'||_u.rol==='ceo');
+  const comSel=comFiltroComercial||(_esAdmin?'':(_u&&_u.nombre)||'');
+  if(!comSel){showToast('⚠ Selecciona un comercial arriba para el reporte','#BA7517');return;}
+  const filas=comFilas(comFiltroBim).filter(f=>f.estado==='LIB' && comNombreMatch(f.v.comercial)===comNombreMatch(comSel));
+  if(!filas.length){showToast('Sin comisiones a pagar de este comercial en el bimestre','#BA7517');return;}
+  const tc=(typeof TC_DOF==='number'&&TC_DOF>0)?TC_DOF:17.2623;
+  const nombreCom=filas[0].v.comercial||comSel;
+  const _e=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let comUSD=0,comMXN=0;
+  const rows=filas.map(f=>{
+    const fac=(typeof facturas!=='undefined'&&Array.isArray(facturas))?(facturas.find(x=>x.pedido===f.v.num)||{}):{};
+    const esUSD=f.mon==='USD';
+    if(esUSD)comUSD+=f.comTot;else comMXN+=f.comTot;
+    return `<tr><td>${_e(f.v.num)}</td><td style="text-align:center">${_e(fac.factura||'—')}</td>`+
+      `<td style="text-align:left">${_e((f.v.cliente||'').toString().slice(0,42))}</td>`+
+      `<td>${esUSD?'$'+money(f.base):'—'}</td><td>${esUSD?'—':'$'+money(f.base)}</td>`+
+      `<td style="text-align:center">${Number(f.pcom).toFixed(2)}%</td>`+
+      `<td style="font-weight:700">$${money(f.comTot)} ${f.mon}</td></tr>`;
+  }).join('');
+  const totalMXN=comUSD*tc+comMXN;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Comisiones ${_e(nombreCom)} · ${_e(comBimLabel(comFiltroBim))}</title>`+
+  `<style>body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:26px;font-size:12px}`+
+  `h1{font-size:17px;margin:0;color:#D85A30}.sub{color:#555;font-size:12px;margin:4px 0 14px}`+
+  `table{width:100%;border-collapse:collapse;margin-top:6px}`+
+  `th{background:#D85A30;color:#fff;padding:7px 8px;font-size:10px;text-transform:uppercase;text-align:right}`+
+  `td{padding:6px 8px;border-bottom:1px solid #eee;text-align:right}`+
+  `tbody tr:nth-child(even){background:#fafaf6}`+
+  `.tot{margin-top:18px;text-align:right;font-size:15px;font-weight:800;color:#993C1D}`+
+  `.tot small{font-weight:400;color:#888;font-size:11px}`+
+  `.firmas{display:flex;justify-content:space-around;margin-top:70px;text-align:center}`+
+  `.firmas div{border-top:1px solid #333;padding-top:6px;width:230px;font-weight:700}`+
+  `.firmas small{font-weight:400;color:#666;display:block;font-size:11px}</style></head><body>`+
+  `<h1>ISA RACK SA</h1>`+
+  `<div class="sub"><b>REPORTE ${_e(comBimLabel(comFiltroBim).toUpperCase())}</b> &nbsp;·&nbsp; Comercial: <b>${_e(nombreCom)}</b> &nbsp;·&nbsp; Comisiones a pagar (facturas cobradas 100%)</div>`+
+  `<table><thead><tr><th style="text-align:left">Folio</th><th style="text-align:center">Factura</th><th style="text-align:left">Cliente</th><th>Dólares</th><th>Pesos</th><th style="text-align:center">%</th><th>Comisión</th></tr></thead><tbody>${rows}</tbody></table>`+
+  `<div class="tot">TOTAL COMISIONES A PAGAR &nbsp;→&nbsp; $${money(totalMXN)} MXN<br><small>${comUSD>0?'USD $'+money(comUSD)+' · ':''}${comMXN>0?'MXN $'+money(comMXN)+' · ':''}TC ${tc.toFixed(4)}</small></div>`+
+  `<div class="firmas"><div>${_e(nombreCom)}<small>Vendedor</small></div><div>Gildardo Osuna Rueda<small>CEO</small></div></div>`+
+  `</body></html>`;
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite ventanas emergentes para el reporte','#BA7517');return;}
+  w.document.write(html);w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},400);
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // 🤖 ASISTENTE SAKI · Chat de texto + dictado por voz + respuesta hablada
