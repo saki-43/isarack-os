@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.04';
+const APP_VERSION='2026.08.05.05';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -5693,38 +5693,43 @@ function verListaSurtido(num){
   const ub=(o.ubicacion||'').trim();
   const recoge=/recoge|recoger|paqueter/i.test(ub);
 
+  const _invArr=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  const _fotoDe=(l)=>{
+    let p=l.sku?_invArr.find(x=>x&&x.sku===l.sku):null;
+    if(!p&&l.producto)p=_invArr.find(x=>x&&(x.producto||'').toUpperCase()===(''+l.producto).toUpperCase());
+    return (p&&p.foto)||'';
+  };
+  const _cajaSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>';
+  const _checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>';
+  const _thumb=(l)=>{const f=_fotoDe(l);return f?`<div class="surt-thumb"><img src="${esc(f)}" alt=""></div>`:`<div class="surt-thumb surt-thumb-ph">${_cajaSvg}</div>`;};
   let filas='';
   if(!arts.length){
     filas=soloServicios
-      ?'<div style="padding:26px;text-align:center;color:#2E5A0C;font-size:16px;background:#EBF3DF;border-radius:10px;margin:12px 0">Este pedido es solo de servicio.<br><span style="font-size:14px;color:#4a6b2a">No hay material que juntar en el almacén.</span></div>'
-      :'<div style="padding:26px;text-align:center;color:#888;font-size:15px">Este pedido no tiene partidas capturadas.<br>Ábrelo en Seguimiento para revisarlo.</div>';
+      ?'<div class="surt-empty ok">Este pedido es solo de servicio.<br><small>No hay material que juntar en el almacén.</small></div>'
+      :'<div class="surt-empty">Este pedido no tiene partidas capturadas.<br><small>Ábrelo en Seguimiento para revisarlo.</small></div>';
   }else{
     arts.forEach(l=>{
       const done=!!o.surtidoChecks[l._idx];
-      const clase='surt-linea'+(done?' done':'');
-      filas+=`<div class="${clase}" onclick="_toggleSurtidoCheck('${esc(num)}',${l._idx})">
-        <div class="surt-check">${done?'✓':''}</div>
-        <div class="surt-cant">${esc(l.cantidad||0)}</div>
-        <div class="surt-prod-w">
-          <div class="surt-prod">${esc(l.producto||'')}</div>
-          ${l.sku?`<div class="surt-sku">${esc(l.sku)}</div>`:''}
-        </div>
+      filas+=`<div class="surt-item${done?' done':''}" onclick="_toggleSurtidoCheck('${esc(num)}',${l._idx})">
+        ${_thumb(l)}
+        <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}</div>
+        <div class="surt-qty"><b>${esc(l.cantidad||0)}</b><span>pz</span></div>
+        <button class="surt-toggle" type="button" tabindex="-1">${done?_checkSvg+' Surtido':'Surtir'}</button>
       </div>`;
     });
   }
   let filasServ='';
   if(servs.length){
-    filasServ='<div class="surt-servs-t">Servicios (no se juntan)</div>';
+    filasServ='<div class="surt-servs-t">Servicios (no se juntan)</div><div class="surt-list">';
     servs.forEach(l=>{
-      filasServ+=`<div class="surt-linea surt-serv">
-        <div class="surt-check surt-check-off"></div>
-        <div class="surt-cant surt-cant-serv">${esc(l.cantidad||0)}</div>
-        <div class="surt-prod-w">
-          <div class="surt-prod">${esc(l.producto||'')}</div>
-          ${l.sku?`<div class="surt-sku">${esc(l.sku)}</div>`:''}
-        </div>
+      filasServ+=`<div class="surt-item surt-serv">
+        <div class="surt-thumb surt-thumb-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M17 7l2-2M5 19l2-2"/></svg></div>
+        <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}</div>
+        <div class="surt-qty"><b>${esc(l.cantidad||0)}</b><span>serv</span></div>
+        <div class="surt-toggle surt-toggle-na">N/A</div>
       </div>`;
     });
+    filasServ+='</div>';
   }
 
   const html=`<div id="ov-surt" class="surt-overlay" onclick="if(event.target===this)_cerrarSurtido()">
@@ -5741,24 +5746,18 @@ function verListaSurtido(num){
         </div>
       </div>
       ${total>0?`
-        <div class="surt-prog-t"><span>Avance: ${juntadas} de ${total}</span><span>${pct}%</span></div>
+        <div class="surt-prog-t"><span><b class="surt-done-n">${juntadas}</b> de ${total} surtidos</span><span>${pct}%</span></div>
         <div class="surt-prog"><div class="surt-prog-b" style="width:${pct}%"></div></div>
       `:''}
-      <div class="surt-cols">
-        <span></span>
-        <span class="surt-th">Cant.</span>
-        <span class="surt-th">Qué hay que juntar</span>
-      </div>
-      ${filas}
+      ${o.incidencia?`<div class="surt-inci-note">⚠ Incidencia: ${esc(o.incidencia)}</div>`:''}
+      <div class="surt-seclabel">Lista de surtido</div>
+      <div class="surt-list">${filas}</div>
       ${filasServ}
-      ${todoJuntado?'<div class="surt-ok">✓ Todo el material está listo. Puedes marcar el pedido como armado.</div>':''}
       <div class="surt-actions">
-        <button class="surt-btn surt-btn-out" onclick="_cerrarSurtido()">Cerrar</button>
-        ${todoJuntado
-          ?`<button class="surt-btn surt-btn-done" onclick="_marcarListoDesdeSurtido('${esc(num)}')">✓ Ya quedó armado</button>`
-          :(total>0?`<button class="surt-btn surt-btn-primary" onclick="_guardarAvanceSurtido('${esc(num)}')">Guardar avance</button>`:'')
-        }
+        ${total>0?`<button class="surt-btn ${todoJuntado?'surt-btn-done':'surt-btn-wait'}" ${todoJuntado?`onclick="_marcarListoDesdeSurtido('${esc(num)}')"`:'disabled'}>${todoJuntado?_checkSvg+' Todo surtido — Pasar a empaque':'Falta surtir '+(total-juntadas)+' partida(s)'}</button>`:''}
+        <button class="surt-btn surt-btn-inci" onclick="_reportarIncidenciaSurtido('${esc(num)}')">⚠ Falta stock / Incidencia</button>
       </div>
+      <div class="surt-note">Escaneo QR / código de barras y ubicación por rack — <b>próximamente</b>.</div>
     </div>
   </div>`;
 
@@ -5767,49 +5766,60 @@ function verListaSurtido(num){
     const st=document.createElement('style');
     st.id='surt-styles';
     st.textContent=`
-    .surt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;z-index:10000;padding:24px;overflow-y:auto}
-    .surt-modal{background:#fff;border-radius:16px;padding:32px;max-width:720px;width:100%;position:relative;margin:auto;font-family:inherit;color:#1a1a1a}
-    .surt-close{position:absolute;top:14px;right:16px;background:none;border:0;font-size:28px;color:#B4B2A9;cursor:pointer;line-height:1;padding:4px}
+    .surt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;z-index:10000;padding:20px;overflow-y:auto}
+    .surt-modal{background:#f6f3ee;border-radius:18px;padding:24px 22px;max-width:760px;width:100%;position:relative;margin:auto;font-family:inherit;color:#211c17}
+    .surt-close{position:absolute;top:14px;right:16px;background:none;border:0;font-size:28px;color:#B4B2A9;cursor:pointer;line-height:1;padding:4px;z-index:2}
     .surt-close:hover{color:#5F5E5A}
-    .surt-h{margin-bottom:8px}
-    .surt-lbl{font-size:14px;color:#888;font-weight:500}
-    .surt-folio{font-size:32px;font-weight:700;color:#1a1a1a;line-height:1.1;margin:4px 0 6px}
-    .surt-cli{font-size:16px;color:#5F5E5A;font-weight:500}
-    .surt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-    .surt-tag{background:#F1EFE8;color:#5F5E5A;font-size:13px;padding:6px 14px;border-radius:22px;font-weight:600}
-    .surt-tag.bad{background:#FCEBEB;color:#A32D2D}
-    .surt-tag.hi{background:#EAF3DE;color:#2E5A0C}
-    .surt-prog-t{display:flex;justify-content:space-between;font-size:13px;color:#5F5E5A;margin:22px 0 6px;font-weight:500}
-    .surt-prog{background:#F1EFE8;border-radius:20px;height:8px;overflow:hidden;margin-bottom:20px}
-    .surt-prog-b{background:#639922;height:100%;transition:width .3s;border-radius:20px}
-    .surt-cols{display:grid;grid-template-columns:56px 90px 1fr;gap:12px;padding:0 4px 10px;border-bottom:0.5px solid #E7DFD8}
-    .surt-th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#888}
-    .surt-th:first-of-type{text-align:center}
-    .surt-linea{display:grid;grid-template-columns:56px 90px 1fr;gap:12px;padding:16px 4px;border-bottom:0.5px solid #E7DFD8;align-items:center;cursor:pointer;transition:background .15s}
-    .surt-linea:hover{background:#FAF7F4}
-    .surt-linea.done{opacity:.55}
-    .surt-linea.done .surt-prod{text-decoration:line-through;color:#888}
-    .surt-linea.surt-serv{background:#FAF7F4;cursor:default}
-    .surt-linea.surt-serv:hover{background:#FAF7F4}
-    .surt-check{width:32px;height:32px;border:2px solid #D3D1C7;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;transition:all .15s;flex-shrink:0}
-    .surt-linea:hover .surt-check{border-color:#B4B2A9}
-    .surt-linea.done .surt-check{background:#3B6D11;border-color:#3B6D11}
-    .surt-check-off{opacity:.3;border-style:dashed}
-    .surt-cant{font-size:26px;font-weight:700;color:#1a1a1a;text-align:center}
-    .surt-cant-serv{font-size:16px;color:#888;font-weight:600}
-    .surt-prod-w{min-width:0}
-    .surt-prod{font-size:15px;font-weight:600;color:#1a1a1a;line-height:1.3}
-    .surt-sku{font-size:12px;color:#888;margin-top:2px;font-family:monospace}
-    .surt-servs-t{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:#888;margin:16px 4px 4px}
-    .surt-ok{background:#EAF3DE;color:#3B6D11;padding:14px 18px;border-radius:10px;font-size:14px;font-weight:600;margin-top:16px;text-align:center}
-    .surt-actions{display:flex;gap:10px;margin-top:24px;padding-top:20px;border-top:0.5px solid #E7DFD8}
-    .surt-btn{border:0;border-radius:10px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;flex:1;transition:all .15s}
-    .surt-btn-primary{background:#D85A30;color:#fff}
-    .surt-btn-primary:hover{background:#b8481e}
-    .surt-btn-done{background:#3B6D11;color:#fff}
-    .surt-btn-done:hover{background:#2c520c}
-    .surt-btn-out{background:transparent;color:#5F5E5A;border:1px solid #d8d8d2}
-    .surt-btn-out:hover{background:#F1EFE8}`;
+    .surt-h{background:#fff;border:1px solid #e7e1d7;border-radius:16px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(33,28,23,.05)}
+    .surt-h::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:#D85A30}
+    .surt-lbl{font-size:11px;color:#9c3c1a;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+    .surt-folio{font-size:28px;font-weight:800;color:#211c17;line-height:1.05;margin:3px 0 5px}
+    .surt-cli{font-size:15px;color:#5F5E5A;font-weight:600}
+    .surt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .surt-tag{background:#fbf9f5;border:1px solid #e7e1d7;color:#5F5E5A;font-size:12px;padding:5px 12px;border-radius:999px;font-weight:600}
+    .surt-tag.bad{background:#FCEBEB;color:#A32D2D;border-color:#f0c9c9}
+    .surt-tag.hi{background:#EAF3DE;color:#2E5A0C;border-color:#cfe3b8}
+    .surt-prog-t{display:flex;justify-content:space-between;font-size:14px;color:#5F5E5A;margin:18px 2px 7px;font-weight:700}
+    .surt-done-n{color:#2f7d32;font-size:16px}
+    .surt-prog{background:#fff;border:1px solid #e7e1d7;border-radius:999px;height:12px;overflow:hidden}
+    .surt-prog-b{background:linear-gradient(90deg,#D85A30,#e8895f);height:100%;transition:width .35s cubic-bezier(.4,0,.2,1);border-radius:999px}
+    .surt-inci-note{background:#fbf0d6;border:1px solid #ecd39a;color:#7a5410;font-weight:600;font-size:13px;padding:10px 14px;border-radius:10px;margin:12px 2px}
+    .surt-seclabel{margin:18px 2px 10px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#8a7f72}
+    .surt-list{display:flex;flex-direction:column;gap:10px}
+    .surt-item{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e7e1d7;border-radius:15px;padding:12px 14px;cursor:pointer;transition:border-color .18s,background .18s;box-shadow:0 1px 2px rgba(33,28,23,.04)}
+    .surt-item:hover{border-color:#e2b9a6}
+    .surt-item.done{background:#e7f2e3;border-color:#bcd9b3}
+    .surt-item.surt-serv{opacity:.72;cursor:default}
+    .surt-item.surt-serv:hover{border-color:#e7e1d7}
+    .surt-thumb{flex:none;width:66px;height:66px;border-radius:12px;background:#fbf9f5;border:1px solid #e7e1d7;display:grid;place-items:center;color:#a99e8f;overflow:hidden}
+    .surt-item.done .surt-thumb{border-color:#bcd9b3}
+    .surt-thumb img{width:100%;height:100%;object-fit:cover}
+    .surt-thumb svg{width:38px;height:38px}
+    .surt-idesc{flex:1;min-width:0}
+    .surt-iname{font-size:18px;font-weight:700;line-height:1.15;color:#211c17;letter-spacing:-.01em}
+    .surt-item.done .surt-iname{color:#2f7d32}
+    .surt-isku{font-size:12px;font-weight:600;color:#9a8f80;margin-top:3px;font-family:ui-monospace,Menlo,monospace}
+    .surt-qty{flex:none;text-align:center;min-width:60px}
+    .surt-qty b{display:block;font-size:28px;font-weight:800;line-height:1;color:#211c17}
+    .surt-qty span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#a99e8f}
+    .surt-toggle{flex:none;width:116px;height:54px;border-radius:13px;border:2px solid #e7e1d7;background:#fbf9f5;color:#8a7f72;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+    .surt-toggle svg{width:20px;height:20px}
+    .surt-item.done .surt-toggle{background:#2f7d32;border-color:#2f7d32;color:#fff}
+    .surt-toggle-na{background:transparent;border-style:dashed;color:#b4b2a9;cursor:default}
+    .surt-empty{padding:26px;text-align:center;color:#888;font-size:16px;background:#fff;border:1px solid #e7e1d7;border-radius:14px}
+    .surt-empty small{font-size:13px;color:#a99e8f}
+    .surt-empty.ok{color:#2E5A0C;background:#EBF3DF;border-color:#cfe3b8}
+    .surt-servs-t{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:#a99e8f;margin:18px 2px 8px}
+    .surt-actions{display:flex;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid #e7e1d7}
+    .surt-btn{border:0;border-radius:14px;padding:0 20px;height:58px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:9px;transition:all .18s}
+    .surt-btn svg{width:22px;height:22px}
+    .surt-btn-done{flex:1;background:#2f7d32;color:#fff;box-shadow:0 8px 20px rgba(47,125,50,.26)}
+    .surt-btn-done:hover{filter:brightness(1.05)}
+    .surt-btn-wait{flex:1;background:#fff;color:#8a7f72;border:2px dashed #e7e1d7;cursor:not-allowed}
+    .surt-btn-inci{flex:none;background:#fbf0d6;color:#9a6a12;border:1.5px solid #ecd39a}
+    .surt-btn-inci:hover{border-color:#d9b45a}
+    .surt-note{text-align:center;font-size:11px;color:#a99e8f;margin-top:10px}
+    .surt-note b{color:#9c3c1a}`;
     document.head.appendChild(st);
   }
   // Meter el modal en el DOM
@@ -5817,6 +5827,7 @@ function verListaSurtido(num){
   if(!cont){cont=document.createElement('div');cont.id='ov-surt-cont';document.body.appendChild(cont);}
   cont.innerHTML=html;
 }
+let _surtSaveTimer=null;
 function _toggleSurtidoCheck(num,idx){
   const o=orders.find(x=>x&&x.num===num);
   if(!o)return;
@@ -5824,6 +5835,20 @@ function _toggleSurtidoCheck(num,idx){
   o.surtidoChecks[idx]=!o.surtidoChecks[idx];
   o.updated=Date.now();
   verListaSurtido(num); // re-renderiza el modal
+  // Auto-guardado (debounced): el avance de surtido no se pierde ni requiere botón.
+  if(_surtSaveTimer)clearTimeout(_surtSaveTimer);
+  _surtSaveTimer=setTimeout(()=>{try{saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);}catch(e){}},1000);
+}
+function _reportarIncidenciaSurtido(num){
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return;
+  const txt=prompt('¿Qué pasó con '+num+'?\n(ej. "faltan 5 vigas C", "poste dañado")');
+  if(txt===null)return;
+  const t=(txt||'').trim(); if(!t)return;
+  o.incidencia=t; o.incidenciaFecha=new Date().toISOString(); o.updated=Date.now();
+  saveOrders(); if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+  showToast('⚠ Incidencia guardada — oficina la verá','#BA7517');
+  verListaSurtido(num);
 }
 function _guardarAvanceSurtido(num){
   const o=orders.find(x=>x&&x.num===num);
