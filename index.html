@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.06';
+const APP_VERSION='2026.08.05.07';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -7449,6 +7449,24 @@ function descontarMarcoBOM(marco,cantidadMarcos){
 }
 function saveInv(){guardarLS(INV_KEY,inventario);}
 function _comprimirImagen(file,maxLado,calidad){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{URL.revokeObjectURL(url);let w=img.width,h=img.height;const m=Math.max(w,h);if(m>maxLado){const r=maxLado/m;w=Math.round(w*r);h=Math.round(h*r);}const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);cv.toBlob(b=>b?res(b):rej(new Error('No se pudo procesar la imagen')),'image/jpeg',calidad||0.72);};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('Imagen inválida'));};img.src=url;});}
+// Sube un blob/File de imagen como foto del producto ri (comprime, sube a Storage, guarda y sincroniza)
+async function _guardarFotoBlobProducto(ri,fileOrBlob){
+  const p=inventario[ri];if(!p)return;
+  showToast('⏳ Procesando foto...','#185FA5');
+  try{
+    if(!supabaseClient&&typeof initSupabase==='function')initSupabase();
+    const blob=await _comprimirImagen(fileOrBlob,800,0.72);
+    const safe=(p.sku||p.producto||'prod').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40);
+    const path='productos/'+safe+'_'+Date.now()+'.jpg';
+    const {error}=await supabaseClient.storage.from('planos').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+    if(error){console.error(error);alert('⚠ No se pudo subir la foto\n\n'+(error.message||JSON.stringify(error)));return;}
+    const {data:urlData}=supabaseClient.storage.from('planos').getPublicUrl(path);
+    inventario[ri].foto=urlData.publicUrl;
+    saveInv();if(typeof cloudSyncInventario==='function')cloudSyncInventario(inventario[ri]);
+    renderInventario();
+    showToast('✓ Foto guardada','#3B6D11');
+  }catch(ex){console.error(ex);alert('⚠ Error al subir la foto:\n\n'+(ex.message||ex));}
+}
 function subirFotoProducto(ri){
   if(!puedeFotosInventario())return alert('⚠ No tienes permiso para gestionar fotos de productos.');
   const p=inventario[ri];if(!p)return;
@@ -7459,22 +7477,54 @@ function subirFotoProducto(ri){
     const file=e.target.files&&e.target.files[0];
     setTimeout(()=>{try{document.body.removeChild(inp);}catch(_){}},300);
     if(!file)return;
-    showToast('⏳ Procesando foto...','#185FA5');
-    try{
-      if(!supabaseClient&&typeof initSupabase==='function')initSupabase();
-      const blob=await _comprimirImagen(file,800,0.72);
-      const safe=(p.sku||p.producto||'prod').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40);
-      const path='productos/'+safe+'_'+Date.now()+'.jpg';
-      const {error}=await supabaseClient.storage.from('planos').upload(path,blob,{contentType:'image/jpeg',upsert:true});
-      if(error){console.error(error);alert('⚠ No se pudo subir la foto\n\n'+(error.message||JSON.stringify(error)));return;}
-      const {data:urlData}=supabaseClient.storage.from('planos').getPublicUrl(path);
-      inventario[ri].foto=urlData.publicUrl;
-      saveInv();if(typeof cloudSyncInventario==='function')cloudSyncInventario(inventario[ri]);
-      renderInventario();
-      showToast('✓ Foto guardada','#3B6D11');
-    }catch(ex){console.error(ex);alert('⚠ Error al subir la foto:\n\n'+(ex.message||ex));}
+    await _guardarFotoBlobProducto(ri,file);
   };
   inp.click();
+}
+// ── Pegar foto con Ctrl+V ──
+// Al hacer clic en "pegar" se "arma" un producto; el siguiente Ctrl+V (o clic-derecho→Pegar)
+// pone la imagen del portapapeles en ese producto. Si el navegador permite leer el
+// portapapeles directo (https + permiso), lo intenta al instante sin esperar el Ctrl+V.
+var _invFotoPegarRi=null,_invPasteHooked=false;
+function _armarPegarFotoProducto(ri){
+  if(!puedeFotosInventario())return alert('⚠ No tienes permiso para gestionar fotos de productos.');
+  const p=inventario[ri];if(!p)return;
+  _invFotoPegarRi=ri;
+  _hookInvPaste();
+  // Intento directo: leer imagen ya copiada en el portapapeles
+  if(navigator.clipboard&&navigator.clipboard.read){
+    navigator.clipboard.read().then(async items=>{
+      for(const it of items){
+        const tipo=(it.types||[]).find(t=>t.startsWith('image/'));
+        if(tipo){const blob=await it.getType(tipo);if(_invFotoPegarRi===ri){_invFotoPegarRi=null;await _guardarFotoBlobProducto(ri,blob);}return;}
+      }
+      // No había imagen en el portapapeles: quedar armado esperando Ctrl+V
+      showToast('📋 Copia una imagen y pégala con Ctrl+V','#185FA5');
+    }).catch(()=>{
+      showToast('📋 Pega la foto con Ctrl+V','#185FA5');
+    });
+  }else{
+    showToast('📋 Pega la foto con Ctrl+V','#185FA5');
+  }
+}
+function _hookInvPaste(){
+  if(_invPasteHooked)return;_invPasteHooked=true;
+  document.addEventListener('paste',async ev=>{
+    if(_invFotoPegarRi==null)return;
+    const items=(ev.clipboardData&&ev.clipboardData.items)||[];
+    for(const it of items){
+      if(it.type&&it.type.startsWith('image/')){
+        ev.preventDefault();
+        const blob=it.getAsFile();
+        const ri=_invFotoPegarRi;_invFotoPegarRi=null;
+        if(blob)await _guardarFotoBlobProducto(ri,blob);
+        return;
+      }
+    }
+    // Se pegó algo que no era imagen: avisar y desarmar
+    _invFotoPegarRi=null;
+    showToast('⚠ El portapapeles no tenía una imagen','#c62828');
+  });
 }
 function quitarFotoProducto(ri){
   if(!puedeFotosInventario())return alert('⚠ No tienes permiso para gestionar fotos de productos.');
@@ -8652,7 +8702,7 @@ const stockInner=puedeEdit
   :`<span style="font-weight:700;color:${e.cl}">${p.cantidad.toLocaleString()}</span>`;
 const cantidadHtml=(disp&&disp.fabricable>0)?`<div>${stockInner}<span style="color:#185FA5;font-size:10px;font-weight:600"> + ${disp.fabricable.toLocaleString()} fab.</span></div>`:stockInner;
 const _comp=(typeof _comprometidoSKU==='function')?_comprometidoSKU(p.sku):0;const _dispFisico=Number(p.cantidad||0)-_comp;const _fabricable=(typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;const _dispTotal=_dispFisico+_fabricable;const _isSobre=_dispTotal<0;const _rowRed=_isSobre?'background:#FCEBEB;':'';const _minV=Number(p.alerta_minimo||0);const _dispBg=_isSobre?'#A32D2D':(_dispTotal<=_minV?'#FAEEDA':'#EAF3DE');const _dispTxt=_isSobre?'#fff':(_dispTotal<=_minV?'#412402':'#173404');const _fabBadge=(_fabricable>0&&Number(p.cantidad||0)>0)?`<span style="font-size:10px;color:#185FA5;margin-left:4px" title="Incluye lo cortable/armable de las piezas">+${_fabricable.toLocaleString()} de piezas</span>`:'';const dispCell=`<td style="text-align:right"><span style="background:${_dispBg};color:${_dispTxt};font-weight:600;padding:2px 10px;border-radius:12px;display:inline-block">${_isSobre?'⚠ ':''}${_dispTotal.toLocaleString()}</span>${_fabBadge}</td>`;const compCell=`<td style="text-align:right;color:#854F0B;font-weight:500">${_comp.toLocaleString()}</td>`;
-const fotoCell=p.foto?'<td style="text-align:center"><img loading="lazy" src="'+p.foto+'" onclick="verFotoProducto('+ri+')" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #e0e0d8;cursor:pointer" title="Ver foto">'+(_puedeFoto?'<div style="font-size:9px;margin-top:1px;line-height:1.2"><span onclick="subirFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer">cambiar</span> · <span onclick="quitarFotoProducto('+ri+')" style="color:#c62828;cursor:pointer">quitar</span></div>':'')+'</td>':(_puedeFoto?'<td style="text-align:center"><div onclick="subirFotoProducto('+ri+')" style="width:38px;height:38px;border-radius:6px;border:1.4px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#bbb;cursor:pointer;font-size:15px" title="Subir foto">📷</div></td>':'<td style="text-align:center;color:#ccc">—</td>');
+const fotoCell=p.foto?'<td style="text-align:center"><img loading="lazy" src="'+p.foto+'" onclick="verFotoProducto('+ri+')" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #e0e0d8;cursor:pointer" title="Ver foto">'+(_puedeFoto?'<div style="font-size:9px;margin-top:1px;line-height:1.2"><span onclick="subirFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer">cambiar</span> · <span onclick="_armarPegarFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer" title="Pegar imagen del portapapeles (Ctrl+V)">pegar</span> · <span onclick="quitarFotoProducto('+ri+')" style="color:#c62828;cursor:pointer">quitar</span></div>':'')+'</td>':(_puedeFoto?'<td style="text-align:center"><div onclick="subirFotoProducto('+ri+')" style="width:38px;height:38px;border-radius:6px;border:1.4px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#bbb;cursor:pointer;font-size:15px" title="Subir foto">📷</div><div style="font-size:9px;margin-top:1px;line-height:1.2"><span onclick="_armarPegarFotoProducto('+ri+')" style="color:#185FA5;cursor:pointer" title="Pegar imagen del portapapeles (Ctrl+V)">📋 pegar</span></div></td>':'<td style="text-align:center;color:#ccc">—</td>');
 const _pv=Number(p.peso||0);const _pesoPill=`<span onclick="${puedeEdit?`editarPesoInv(${ri})`:''}" style="background:${_pv>0?'#E6F1FB':'#f4f3ed'};color:${_pv>0?'#185FA5':'#999'};font-weight:700;padding:2px 9px;border-radius:10px;${puedeEdit?'cursor:pointer':''}" title="${puedeEdit?'Editar peso':''}">${_pv>0?_pv.toLocaleString('es-MX',{maximumFractionDigits:2}):'—'}${puedeEdit?' ✎':''}</span>`;const pesoCell=`<td style="text-align:right">${_pesoPill}</td>`;
 return sep+`<tr style="${_rowRed}${rowBg}"><td style="font-family:monospace;font-size:11px;color:#D85A30;font-weight:700;white-space:nowrap">${p.sku||'—'}</td>`+fotoCell+`<td style="font-size:11px;color:#888">${p.sistema}</td><td style="font-weight:500">${e.l==='Sin stock'?'🔴 ':e.l==='Stock bajo'?'🟡 ':''}${p.producto}${defBadge}</td><td style="text-align:right;font-weight:600;color:#3B6D11">${p.precio?'$ '+p.precio.toFixed(2):'—'}</td>${pesoCell}<td style="text-align:right">${cantidadHtml}</td>${compCell}${dispCell}<td><span class="inv-estado ${e.c}">${e.l}</span></td><td style="white-space:nowrap">${accionesFinal}</td></tr>`}).join('');
 // Trigger background deficit calculation if not cached
