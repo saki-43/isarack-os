@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.03';
+const APP_VERSION='2026.08.05.04';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4919,7 +4919,7 @@ if(!isNew&&o.pdfsPresupuesto&&o.pdfsPresupuesto.length){
   if(fIdx>=0&&(!facturas[fIdx].monto||facturas[fIdx].monto===0)){
     for(const pdf of o.pdfsPresupuesto){
       if(pdf.data&&pdf.data.includes('application/pdf')){
-        try{const total=await extraerTotalDePDF(pdf.data);if(total>0){facturas[fIdx].monto=total;guardarFacturasLS();showToast('✓ Pedido actualizado + Monto leído ($'+total.toFixed(2)+')','#3B6D11');break;}}catch(e){console.error('Error PDF total:',e);}
+        try{const total=await extraerTotalDePDF(pdf.data);if(total>0){facturas[fIdx].monto=total;guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[fIdx]);/* SYNC */showToast('✓ Pedido actualizado + Monto leído ($'+total.toFixed(2)+')','#3B6D11');break;}}catch(e){console.error('Error PDF total:',e);}
       }
     }
   }
@@ -5447,7 +5447,7 @@ async function repararMontos(){
     }
     diag.montoFinal=monto;diag.fuente=fuente;
     debug.push(diag);
-    if(monto>0){facturas[i].monto=monto;reparados++;console.log('✓ '+f.pedido+': $'+monto.toFixed(2)+' ('+fuente+')');}
+    if(monto>0){facturas[i].monto=monto;reparados++;if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);/* SYNC */console.log('✓ '+f.pedido+': $'+monto.toFixed(2)+' ('+fuente+')');}
     else{sinDatos.push(f.pedido);console.log('✗ '+f.pedido+': SIN DATOS',diag);}
   }
   console.log('═══ DIAGNÓSTICO COMPLETO ═══');
@@ -7267,14 +7267,17 @@ function agregarSobrante(medida){
   if(med<MIN_SOBRANTE)return; // sobrantes menores a 12" se desechan
   const nombre='SOBRANTE 2"X2" '+med+'" VERDE';
   let exists=inventario.find(p=>p.producto===nombre);
-  if(exists){exists.cantidad=(exists.cantidad||0)+1;}
+  let _prodSob;
+  if(exists){exists.cantidad=(exists.cantidad||0)+1;_prodSob=exists;}
   else{
     // Generate SKU
     const nums=inventario.filter(x=>(x.sku||'').startsWith('SOB-')).map(x=>parseInt(x.sku.split('-')[1])||0);
     const max=nums.length?Math.max(...nums):0;
     const sku='SOB-'+String(max+1).padStart(4,'0');
-    inventario.push({producto:nombre,sistema:'PICKING',sku,medida:med+'"',precio:0,cantidad:1,minimo:0});
+    _prodSob={producto:nombre,sistema:'PICKING',sku,medida:med+'"',precio:0,cantidad:1,minimo:0};
+    inventario.push(_prodSob);
   }
+  if(typeof cloudSyncInventario==='function')cloudSyncInventario(_prodSob); // SYNC: subir el sobrante
 }
 function descontarMarcoPickingBOM(marco,cantidadMarcos){
   const piezas=calcularPiezasMarcoPicking(marco,cantidadMarcos);
@@ -7585,7 +7588,7 @@ function exportarInventarioExcel(){
 }
 function segInv(b){document.querySelectorAll('#sg-inv-tipo .seg-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');}
 function abrirAjusteManual(i){if(!puedeEditarInventario()){alert('⚠ Permiso denegado\n\nSolo el almacenista o el admin pueden editar el inventario.');return;}if(i==null)return;const p=inventario[i];document.getElementById('inv-modal-titulo').textContent='Editar: '+p.producto;document.getElementById('inv-prod-nombre').value=p.producto;document.getElementById('inv-prod-actual').value=p.cantidad;document.getElementById('inv-ajuste-cant').value='';document.getElementById('inv-alerta-min').value=p.alerta_minimo;document.getElementById('inv-precio').value=p.precio||0;document.querySelectorAll('#sg-inv-tipo .seg-btn').forEach((b,j)=>b.classList.toggle('active',j===0));document.getElementById('ov-inv').dataset.idx=i;document.getElementById('ov-inv').classList.add('open');}
-function guardarAjuste(){const i=parseInt(document.getElementById('ov-inv').dataset.idx);if(isNaN(i))return;const t=document.querySelector('#sg-inv-tipo .seg-btn.active')?.textContent||'Agregar (+)';const c=parseInt(document.getElementById('inv-ajuste-cant').value)||0;const mn=parseInt(document.getElementById('inv-alerta-min').value);const pr=parseFloat(document.getElementById('inv-precio').value)||0;const p=inventario[i];const nm=document.getElementById('inv-prod-nombre').value.trim();if(nm)p.producto=nm;if(c>0||t==='Establecer'){if(t.includes('Agregar'))p.cantidad+=c;else if(t.includes('Quitar'))p.cantidad=Math.max(0,p.cantidad-c);else p.cantidad=c;}if(!isNaN(mn)&&mn>=0)p.alerta_minimo=mn;p.precio=pr;saveInv();document.getElementById('ov-inv').classList.remove('open');renderInventario();showToast('✓ '+p.producto,'#3B6D11');}
+function guardarAjuste(){const i=parseInt(document.getElementById('ov-inv').dataset.idx);if(isNaN(i))return;const t=document.querySelector('#sg-inv-tipo .seg-btn.active')?.textContent||'Agregar (+)';const c=parseInt(document.getElementById('inv-ajuste-cant').value)||0;const mn=parseInt(document.getElementById('inv-alerta-min').value);const pr=parseFloat(document.getElementById('inv-precio').value)||0;const p=inventario[i];const nm=document.getElementById('inv-prod-nombre').value.trim();if(nm)p.producto=nm;if(c>0||t==='Establecer'){if(t.includes('Agregar'))p.cantidad+=c;else if(t.includes('Quitar'))p.cantidad=Math.max(0,p.cantidad-c);else p.cantidad=c;}if(!isNaN(mn)&&mn>=0)p.alerta_minimo=mn;p.precio=pr;saveInv();if(typeof cloudSyncInventario==='function')cloudSyncInventario(p);/* SYNC: ajuste manual a la nube */document.getElementById('ov-inv').classList.remove('open');renderInventario();showToast('✓ '+p.producto,'#3B6D11');}
 function estInv(p){
   if(p&&p.esServicio)return{l:'Servicio',c:'inv-normal',cl:'#6B5BA5'};
   try{if(typeof _comprometidoSKU==='function'&&p&&p.sku){const _cS=_comprometidoSKU(p.sku);const _fS=(typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;const _dS=(Number(p.cantidad||0)-_cS)+_fS;if(_dS<0)return{l:'⚠ Sobreventa',c:'inv-cero',cl:'#A32D2D'};}}catch(_e){}
@@ -7847,6 +7850,7 @@ function ejecutarCierreMes(){
   });
   // 3. Guardar todo
   saveInv();
+  if(typeof cloudSyncInventarioTodo==='function')cloudSyncInventarioTodo(inventario.map(p=>p&&p.sku).filter(Boolean)); // SYNC: subir cantidad_inicial congelada
   saveOrders();
   localStorage.setItem('isarack_fecha_inventario',fecha);
   localStorage.setItem('isarack_fecha_cierre_mes',fecha);
@@ -7978,7 +7982,7 @@ function inicializarComponentesBOM(){
     creados++;
   }else existentes++;
   
-  if(creados>0){guardarLS('isarack_inventario_v4',inventario);renderInventario();}
+  if(creados>0){guardarLS('isarack_inventario_v4',inventario);if(typeof cloudSyncInventarioTodo==='function')cloudSyncInventarioTodo(inventario.map(p=>p&&p.sku).filter(Boolean));renderInventario();} // SYNC: subir SKUs sembrados
   alert('✓ Componentes BOM:\n\n'+
     '• Creados: '+creados+'\n'+
     '• Ya existían: '+existentes+'\n\n'+
@@ -8330,6 +8334,7 @@ function guardarStockInline(ri,inp){
   if(!p||v===p.cantidad)return;
   p.cantidad=v;
   saveInv();
+  if(typeof cloudSyncInventario==='function')cloudSyncInventario(p); // SYNC: no perder el ajuste inline
   renderInventario();
   showToast('✓ '+p.producto+': '+v+' pz','#3B6D11');
 }
@@ -12555,6 +12560,7 @@ async function confirmarComoVenta(){
         l.sku=inventario[idx].sku||l.sku||'';
         l.producto=inventario[idx].producto;
         descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
+        _skusTocadosCCV.push(inventario[idx].sku); // SYNC
         return;
       }
       // Stock insuficiente o SKU no existe → cae al BOM (fabricar) abajo
@@ -12571,12 +12577,14 @@ async function confirmarComoVenta(){
           const prev=inventario[idx].cantidad;
           inventario[idx].cantidad=Math.max(0,prev-cant);
           descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
+          _skusTocadosCCV.push(inventario[idx].sku); // SYNC
           return;
         }
         // Stock insuficiente → fabricar cortando del padre
         const piezas=descontarReglaBomCustom(reglaCustom,cant);
         bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
         piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+        piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
         l.bomPiezas=piezas;l.esBomCustom=true;
         return;
       }
@@ -12592,6 +12600,7 @@ async function confirmarComoVenta(){
         l.sku=inventario[idx].sku||l.sku||'';
         l.producto=inventario[idx].producto;
         descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
+        _skusTocadosCCV.push(inventario[idx].sku); // SYNC
         return;
       }
       // Stock insuficiente → fabricar cortando del panel grande
@@ -12600,6 +12609,7 @@ async function confirmarComoVenta(){
         const piezas=descontarPanelBOM(panelInfo,cant);
         bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
         piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+        piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
         l.bomPiezas=piezas;l.esPanel=true;
         return;
       }
