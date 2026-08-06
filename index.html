@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.07';
+const APP_VERSION='2026.08.05.08';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -12744,6 +12744,28 @@ async function confirmarComoVenta(){
   document.querySelectorAll('.tab-content').forEach(d=>d.classList.remove('active'));
   document.getElementById('tab-pedidos').classList.add('active');
 }
+// Sube a la nube el PDF del pedido/cotización (Storage: planos/{folio}/pedido.pdf) para
+// poder pedirlo después desde el celular (Claude/SAKI). Corre en segundo plano; si falla
+// no molesta al usuario (el PDF se sigue viendo/imprimiendo normal en ISA-OS).
+async function _subirPedidoPDFNube(num,html){
+  try{
+    if(!num||!html||typeof html2pdf==='undefined')return;
+    num=String(num).trim();if(!num)return;
+    const cont=document.createElement('div');
+    cont.style.cssText='position:fixed;left:-99999px;top:0;width:800px;background:#fff';
+    cont.innerHTML=html;document.body.appendChild(cont);
+    const opt={margin:0,image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true,backgroundColor:'#fff'},jsPDF:{unit:'pt',format:'letter',orientation:'portrait'}};
+    let blob=null;
+    try{blob=await html2pdf().set(opt).from(cont).outputPdf('blob');}
+    finally{try{document.body.removeChild(cont);}catch(_){}}
+    if(!blob)return;
+    if(!supabaseClient&&typeof initSupabase==='function')initSupabase();
+    if(!supabaseClient)return;
+    const {error}=await supabaseClient.storage.from('planos').upload(num+'/pedido.pdf',blob,{contentType:'application/pdf',upsert:true});
+    if(error)console.warn('subir pedido PDF a la nube:',error.message||error);
+    else console.log('☁ PDF del pedido '+num+' guardado en la nube');
+  }catch(e){console.warn('No se pudo subir el PDF del pedido a la nube:',e);}
+}
 async function previsualizarCotizacion(){
   // Imprimir = guardar: auto-guarda la cotización en la nube ANTES de mostrar el PDF,
   // con la reasignación de folio de guardarVenta. Evita perder cotizaciones impresas
@@ -12754,6 +12776,8 @@ async function previsualizarCotizacion(){
     if(_cli&&_arts>0&&typeof guardarVenta==='function')await guardarVenta({silent:true});
   }catch(e){console.warn('auto-guardar al previsualizar:',e);}
   const cot=generarCotHTML();
+  // Sube el PDF a la nube en segundo plano para poder pedirlo desde el celular.
+  try{const _num=((document.getElementById('vta-form-num')||{}).textContent||'').trim();if(_num)_subirPedidoPDFNube(_num,cot.html);}catch(_e){}
   const container=document.getElementById('pdf-preview-body');
   container.innerHTML='';
   const ifr=document.createElement('iframe');ifr.id='cot-preview-frame';ifr.style.cssText='border:none;width:800px;min-height:1100px;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.15);border-radius:4px';
