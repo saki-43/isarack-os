@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.09';
+const APP_VERSION='2026.08.05.10';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -3548,7 +3548,8 @@ const filename='ISARACK '+(num||'Cotizacion')+(clienteName?' '+clienteName:'')+'
 console.log('📄 Descargando como:',filename,'(num:',num,', cliente:',clienteName,')');
 
 if(typeof html2pdf==='undefined'){showToast('html2pdf no cargó, descargando HTML','#BA7517');wrap.remove();descargarComoHTML();return;}
-html2pdf().set({margin:0,filename:filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,letterRendering:true},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}}).from(clone).save().then(()=>{wrap.remove();showToast('✓ PDF descargado: '+filename,'#3B6D11');}).catch(err=>{wrap.remove();console.error(err);showToast('Error al generar PDF','#c62828');});}
+const _htmlPedidoNube=(()=>{try{return clone.outerHTML;}catch(_){return '';}})();
+html2pdf().set({margin:0,filename:filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,letterRendering:true},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}}).from(clone).save().then(()=>{wrap.remove();showToast('✓ PDF descargado: '+filename,'#3B6D11');try{if(_htmlPedidoNube&&num&&typeof _subirPedidoPDFNube==='function')_subirPedidoPDFNube(num,_htmlPedidoNube);}catch(_){}}).catch(err=>{wrap.remove();console.error(err);showToast('Error al generar PDF','#c62828');});}
 function descargarComoHTML(){const ifr=document.getElementById('cot-render-frame')||document.getElementById('cot-preview-frame');let content='';if(ifr){try{const d=ifr.contentDocument||ifr.contentWindow.document;content=d.documentElement.outerHTML;}catch(e){}}if(!content){const body=document.getElementById('html-viewer-body');content=body?body.innerHTML:'';}const numMatch=content.match(/S\d{4,6}/);const num=numMatch?numMatch[0]:'';const blob=new Blob(['<!DOCTYPE html><html>'+content+'</html>'],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=nombreDocFactura(num||'Cotizacion',(window._currentCotData&&window._currentCotData.cliente)||'','COTIZACION','html');a.click();URL.revokeObjectURL(url);}
 function enviarPorCorreo(){
   // 1. Get client email from current context
