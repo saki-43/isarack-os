@@ -214,7 +214,7 @@ tr.drag-over-row{border-top:3px solid #D85A30!important}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:600;overflow-y:auto;padding:1rem}
 .ov.open{display:block}
 
-@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.fg2{grid-template-columns:1fr}.vta-detail{grid-template-columns:1fr}table{font-size:11px}th,td{padding:7px}}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.fg2{grid-template-columns:1fr}.vta-detail{grid-template-columns:1fr}table{font-size:11px}th,td{padding:7px}html,body{overflow-x:hidden}.header{flex-wrap:wrap;gap:6px;padding:.45rem .6rem}.header>div:first-child img{height:40px}.header>div:last-child{flex-wrap:wrap;justify-content:flex-end;gap:6px}.nav-tab{padding:8px 10px;font-size:10px}}
 </style>
 </head>
 <body>
@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.05.08';
+const APP_VERSION='2026.08.05.09';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
