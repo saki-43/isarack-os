@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.06.01';
+const APP_VERSION='2026.08.07.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11484,17 +11484,34 @@ function regresarVentaACotizacion(i){
 const COMERCIALES_LISTA=['Adrian Solorzano','Ing. Miguel Morga','Ing. Gil Osuna','Isaac Romero','Jesus Pelayo','Lic. Daniel Osuna R.','Ninguno'];
 function reasignarComercialVenta(){
   const u=getCurrentUser();
-  if(!u||u.rol!=='admin'){return;} // solo admin reasigna
+  if(!u)return;
   if(editVtaIdx<0||!ventas[editVtaIdx]){showToast('Guarda la venta primero para poder reasignar comercial','#BA7517');return;}
   const v=ventas[editVtaIdx];
   const actual=v.comercial||'—';
+  // Regla: admin puede todo. Comercial solo si es el dueño actual (o si está huérfana).
+  const esAdmin=u.rol==='admin';
+  const esComercial=u.rol==='comercial';
+  const _norm=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());
+  const yo=_norm(u.nombreComercial||u.nombre||'');
+  const dueno=_norm(actual);
+  const huerfana=(!dueno||dueno==='—'||dueno.toLowerCase()==='ninguno');
+  if(!esAdmin){
+    if(!esComercial){showToast('Solo comerciales o admin pueden reasignar','#BA7517');return;}
+    if(!huerfana&&dueno!==yo){showToast('Solo '+dueno+' o el admin pueden reasignar esta cotización','#BA7517');return;}
+  }
   const opciones=COMERCIALES_LISTA.map((c,i)=>(i+1)+') '+c).join('\n');
   const resp=prompt('Reasignar comercial de '+(v.num||'')+'\nActual: '+actual+'\n\nEscribe el número:\n'+opciones);
   if(resp===null)return;
   const n=parseInt(resp.trim(),10);
   if(isNaN(n)||n<1||n>COMERCIALES_LISTA.length){showToast('Opción no válida','#c62828');return;}
   const nuevo=COMERCIALES_LISTA[n-1];
+  if(_norm(nuevo)===dueno){showToast('Ya es '+nuevo,'#888');return;}
+  // Historial (máx 10 entradas) para trazabilidad
+  if(!Array.isArray(v._historialComercial))v._historialComercial=[];
+  v._historialComercial.push({de:actual,para:nuevo,quien:yo||u.username||'?',cuando:new Date().toISOString()});
+  if(v._historialComercial.length>10)v._historialComercial=v._historialComercial.slice(-10);
   v.comercial=nuevo;
+  if(!v._ts)v._ts={};v._ts.comercial=new Date().toISOString();
   document.getElementById('vf-comercial').value=nuevo;
   const lbl=document.getElementById('vta-form-comercial');
   if(lbl)lbl.textContent='💼 '+nuevo;
@@ -11505,11 +11522,17 @@ function reasignarComercialVenta(){
   if(ped){ped.comercial=nuevo;if(!ped._ts)ped._ts={};ped._ts.comercial=new Date().toISOString();saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(ped);}
   const fac=facturas.find(f=>f&&f.pedido===v.num);
   if(fac&&fac.ejecutivo!==nuevo){fac.ejecutivo=nuevo;if(!fac._ts)fac._ts={};fac._ts.ejecutivo=new Date().toISOString();guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(fac);if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();if(typeof renderFacturas==='function')renderFacturas();}
+  // Notificar al nuevo ejecutivo (a menos que sea el mismo que la reasignó, o "Ninguno")
+  try{
+    if(typeof crearNotificacion==='function'&&nuevo&&nuevo!=='Ninguno'&&_norm(nuevo)!==yo){
+      crearNotificacion('comercial:'+_canonNotif(nuevo),'💼 Te pasaron la cotización '+(v.num||''),(v.cliente||'')+' · de '+(actual||'—'),v.num||'');
+    }
+  }catch(e){}
   if(typeof renderVentas==='function')renderVentas();
   if(typeof renderComisiones==='function')renderComisiones();
   showToast('💼 Comercial reasignado a '+nuevo,'#3B6D11');
 }
-function editarVenta(i){editVtaIdx=i;const v=ventas[i];abrirVentaForm();document.getElementById('vf-cliente').value=v.cliente||'';document.getElementById('vf-rfc').value=v.rfc||'';const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val||'';};set('vf-razon',v.razon);set('vf-email',v.email);set('vf-tel',v.tel);set('vf-contacto',v.contacto);set('vf-cel',v.cel);set('vf-dir',v.dir);document.getElementById('vf-fecha').value=v.fecha||'';document.getElementById('vf-comercial').value=v.comercial||'';const lblE=document.getElementById('vta-form-comercial');if(lblE){lblE.textContent='💼 '+(v.comercial||'—');const _ua=getCurrentUser();if(_ua&&_ua.rol==='admin'){lblE.style.cursor='pointer';lblE.title='Clic para reasignar comercial';}else{lblE.style.cursor='';lblE.title='';}}document.getElementById('vta-form-num').textContent=v.num||'S07000';if(v.plazo)document.getElementById('vf-plazo').value=v.plazo;if(v.tiempoEntrega)document.getElementById('vf-entrega').value=v.tiempoEntrega;if(v.instalacion)document.getElementById('vf-instalacion').value=v.instalacion;if(v.domicilio)document.getElementById('vf-domicilio').value=v.domicilio;if(v.maniobra)document.getElementById('vf-maniobra').value=v.maniobra;vtaLineas=v.lineas||[];vtaPlanos=(v.planos||[]).slice();setVtaPlanosEstado(v.planosEstado||((v.planos&&v.planos.length)?'Sí lleva':'No aplica'));renderVtaPlanosChips();vtaTipoDoc=v.tipo||'Cotización';setTipoDoc(vtaTipoDoc);vtaStage=v.stage||'Presupuesto';setVtaStage(vtaStage);const _mon=v.moneda||'USD';const _selMon=document.getElementById('vf-moneda');if(_selMon)_selMon.value=_mon;vtaMonedaOrig=_mon;renderLineas();if(typeof actualizarHintRazon==='function')actualizarHintRazon();setVtaHist(v._historica===true);if(v._historica)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf')}
+function editarVenta(i){editVtaIdx=i;const v=ventas[i];abrirVentaForm();document.getElementById('vf-cliente').value=v.cliente||'';document.getElementById('vf-rfc').value=v.rfc||'';const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val||'';};set('vf-razon',v.razon);set('vf-email',v.email);set('vf-tel',v.tel);set('vf-contacto',v.contacto);set('vf-cel',v.cel);set('vf-dir',v.dir);document.getElementById('vf-fecha').value=v.fecha||'';document.getElementById('vf-comercial').value=v.comercial||'';const lblE=document.getElementById('vta-form-comercial');if(lblE){lblE.textContent='💼 '+(v.comercial||'—');const _ua=getCurrentUser();const _nn=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());const _du=_nn(v.comercial||'');const _hu=(!_du||_du==='—'||_du.toLowerCase()==='ninguno');const _yo=_ua?_nn(_ua.nombreComercial||_ua.nombre||''):'';const _puede=_ua&&(_ua.rol==='admin'||(_ua.rol==='comercial'&&(_hu||_du===_yo)));if(_puede){lblE.style.cursor='pointer';lblE.title='Clic para reasignar comercial';}else{lblE.style.cursor='';lblE.title=_ua&&_ua.rol==='comercial'?'Solo '+_du+' o admin pueden reasignar':'';}}document.getElementById('vta-form-num').textContent=v.num||'S07000';if(v.plazo)document.getElementById('vf-plazo').value=v.plazo;if(v.tiempoEntrega)document.getElementById('vf-entrega').value=v.tiempoEntrega;if(v.instalacion)document.getElementById('vf-instalacion').value=v.instalacion;if(v.domicilio)document.getElementById('vf-domicilio').value=v.domicilio;if(v.maniobra)document.getElementById('vf-maniobra').value=v.maniobra;vtaLineas=v.lineas||[];vtaPlanos=(v.planos||[]).slice();setVtaPlanosEstado(v.planosEstado||((v.planos&&v.planos.length)?'Sí lleva':'No aplica'));renderVtaPlanosChips();vtaTipoDoc=v.tipo||'Cotización';setTipoDoc(vtaTipoDoc);vtaStage=v.stage||'Presupuesto';setVtaStage(vtaStage);const _mon=v.moneda||'USD';const _selMon=document.getElementById('vf-moneda');if(_selMon)_selMon.value=_mon;vtaMonedaOrig=_mon;renderLineas();if(typeof actualizarHintRazon==='function')actualizarHintRazon();setVtaHist(v._historica===true);if(v._historica)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf')}
 // Generar siguiente número
 function nextVtaNum(){let max=7000;ventas.forEach(v=>{const m=v.num?.match(/S(\d+)/);if(m)max=Math.max(max,parseInt(m[1]));});orders.forEach(o=>{const m=o.num?.match(/S(\d+)/);if(m)max=Math.max(max,parseInt(m[1]));});return'S'+String(max+1).padStart(5,'0');}
 async function _reservarFolioNube(){try{if(typeof supabaseClient==='undefined'||!supabaseClient)return null;let n=7000;const rv=await supabaseClient.from('ventas').select('num').order('num',{ascending:false}).limit(1);if(rv&&rv.data&&rv.data[0]&&rv.data[0].num){const m=String(rv.data[0].num).match(/(\d+)/);if(m)n=Math.max(n,parseInt(m[1]));}const ro=await supabaseClient.from('orders').select('num').order('num',{ascending:false}).limit(1);if(ro&&ro.data&&ro.data[0]&&ro.data[0].num){const m=String(ro.data[0].num).match(/(\d+)/);if(m)n=Math.max(n,parseInt(m[1]));}return 'S'+String(n+1).padStart(5,'0');}catch(e){return null;}}
