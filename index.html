@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.07.01';
+const APP_VERSION='2026.08.07.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11485,13 +11485,14 @@ const COMERCIALES_LISTA=['Adrian Solorzano','Ing. Miguel Morga','Ing. Gil Osuna'
 function reasignarComercialVenta(){
   const u=getCurrentUser();
   if(!u)return;
-  if(editVtaIdx<0||!ventas[editVtaIdx]){showToast('Guarda la venta primero para poder reasignar comercial','#BA7517');return;}
-  const v=ventas[editVtaIdx];
-  const actual=v.comercial||'—';
-  // Regla: admin puede todo. Comercial solo si es el dueño actual (o si está huérfana).
+  const esNueva=(editVtaIdx<0||!ventas[editVtaIdx]);
+  const v=esNueva?null:ventas[editVtaIdx];
+  const _norm=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());
+  // El "actual" viene de la venta guardada o del select del formulario (cotización nueva).
+  const actual=esNueva?(document.getElementById('vf-comercial').value||'—'):(v.comercial||'—');
+  const numMostrar=esNueva?(document.getElementById('vta-form-num').textContent||'nueva'):(v.num||'');
   const esAdmin=u.rol==='admin';
   const esComercial=u.rol==='comercial';
-  const _norm=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());
   const yo=_norm(u.nombreComercial||u.nombre||'');
   const dueno=_norm(actual);
   const huerfana=(!dueno||dueno==='—'||dueno.toLowerCase()==='ninguno');
@@ -11500,21 +11501,28 @@ function reasignarComercialVenta(){
     if(!huerfana&&dueno!==yo){showToast('Solo '+dueno+' o el admin pueden reasignar esta cotización','#BA7517');return;}
   }
   const opciones=COMERCIALES_LISTA.map((c,i)=>(i+1)+') '+c).join('\n');
-  const resp=prompt('Reasignar comercial de '+(v.num||'')+'\nActual: '+actual+'\n\nEscribe el número:\n'+opciones);
+  const resp=prompt('Reasignar comercial de '+numMostrar+'\nActual: '+actual+'\n\nEscribe el número:\n'+opciones);
   if(resp===null)return;
   const n=parseInt(resp.trim(),10);
   if(isNaN(n)||n<1||n>COMERCIALES_LISTA.length){showToast('Opción no válida','#c62828');return;}
   const nuevo=COMERCIALES_LISTA[n-1];
   if(_norm(nuevo)===dueno){showToast('Ya es '+nuevo,'#888');return;}
+  // Actualizar UI (select + label) — siempre, guardada o no.
+  const _sel=document.getElementById('vf-comercial');
+  if(_sel){let ok=false;Array.from(_sel.options).forEach(op=>{if(op.value===nuevo){_sel.value=nuevo;ok=true;}});if(!ok){const op=document.createElement('option');op.value=nuevo;op.textContent=nuevo;_sel.appendChild(op);_sel.value=nuevo;}}
+  const lbl=document.getElementById('vta-form-comercial');
+  if(lbl)lbl.textContent='💼 '+nuevo;
+  if(esNueva){
+    // Cotización nueva: el cambio se persiste al momento de Guardar (lee vf-comercial).
+    showToast('💼 Comercial: '+nuevo+' — se aplica al guardar','#3B6D11');
+    return;
+  }
   // Historial (máx 10 entradas) para trazabilidad
   if(!Array.isArray(v._historialComercial))v._historialComercial=[];
   v._historialComercial.push({de:actual,para:nuevo,quien:yo||u.username||'?',cuando:new Date().toISOString()});
   if(v._historialComercial.length>10)v._historialComercial=v._historialComercial.slice(-10);
   v.comercial=nuevo;
   if(!v._ts)v._ts={};v._ts.comercial=new Date().toISOString();
-  document.getElementById('vf-comercial').value=nuevo;
-  const lbl=document.getElementById('vta-form-comercial');
-  if(lbl)lbl.textContent='💼 '+nuevo;
   guardarLS(VTA_KEY,ventas);
   if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);
   // Si la venta tiene pedido en Seguimiento, actualizar también su comercial
@@ -11611,7 +11619,7 @@ if(usrV){
   Array.from(selVf.options).forEach(opt=>{if(opt.value===nombreCom){selVf.value=opt.value;asignado=true;}});
   if(!asignado){const apellido=nombreCom.split(' ').pop().toLowerCase();Array.from(selVf.options).forEach(opt=>{if(!asignado&&opt.value.toLowerCase().includes(apellido)){selVf.value=opt.value;asignado=true;}});}
   if(!asignado){const opt=document.createElement('option');opt.value=nombreCom;opt.textContent=nombreCom;selVf.appendChild(opt);selVf.value=nombreCom;}
-  if(lblCom)lblCom.textContent='💼 '+nombreCom;
+  if(lblCom){lblCom.textContent='💼 '+nombreCom;if(usrV.rol==='admin'||usrV.rol==='comercial'){lblCom.style.cursor='pointer';lblCom.title='Clic para reasignar comercial';}}
 }else{
   selVf.value='';
   if(lblCom)lblCom.textContent='💼 —';
