@@ -445,7 +445,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
           <div class="vta-topbar">
             <span id="vta-form-num" style="font-size:18px;font-weight:700;color:#1a1a1a;padding:8px 16px;background:#fafaf6;border:1px solid #e5e5e0;border-radius:6px;display:inline-flex;align-items:center;letter-spacing:.5px">S07000</span>
             <button id="btn-hist" onclick="toggleVtaHist()" title="Marcar como venta histórica (sin pedido ni inventario)" style="font-size:12px;padding:8px 12px;background:#fff;border:1px solid #ddd;border-radius:6px;color:#888;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">🕓 Histórica</button>
-            <span id="vta-form-comercial" onclick="reasignarComercialVenta()" style="font-size:12px;color:#555;padding:8px 12px;background:#f0f7ff;border:1px solid #d0e2f3;border-radius:6px;display:inline-flex;align-items:center;font-weight:600">💼 —</span>
+            <span id="vta-form-comercial" onclick="reasignarComercialVenta(event)" style="font-size:12px;color:#555;padding:8px 12px;background:#f0f7ff;border:1px solid #d0e2f3;border-radius:6px;display:inline-flex;align-items:center;font-weight:600">💼 —</span>
             <button class="btn-confirm" onclick="confirmarComoVenta()">✓ Confirmar como Venta</button>
             <button class="btn-outline" onclick="previsualizarCotizacion()">📄 Visualizar PDF</button>
             <button class="btn-outline red" onclick="cerrarVentaForm()">Cancelar</button>
@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.07.02';
+const APP_VERSION='2026.08.07.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -11482,15 +11482,13 @@ function regresarVentaACotizacion(i){
 }
 
 const COMERCIALES_LISTA=['Adrian Solorzano','Ing. Miguel Morga','Ing. Gil Osuna','Isaac Romero','Jesus Pelayo','Lic. Daniel Osuna R.','Ninguno'];
-function reasignarComercialVenta(){
+function reasignarComercialVenta(ev){
   const u=getCurrentUser();
   if(!u)return;
   const esNueva=(editVtaIdx<0||!ventas[editVtaIdx]);
   const v=esNueva?null:ventas[editVtaIdx];
   const _norm=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());
-  // El "actual" viene de la venta guardada o del select del formulario (cotización nueva).
   const actual=esNueva?(document.getElementById('vf-comercial').value||'—'):(v.comercial||'—');
-  const numMostrar=esNueva?(document.getElementById('vta-form-num').textContent||'nueva'):(v.num||'');
   const esAdmin=u.rol==='admin';
   const esComercial=u.rol==='comercial';
   const yo=_norm(u.nombreComercial||u.nombre||'');
@@ -11500,12 +11498,22 @@ function reasignarComercialVenta(){
     if(!esComercial){showToast('Solo comerciales o admin pueden reasignar','#BA7517');return;}
     if(!huerfana&&dueno!==yo){showToast('Solo '+dueno+' o el admin pueden reasignar esta cotización','#BA7517');return;}
   }
-  const opciones=COMERCIALES_LISTA.map((c,i)=>(i+1)+') '+c).join('\n');
-  const resp=prompt('Reasignar comercial de '+numMostrar+'\nActual: '+actual+'\n\nEscribe el número:\n'+opciones);
-  if(resp===null)return;
-  const n=parseInt(resp.trim(),10);
-  if(isNaN(n)||n<1||n>COMERCIALES_LISTA.length){showToast('Opción no válida','#c62828');return;}
-  const nuevo=COMERCIALES_LISTA[n-1];
+  // Popup con dropdown (estilo consistente con inlineComercial de Seguimiento).
+  const anchor=(ev&&ev.currentTarget)||document.getElementById('vta-form-comercial');
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  const opts=COMERCIALES_LISTA.map(c=>`<option value="${c}" ${_norm(c)===dueno?'selected':''}>${c}</option>`).join('');
+  openPop(anchor,`<div class="pop-date" style="padding:10px;min-width:260px"><label style="display:block;font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:6px">💼 Comercial</label><select id="pop-com-vta" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;background:#fff;cursor:pointer">${opts}</select><div class="pop-footer" style="margin-top:8px;padding:0;display:flex;justify-content:flex-end;gap:6px"><button class="pop-save" onclick="closePop()" style="background:#fff;color:#888;border:1px solid #ddd">Cancelar</button><button class="pop-save" onclick="_aplicarReasignComercialVta(document.getElementById('pop-com-vta').value)">Guardar</button></div></div>`);
+  setTimeout(()=>{const s=document.getElementById('pop-com-vta');if(s){s.focus();s.onkeyup=function(k){if(k.key==='Enter')_aplicarReasignComercialVta(s.value);};}},50);
+}
+function _aplicarReasignComercialVta(nuevo){
+  if(typeof closePop==='function')closePop();
+  const u=getCurrentUser();if(!u||!nuevo)return;
+  const _norm=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());
+  const esNueva=(editVtaIdx<0||!ventas[editVtaIdx]);
+  const v=esNueva?null:ventas[editVtaIdx];
+  const actual=esNueva?(document.getElementById('vf-comercial').value||'—'):(v.comercial||'—');
+  const dueno=_norm(actual);
+  const yo=_norm(u.nombreComercial||u.nombre||'');
   if(_norm(nuevo)===dueno){showToast('Ya es '+nuevo,'#888');return;}
   // Actualizar UI (select + label) — siempre, guardada o no.
   const _sel=document.getElementById('vf-comercial');
@@ -11525,12 +11533,10 @@ function reasignarComercialVenta(){
   if(!v._ts)v._ts={};v._ts.comercial=new Date().toISOString();
   guardarLS(VTA_KEY,ventas);
   if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);
-  // Si la venta tiene pedido en Seguimiento, actualizar también su comercial
   const ped=orders.find(o=>o&&o.num===v.num);
   if(ped){ped.comercial=nuevo;if(!ped._ts)ped._ts={};ped._ts.comercial=new Date().toISOString();saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(ped);}
   const fac=facturas.find(f=>f&&f.pedido===v.num);
   if(fac&&fac.ejecutivo!==nuevo){fac.ejecutivo=nuevo;if(!fac._ts)fac._ts={};fac._ts.ejecutivo=new Date().toISOString();guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(fac);if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();if(typeof renderFacturas==='function')renderFacturas();}
-  // Notificar al nuevo ejecutivo (a menos que sea el mismo que la reasignó, o "Ninguno")
   try{
     if(typeof crearNotificacion==='function'&&nuevo&&nuevo!=='Ninguno'&&_norm(nuevo)!==yo){
       crearNotificacion('comercial:'+_canonNotif(nuevo),'💼 Te pasaron la cotización '+(v.num||''),(v.cliente||'')+' · de '+(actual||'—'),v.num||'');
