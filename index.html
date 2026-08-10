@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.07.03';
+const APP_VERSION='2026.08.10.01';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4162,7 +4162,10 @@ function _instBoardPedidos(){
   var byFolio={};INST.rows.forEach(function(r){if(r.folio)byFolio[r.folio]=r;});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
   var enP=[],pend=[];
-  ords.forEach(function(o){if(!o||!o.num)return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  // Misma regla que Seguimiento (_pedidosVisibles): un pedido solo cuenta como
+  // instalable si su venta ya está confirmada como 'Venta'. Si sigue como
+  // Cotización/Presupuesto o el pedido está archivado, no aparece en el tablero.
+  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
   var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
   var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
   if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Usa <b>+ Registrar obra</b> o registra desde Seguimiento de pedidos.</div>';
