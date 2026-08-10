@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.07.03';
+const APP_VERSION='2026.08.10.02';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -4162,7 +4162,10 @@ function _instBoardPedidos(){
   var byFolio={};INST.rows.forEach(function(r){if(r.folio)byFolio[r.folio]=r;});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
   var enP=[],pend=[];
-  ords.forEach(function(o){if(!o||!o.num)return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  // Misma regla que Seguimiento (_pedidosVisibles): un pedido solo cuenta como
+  // instalable si su venta ya está confirmada como 'Venta'. Si sigue como
+  // Cotización/Presupuesto o el pedido está archivado, no aparece en el tablero.
+  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
   var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
   var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
   if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Usa <b>+ Registrar obra</b> o registra desde Seguimiento de pedidos.</div>';
@@ -5629,6 +5632,95 @@ async function descargarXmlFactura(i){
 function adjuntarCampoFact(i,campo){
   if((campo==='factura'||campo==='complemento')&&!puedeEditarFactura(campo==='factura'?facturas[i]:null)){showToast('🔒 Solo Adrián Solórzano puede subir la factura o el complemento (Daniel: solo facturas históricas 🕓)','#BA7517');return;}
   const labels={rfc:'RFC',factura:'Factura',poNum:'PO',anticipo:'Anticipo',finiquito:'Finiquito',complemento:'Complemento de pago'};const pdfKeys={rfc:'pdfRfc',factura:'pdfFactNum',poNum:'pdfPo',anticipo:'pdfAnticipo',finiquito:'pdfFiniquito',complemento:'pdfComplemento'};const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,image/*';inp.onchange=e=>{const file=e.target.files[0];if(!file)return;if(!validarTamanoArchivo(file,labels[campo]))return;leerArchivoComprimido(file).then(res=>{const _f=facturas[i];facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');}).catch(()=>showToast('Error al procesar archivo','#c62828'));};inp.click();}
+// Reusa la logica de adjuntarCampoFact pero recibe el File directo (drag/drop, paste).
+function _procesarPdfCampoFact(i,campo,file){
+  if(!file)return;
+  if((campo==='factura'||campo==='complemento')&&!puedeEditarFactura(campo==='factura'?facturas[i]:null)){showToast('🔒 Sin permiso para subir este documento','#BA7517');return;}
+  const labels={rfc:'RFC',factura:'Factura',poNum:'PO',anticipo:'Anticipo',finiquito:'Finiquito',complemento:'Complemento de pago'};
+  const pdfKeys={rfc:'pdfRfc',factura:'pdfFactNum',poNum:'pdfPo',anticipo:'pdfAnticipo',finiquito:'pdfFiniquito',complemento:'pdfComplemento'};
+  if(!validarTamanoArchivo(file,labels[campo]))return;
+  leerArchivoComprimido(file).then(res=>{
+    const _f=facturas[i];
+    facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};
+    guardarFacturasLS();
+    if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);
+    renderFacturas();
+    showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');
+  }).catch(()=>showToast('Error al procesar archivo','#c62828'));
+}
+function _procesarXmlFacturaFile(i,file){
+  if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura(facturas[i])){showToast('🔒 Sin permiso para subir la factura','#BA7517');return;}
+  if(typeof validarTamanoArchivo==='function'&&!validarTamanoArchivo(file,'XML'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{facturas[i].xmlCfdi={name:file.name,data:ev.target.result};if(!(facturas[i].factura&&(''+facturas[i].factura).trim())){const _fo=_folioDesdeXml(ev.target.result);if(_fo)facturas[i].factura=_fo;}guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ XML cargado','#3B6D11');};
+  reader.readAsDataURL(file);
+}
+function _procesarXmlComplementoFile(i,file){
+  if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){showToast('🔒 Sin permiso para subir el complemento','#BA7517');return;}
+  if(typeof validarTamanoArchivo==='function'&&!validarTamanoArchivo(file,'XML Complemento'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{facturas[i].xmlComplemento={name:file.name,data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ XML del complemento cargado','#3B6D11');};
+  reader.readAsDataURL(file);
+}
+// Despacha un archivo suelto/pegado al slot correcto segun campo y extension.
+function _handleDropFactura(ri,campo,file){
+  if(!file)return;
+  const isXml=/\.xml$/i.test(file.name||'')||/xml/i.test(file.type||'');
+  const isPdfImg=/\.pdf$/i.test(file.name||'')||/^application\/pdf$/.test(file.type||'')||/^image\//.test(file.type||'');
+  if(campo==='factura'){
+    if(isXml)return _procesarXmlFacturaFile(ri,file);
+    if(isPdfImg)return _procesarPdfCampoFact(ri,'factura',file);
+    return showToast('Solo PDF, imagen o XML','#BA7517');
+  }
+  if(campo==='complemento'){
+    if(isXml)return _procesarXmlComplementoFile(ri,file);
+    if(isPdfImg)return _procesarPdfCampoFact(ri,'complemento',file);
+    return showToast('Solo PDF, imagen o XML','#BA7517');
+  }
+  if(!isPdfImg)return showToast('Solo PDF o imagen','#BA7517');
+  return _procesarPdfCampoFact(ri,campo,file);
+}
+// Enciende drag/drop y paste (con click-para-enfocar) en el modal de detalle de factura.
+function _armarDropZonesFactura(det,ri){
+  if(!det)return;
+  const rows=det.querySelectorAll('[data-drop-campo]');
+  rows.forEach(row=>{
+    row.style.cursor='copy';
+    row.title=(row.title?row.title+' · ':'')+'Arrastra un archivo aqui o pega con Ctrl+V (click primero)';
+    row.addEventListener('dragenter',ev=>{ev.preventDefault();ev.stopPropagation();row.classList.add('drop-hover');row.style.background='#fff4ec';row.style.outline='2px dashed #D85A30';row.style.outlineOffset='-2px';});
+    row.addEventListener('dragover',ev=>{ev.preventDefault();ev.stopPropagation();ev.dataTransfer.dropEffect='copy';});
+    row.addEventListener('dragleave',ev=>{if(row.contains(ev.relatedTarget))return;row.classList.remove('drop-hover');row.style.background='';row.style.outline='';});
+    row.addEventListener('drop',ev=>{
+      ev.preventDefault();ev.stopPropagation();
+      row.classList.remove('drop-hover');row.style.background='';row.style.outline='';
+      const campo=row.getAttribute('data-drop-campo');
+      const files=ev.dataTransfer&&ev.dataTransfer.files;
+      if(!files||!files.length)return;
+      Array.from(files).forEach(f=>_handleDropFactura(ri,campo,f));
+    });
+    row.addEventListener('click',ev=>{
+      // No robar clicks a botones/selects existentes
+      const tag=(ev.target&&ev.target.tagName||'').toUpperCase();
+      if(['BUTTON','SELECT','OPTION','INPUT','A','SVG','PATH'].includes(tag)||ev.target.closest('button,select,a,input'))return;
+      det.querySelectorAll('.drop-focused').forEach(x=>{x.classList.remove('drop-focused');x.style.boxShadow='';});
+      row.classList.add('drop-focused');
+      row.style.boxShadow='inset 0 0 0 2px #D85A30';
+    });
+  });
+  // Paste: si hay renglon enfocado, pega el archivo del portapapeles ahi.
+  if(det._pasteHandler)det.removeEventListener('paste',det._pasteHandler);
+  det._pasteHandler=ev=>{
+    const files=ev.clipboardData&&ev.clipboardData.files;
+    if(!files||!files.length)return;
+    const focused=det.querySelector('[data-drop-campo].drop-focused');
+    if(!focused){showToast('Da click al renglon donde quieres pegar','#BA7517');return;}
+    ev.preventDefault();
+    const campo=focused.getAttribute('data-drop-campo');
+    Array.from(files).forEach(f=>_handleDropFactura(ri,campo,f));
+  };
+  det.addEventListener('paste',det._pasteHandler);
+  det.setAttribute('tabindex','-1');
+}
 function adjuntarYLlenarCampo(i,campo){if(campo==='factura'&&!puedeEditarFactura(facturas[i])){showToast('🔒 Solo Adrián Solórzano puede subir o cambiar la factura','#BA7517');return;}const labels={rfc:'RFC',factura:'Factura',poNum:'PO'};const pdfKeys={rfc:'pdfRfc',factura:'pdfFactNum',poNum:'pdfPo'};const val=prompt('Ingresa número de '+labels[campo]+':');if(val===null)return;facturas[i][campo]=val.trim();guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,image/*';inp.onchange=e=>{const file=e.target.files[0];if(!file){renderFacturas();return;}if(!validarTamanoArchivo(file,labels[campo])){renderFacturas();return;}const reader=new FileReader();reader.onload=ev=>{const _f=facturas[i];facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ '+labels[campo]+' + PDF guardados','#3B6D11');};reader.readAsDataURL(file);};inp.click();}
 function eliminarAdjuntoFact(i,key){if(!confirm('¿Eliminar PDF adjunto?'))return;facturas[i][key]=null;guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ PDF eliminado','#c62828');}
 function toggleNoAplicaFact(i,campo){
@@ -6384,19 +6476,20 @@ function renderFacturaDetalle(){
   const _btnNA=(campo)=>'<button onclick="toggleNoAplicaFact('+ri+',\''+campo+'\')" style="font-size:11px;color:#888;background:#f7f9fb;border:1px solid #d5dde6;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">N/A</button>';
   const _btnRev=(campo)=>'<button onclick="toggleNoAplicaFact('+ri+',\''+campo+'\')" style="font-size:11px;color:#888;background:#fff;border:1px solid #ddd;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">↩</button>';
   // fila alineada de 1 documento: cols estado(74) botón(92) na(46)
-  const _row1=(labelHtml,estadoHtml,btnHtml,naHtml)=>
-    '<div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:7px 0;border-bottom:1px solid #ececdf"><span style="font-size:14px;color:#222;font-weight:500">'+labelHtml+'</span><span style="display:inline-grid;grid-template-columns:74px 92px 46px;gap:6px;align-items:center;justify-items:stretch">'+estadoHtml+(btnHtml||'<span></span>')+(naHtml||'<span></span>')+'</span></div>';
+  // dropCampo (opcional): marca el renglon como zona de arrastrar/pegar para ese campo.
+  const _row1=(labelHtml,estadoHtml,btnHtml,naHtml,dropCampo)=>
+    '<div'+(dropCampo?' data-drop-campo="'+dropCampo+'"':'')+' style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:7px 0;border-bottom:1px solid #ececdf"><span style="font-size:14px;color:#222;font-weight:500">'+labelHtml+'</span><span style="display:inline-grid;grid-template-columns:74px 92px 46px;gap:6px;align-items:center;justify-items:stretch">'+estadoHtml+(btnHtml||'<span></span>')+(naHtml||'<span></span>')+'</span></div>';
   // fila alineada de 2 archivos (PDF+XML): cols estado(74) pdf(44) xml(44) na(46)
-  const _row2=(labelHtml,estadoHtml,pdfHtml,xmlHtml,naHtml)=>
-    '<div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:7px 0;border-bottom:1px solid #ececdf"><span style="font-size:14px;color:#222;font-weight:500">'+labelHtml+'</span><span style="display:inline-grid;grid-template-columns:74px 44px 44px 46px;gap:6px;align-items:center;justify-items:stretch">'+estadoHtml+(pdfHtml||'<span></span>')+(xmlHtml||'<span></span>')+(naHtml||'<span></span>')+'</span></div>';
+  const _row2=(labelHtml,estadoHtml,pdfHtml,xmlHtml,naHtml,dropCampo)=>
+    '<div'+(dropCampo?' data-drop-campo="'+dropCampo+'"':'')+' style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:7px 0;border-bottom:1px solid #ececdf"><span style="font-size:14px;color:#222;font-weight:500">'+labelHtml+'</span><span style="display:inline-grid;grid-template-columns:74px 44px 44px 46px;gap:6px;align-items:center;justify-items:stretch">'+estadoHtml+(pdfHtml||'<span></span>')+(xmlHtml||'<span></span>')+(naHtml||'<span></span>')+'</span></div>';
 
   // Documento simple alineado (PO, CSF)
   const docRowA=(label,icon,campo,pdfKey,puedeNA)=>{
     const pdf=_hayAdj(f[pdfKey]);
     const lab=icon+' '+label;
-    if(puedeNA&&f[campo+'_na'])return _row1(lab,_est('na'),_btnRev(campo),'<span></span>');
-    if(pdf)return _row1(lab,_est('ok'),_btnVer(pdfKey),_btnAdj(campo,'↻'));
-    return _row1(lab,_est('falta'),_btnAdj(campo),puedeNA?_btnNA(campo):'<span></span>');
+    if(puedeNA&&f[campo+'_na'])return _row1(lab,_est('na'),_btnRev(campo),'<span></span>',campo);
+    if(pdf)return _row1(lab,_est('ok'),_btnVer(pdfKey),_btnAdj(campo,'↻'),campo);
+    return _row1(lab,_est('falta'),_btnAdj(campo),puedeNA?_btnNA(campo):'<span></span>',campo);
   };
   // Presupuesto alineado
   const presRowA=(()=>{
@@ -6413,7 +6506,7 @@ function renderFacturaDetalle(){
     // asi coincide con docCount, que tambien usa _hayAdj. verAdjuntoFact lo baja al dar clic.
     const tienePdf=_hayAdj(f2.pdfFactNum);
     const tieneXml=_hayAdj(f2.xmlCfdi);
-    if(f2.factura_na)return _row2(lab,_est('na'),_btnRev('factura'),'<span></span>','<span></span>');
+    if(f2.factura_na)return _row2(lab,_est('na'),_btnRev('factura'),'<span></span>','<span></span>','factura');
     const estado=tienePdf?_est('ok'):_est('falta');
     if(!puedeEditarFactura(f2)){
       const pdfH=tienePdf?_btnVer('pdfFactNum','PDF'):'<span style="font-size:10px;color:#999;text-align:center">🔒</span>';
@@ -6425,14 +6518,14 @@ function renderFacturaDetalle(){
       ?'<button onclick="descargarXmlFactura('+ri2+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">XML</button>'
       :'<button onclick="adjuntarXmlFactura('+ri2+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:4px 0;width:100%;cursor:pointer;font-weight:600">XML</button>';
     const naH=(!tienePdf&&!tieneXml)?_btnNA('factura'):'<span></span>';
-    return _row2(lab,estado,pdfH,xmlH,naH);
+    return _row2(lab,estado,pdfH,xmlH,naH,'factura');
   };
   // Complemento alineado con PDF + XML en la misma fila (solo Adrián sube)
   const complementoRowA=(ri2,f2)=>{
     const lab='🧾 Complemento de pago';
     const tienePdf=_hayAdj(f2.pdfComplemento);
     const tieneXml=_hayAdj(f2.xmlComplemento);
-    if(f2.complemento_na)return _row2(lab,_est('na'),_btnRev('complemento'),'<span></span>','<span></span>');
+    if(f2.complemento_na)return _row2(lab,_est('na'),_btnRev('complemento'),'<span></span>','<span></span>','complemento');
     const estado=tienePdf?_est('ok'):_est('falta');
     if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){
       const pdfH=tienePdf?_btnVer('pdfComplemento','PDF'):'<span style="font-size:10px;color:#999;text-align:center">🔒</span>';
@@ -6444,16 +6537,16 @@ function renderFacturaDetalle(){
       ?'<button onclick="descargarXmlComplemento('+ri2+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">XML</button>'
       :'<button onclick="adjuntarXmlComplemento('+ri2+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:4px 0;width:100%;cursor:pointer;font-weight:600">XML</button>';
     const naH=(!tienePdf&&!tieneXml)?_btnNA('complemento'):'<span></span>';
-    return _row2(lab,estado,pdfH,xmlH,naH);
+    return _row2(lab,estado,pdfH,xmlH,naH,'complemento');
   };
   // Pago fijo alineado (Anticipo / Finiquito): monto pill + comprobante
   const pagoRowA=(label,icon,campo,pdfKey,montoColor)=>{
     const monto=f[campo]||0;const pdf=_hayAdj(f[pdfKey]);
     const pill='<span onclick="editarPagoFact('+ri+',\''+campo+'\')" style="background:'+(monto>0?'#E6F1FB':'#f4f3ed')+';color:'+(monto>0?montoColor:'#888')+';font-size:12px;padding:1px 8px;border-radius:10px;font-weight:700;margin-left:4px;cursor:pointer" title="Editar monto">'+money(monto)+' ✎</span>';
     const lab=icon+' '+label+pill;
-    if(f[campo+'_na'])return _row1(lab,_est('na'),_btnRev(campo),'<span></span>');
-    if(pdf)return _row1(lab,_est('ok'),_btnVer(pdfKey),_btnAdj(campo,'↻'));
-    return _row1(lab,_est('falta'),_btnAdj(campo),_btnNA(campo));
+    if(f[campo+'_na'])return _row1(lab,_est('na'),_btnRev(campo),'<span></span>',campo);
+    if(pdf)return _row1(lab,_est('ok'),_btnVer(pdfKey),_btnAdj(campo,'↻'),campo);
+    return _row1(lab,_est('falta'),_btnAdj(campo),_btnNA(campo),campo);
   };
   // Pagos extra dinámicos (entre Anticipo y Finiquito)
   const pagosExtraA=(ri2,f2)=>{
@@ -6502,7 +6595,9 @@ function renderFacturaDetalle(){
     pagoRowA('Finiquito','💰','finiquito','pdfFiniquito','#D85A30')+
     '<div style="padding:6px 0 2px"><button onclick="agregarPagoFact('+ri+')" style="width:100%;padding:8px;background:#fff;border:1px dashed #c9a48f;color:#B5502A;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ agregar pago</button></div>'+
     noFactBtn+
-    '<div style="display:flex;gap:8px;margin-top:8px">'+pagadoBtn+factBtn+'<button onclick="enviarCotizacionPorCorreo({numPedido:\''+f.pedido.replace(/'/g,"\\'")+'\',cliente:\''+(f.cliente||'').replace(/'/g,"\\'")+'\',monto:'+(f.monto||0)+',fecha:\''+(f.fecha||'')+'\',tipoDoc:\'Factura\'})" style="flex:1;padding:9px;background:#fff;border:1px solid #185FA5;color:#185FA5;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📧 Enviar</button></div>';
+    '<div style="display:flex;gap:8px;margin-top:8px">'+pagadoBtn+factBtn+'<button onclick="enviarCotizacionPorCorreo({numPedido:\''+f.pedido.replace(/'/g,"\\'")+'\',cliente:\''+(f.cliente||'').replace(/'/g,"\\'")+'\',monto:'+(f.monto||0)+',fecha:\''+(f.fecha||'')+'\',tipoDoc:\'Factura\'})" style="flex:1;padding:9px;background:#fff;border:1px solid #185FA5;color:#185FA5;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📧 Enviar</button></div>'+
+    '<div style="margin-top:6px;font-size:11px;color:#888;text-align:center">💡 Arrastra un PDF/XML/imagen sobre cualquier renglon, o da click al renglon y pega con Ctrl+V</div>';
+  if(typeof _armarDropZonesFactura==='function')_armarDropZonesFactura(det,ri);
 }
 
 // ══ INVENTARIO ══
