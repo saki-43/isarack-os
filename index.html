@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.10.02';
+const APP_VERSION='2026.08.10.03';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -14197,8 +14197,17 @@ function comDescPromedio(v){
   return parseFloat((descontado/bruto*100).toFixed(1));
 }
 function comBaseSinIVA(v){
+  // Solo saltamos notas/secciones SIN importe real. Si un renglon tiene cantidad y
+  // precio (aunque haya quedado con l.tipo='nota'/'seccion' por importacion o edicion),
+  // suma a la base de comision — el mismo importe que ya sale en el presupuesto.
+  // Bug historico S07164 (ago 2026): renglon de $1,651 no comisionaba por l.tipo='nota'.
   let sub=0;
-  (v.lineas||[]).forEach(l=>{if(l.tipo)return;sub+=(parseFloat(l.cantidad)||0)*(parseFloat(l.precio)||0)*(1-(parseFloat(l.descuento)||0)/100);});
+  (v.lineas||[]).forEach(l=>{
+    const cant=parseFloat(l.cantidad)||0;
+    const prec=parseFloat(l.precio)||0;
+    if(l.tipo && !(cant>0 && prec>0))return;
+    sub+=cant*prec*(1-(parseFloat(l.descuento)||0)/100);
+  });
   if(sub>0)return sub;
   return (Number(v.total)||0)/1.08; // fallback ventas sin líneas (IVA fronterizo 8%)
 }
