@@ -295,6 +295,48 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 #alm-wrap .alm-chip{font-size:12px;padding:7px 13px;background:var(--alm-chip-bg);border:1px solid var(--alm-chip-bord);color:var(--alm-chip-txt);border-radius:20px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s}
 #alm-wrap .alm-chip-btn{border:none;color:#fff;font-weight:700;cursor:pointer}
 #alm-wrap .alm-badge{font-size:12px;padding:5px 13px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+/* ═══════════════════ CAPA MOBILE (Fase 1, ago 2026) ═══════════════════
+   Estrategia: NO tocamos el desktop, solo montamos overrides bajo 768px.
+   - Botones admin (Sync PWA, Usuarios, Exportar, Importar) se ocultan y
+     se acceden desde un boton "⋯" que abre un mini menu.
+   - Nav-tabs con scroll horizontal claro y fade en el borde derecho.
+   - KPIs de tarjetas gigantes -> chips horizontales scrolleables.
+   - Seguimiento: se oculta la columna FACTURA (se accede desde el detalle). */
+#btn-mobile-more{display:none}
+#mobile-more-menu{position:fixed;top:56px;right:10px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;z-index:5000;min-width:210px;display:none}
+#mobile-more-menu.open{display:block}
+#mobile-more-menu button,#mobile-more-menu label{display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;border-radius:8px;font-size:14px;font-weight:600;color:#333;cursor:pointer;font-family:inherit;box-sizing:border-box}
+#mobile-more-menu button:hover,#mobile-more-menu label:hover{background:#fdf2ee;color:#D85A30}
+@media (max-width:768px){
+  .header{padding:6px 10px!important;flex-wrap:wrap;gap:6px}
+  .header>div:first-child img{height:38px!important}
+  #date-str{font-size:9.5px!important}
+  /* Botones desktop escondidos en movil */
+  #btn-sync-pwa,#btn-admin-users,#btn-exportar,#btn-importar{display:none!important}
+  #btn-mobile-more{display:inline-flex!important;align-items:center;justify-content:center;padding:6px 12px;background:#fff;color:#444;border:1px solid #ddd;border-radius:8px;font-size:18px;line-height:1;cursor:pointer;font-weight:700;min-height:34px}
+  #user-badge{padding:3px 8px!important;gap:4px!important}
+  #user-badge #user-icon{display:none!important}
+  #user-badge div>div:nth-child(2){display:none!important} /* rol */
+  #user-name{font-size:11px!important}
+  #cloud-status-badge{font-size:9px!important;padding:3px 6px!important}
+  #btn-buscador-global,#btn-dark-mode,#btn-resumen-dia,#notif-bell{padding:5px 8px!important;font-size:13px!important;min-height:32px}
+  /* Nav tabs con scroll horizontal claro */
+  .nav-tabs{padding:0 8px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;scroll-snap-type:x proximity}
+  .nav-tabs::-webkit-scrollbar{display:none}
+  .nav-tab{padding:9px 12px!important;font-size:10px!important;scroll-snap-align:start;flex:0 0 auto;letter-spacing:.02em!important}
+  /* KPIs -> chips horizontales scrolleables */
+  .stats{display:flex!important;overflow-x:auto;overflow-y:hidden;gap:8px!important;padding:10px 12px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;grid-template-columns:unset!important}
+  .stats::-webkit-scrollbar{display:none}
+  .stat{flex:0 0 auto;min-width:98px;padding:7px 12px!important}
+  .stat-val{font-size:18px!important;line-height:1.1!important}
+  .stat-label{font-size:9.5px!important}
+  /* Seguimiento: quitar drag handle y columna FACTURA */
+  #tab-pedidos thead th:nth-child(1),
+  #tab-pedidos thead th:nth-child(3),
+  #tab-pedidos tbody td:nth-child(1),
+  #tab-pedidos tbody td:nth-child(3){display:none!important}
+  .toolbar{padding:8px 10px!important;gap:6px!important;flex-wrap:wrap}
+}
 </style>
 <div class="app">
   <div class="header">
@@ -311,7 +353,14 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
       <button onclick="abrirAdminUsuarios()" id="btn-admin-users" style="display:none;padding:8px 14px;background:#7c5cbf;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">👥 Usuarios</button>
       <button onclick="exportarDatos()" id="btn-exportar" class="btn-primary btn-green" style="display:none;font-size:13px;padding:8px 14px">⬇ Exportar</button>
       <label id="btn-importar" style="display:none;padding:8px 14px;background:#fff;color:#D85A30;border:1.5px solid #D85A30;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬆ Importar<input type="file" accept=".json" style="display:none" onchange="importarDatos(this)"></label>
+      <button id="btn-mobile-more" onclick="_toggleMobileMore(event)" title="Más opciones" aria-label="Más opciones">⋯</button>
     </div>
+  </div>
+  <div id="mobile-more-menu" onclick="event.stopPropagation()">
+    <button id="mm-sync" onclick="_hideMobileMore();sincronizarPedidosDesdePWA()">🔄 Sync PWA</button>
+    <button id="mm-users" onclick="_hideMobileMore();abrirAdminUsuarios()" style="display:none">👥 Usuarios</button>
+    <button id="mm-export" onclick="_hideMobileMore();exportarDatos()" style="display:none">⬇ Exportar</button>
+    <button id="mm-import" onclick="_hideMobileMore();document.querySelector('#btn-importar input').click()" style="display:none">⬆ Importar</button>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="cambiarTab('dashboard',this)">📊 Dashboard</button>
@@ -1176,7 +1225,29 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.10.03';
+const APP_VERSION='2026.08.11.01';
+// ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
+// Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
+// admin/ceo vean todo y comerciales solo Sync PWA.
+function _toggleMobileMore(e){
+  if(e)e.stopPropagation();
+  const m=document.getElementById('mobile-more-menu');
+  if(!m)return;
+  const isOpen=m.classList.contains('open');
+  if(isOpen){m.classList.remove('open');return;}
+  // Espejo de visibilidad admin
+  const _vis=id=>{const el=document.getElementById(id);return el&&el.style.display&&el.style.display!=='none';};
+  const mmU=document.getElementById('mm-users');if(mmU)mmU.style.display=_vis('btn-admin-users')?'block':'none';
+  const mmE=document.getElementById('mm-export');if(mmE)mmE.style.display=_vis('btn-exportar')?'block':'none';
+  const mmI=document.getElementById('mm-import');if(mmI)mmI.style.display=_vis('btn-importar')?'block':'none';
+  m.classList.add('open');
+}
+function _hideMobileMore(){const m=document.getElementById('mobile-more-menu');if(m)m.classList.remove('open');}
+document.addEventListener('click',function(e){
+  const m=document.getElementById('mobile-more-menu');
+  const b=document.getElementById('btn-mobile-more');
+  if(m&&m.classList.contains('open')&&!m.contains(e.target)&&e.target!==b)m.classList.remove('open');
+});
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -6201,13 +6272,21 @@ const _ALIAS_EJEC={
   'romero vinagre isaac':'Isaac Romero',
   'isac romero':'Isaac Romero',
   'adrian solorzano':'Adrian Solorzano',
+  'adrian':'Adrian Solorzano',
   'ing. miguel morga':'Ing. Miguel Morga',
   'miguel morga':'Ing. Miguel Morga',
+  'miguel':'Ing. Miguel Morga',
   'ing. gil osuna':'Ing. Gil Osuna',
   'gil osuna':'Ing. Gil Osuna',
+  'gil':'Ing. Gil Osuna',
   'jesus pelayo':'Jesus Pelayo',
+  'jesus':'Jesus Pelayo',
   'lic. daniel osuna r.':'Lic. Daniel Osuna R.',
-  'daniel osuna':'Lic. Daniel Osuna R.'
+  'lic. daniel osuna':'Lic. Daniel Osuna R.',
+  'lic daniel osuna r.':'Lic. Daniel Osuna R.',
+  'lic daniel osuna':'Lic. Daniel Osuna R.',
+  'daniel osuna':'Lic. Daniel Osuna R.',
+  'daniel':'Lic. Daniel Osuna R.'
 };
 function _normalizaEjecutivo(nombre){
   if(!nombre)return nombre;
@@ -9616,13 +9695,50 @@ document.addEventListener('DOMContentLoaded',_initDropZonas);
 if(document.readyState!=='loading')_initDropZonas();
 
 function _fmtFotoFecha(iso){try{if(!iso)return '';var d=new Date(iso);if(isNaN(d))return '';var D=String(d.getDate()).padStart(2,'0'),M=String(d.getMonth()+1).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),m=String(d.getMinutes()).padStart(2,'0');return D+'/'+M+' '+h+':'+m;}catch(e){return '';}}
+// Cuando la red se suspende (ERR_NETWORK_IO_SUSPENDED) o cambia (ERR_NETWORK_CHANGED),
+// una foto puede fallar en el primer intento pero cargarse perfecto al reintentar.
+// Aqui aguantamos hasta 3 reintentos con backoff (2s, 4s, 8s) antes de mostrar "no cargo".
+// Ademas nos suscribimos al evento 'online' para reintentar todo lo roto cuando vuelva la red.
+function _reintentarImgFoto(img){
+  const MAX=3;
+  const n=parseInt(img.getAttribute('data-retries')||'0',10);
+  if(!img.getAttribute('data-orig-src'))img.setAttribute('data-orig-src',img.src.split('?_r=')[0]);
+  if(n<MAX){
+    img.setAttribute('data-retries',n+1);
+    const delay=[2000,4000,8000][n]||8000;
+    setTimeout(()=>{
+      const base=img.getAttribute('data-orig-src')||img.src;
+      img.src=base+(base.includes('?')?'&':'?')+'_r='+Date.now();
+    },delay);
+    return;
+  }
+  img.style.display='none';
+  const ph=img.parentNode&&img.parentNode.querySelector('.foto-rota');
+  if(ph)ph.style.display='flex';
+  img.setAttribute('data-rota','1');
+}
+// Al recuperar red, reintenta todas las que quedaron rotas (limpia el cartel primero).
+if(typeof window!=='undefined'&&!window._fotoOnlineHooked){
+  window._fotoOnlineHooked=true;
+  window.addEventListener('online',()=>{
+    document.querySelectorAll('img[data-rota="1"]').forEach(img=>{
+      img.removeAttribute('data-retries');
+      img.removeAttribute('data-rota');
+      img.style.display='';
+      const ph=img.parentNode&&img.parentNode.querySelector('.foto-rota');
+      if(ph)ph.style.display='none';
+      const base=img.getAttribute('data-orig-src')||img.src;
+      img.src=base+(base.includes('?')?'&':'?')+'_r='+Date.now();
+    });
+  });
+}
 function renderChipsAvance(){
   const cont=document.getElementById('chips-avance');
   if(!cont)return;
   if(!fotosAvanceOrder||!fotosAvanceOrder.length){cont.innerHTML='';return;}
   cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosAvanceOrder.map((p,i)=>{
     return `<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#fffbeb;border:1px solid #f5e1a8">
-      <img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="abrirGaleriaAvance(${i})" onerror="this.style.display='none';var ph=this.parentNode.querySelector('.foto-rota');if(ph)ph.style.display='flex'"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div>
+      <img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="abrirGaleriaAvance(${i})" onerror="_reintentarImgFoto(this)"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div>
       <button onclick="eliminarAvance(${i})" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1" title="Eliminar">✕</button>
     </div>`;
   }).join('')+'</div>';
@@ -9686,7 +9802,7 @@ function renderChipsTermin(){
   if(!fotosTerminOrder||!fotosTerminOrder.length){cont.innerHTML='';return;}
   cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosTerminOrder.map((p,i)=>{
     return `<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0fcea;border:1px solid #b5e0a0">
-      <img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="abrirGaleriaTermin(${i})" onerror="this.style.display='none';var ph=this.parentNode.querySelector('.foto-rota');if(ph)ph.style.display='flex'"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div>
+      <img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="abrirGaleriaTermin(${i})" onerror="_reintentarImgFoto(this)"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div>
       <button onclick="eliminarTermin(${i})" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1" title="Eliminar">✕</button>
     </div>`;
   }).join('')+'</div>';
@@ -9780,13 +9896,13 @@ function renderChipsSurtido(o){
     return;
   }
   vacia.style.display='none';
-  cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosSurtidoOrder.map((p,i)=>`<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#FEF9EF;border:1px solid #EFC77B"><img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${p.url}','_blank')" onerror="this.style.display='none';var ph=this.parentNode.querySelector('.foto-rota');if(ph)ph.style.display='flex'"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div></div>`).join('')+'</div>';
+  cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosSurtidoOrder.map((p,i)=>`<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#FEF9EF;border:1px solid #EFC77B"><img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${p.url}','_blank')" onerror="_reintentarImgFoto(this)"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div></div>`).join('')+'</div>';
 }
 
 function renderChipsFotoEntrega(){
   const cont=document.getElementById('chips-fotoentrega');if(!cont)return;
   if(!fotosEntregaOrder||!fotosEntregaOrder.length){cont.innerHTML='';return;}
-  cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosEntregaOrder.map((p,i)=>`<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#fff3ec;border:1px solid #e0a888"><img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${p.url}','_blank')" onerror="this.style.display='none';var ph=this.parentNode.querySelector('.foto-rota');if(ph)ph.style.display='flex'"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div><button onclick="eliminarFotoEntrega(${i})" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1">✕</button></div>`).join('')+'</div>';
+  cont.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+fotosEntregaOrder.map((p,i)=>`<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#fff3ec;border:1px solid #e0a888"><img src="${p.url}" alt="" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${p.url}','_blank')" onerror="_reintentarImgFoto(this)"><div class="foto-rota" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;background:#fdecea;color:#c62828;font-size:10px;text-align:center;line-height:1.3">⚠<br>no cargó</div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 3px;text-align:center;pointer-events:none">${_fmtFotoFecha(p.fecha)}</div><button onclick="eliminarFotoEntrega(${i})" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1">✕</button></div>`).join('')+'</div>';
 }
 async function eliminarFotoEntrega(i){
   if(!fotosEntregaOrder[i])return;
@@ -10671,7 +10787,10 @@ setInterval(async()=>{
 // ────────────────────────────────────────────────
 // NOTIFICACIONES INTERNAS (tabla 'notificaciones')
 // ────────────────────────────────────────────────
-function _canonNotif(n){try{return (typeof nombreComercialCanonico==='function'&&nombreComercialCanonico(n))||n;}catch(e){return n;}}
+// Emisor y receptor de notificaciones pasan por la misma normalizacion. Antes esta
+// funcion llamaba a `nombreComercialCanonico` que nunca existio, asi que era no-op y
+// variantes como "Daniel Osuna" vs "Lic. Daniel Osuna R." no matcheaban -> notif perdida.
+function _canonNotif(n){try{return (typeof _normalizaEjecutivo==='function'&&_normalizaEjecutivo(n))||n;}catch(e){return n;}}
 function crearNotificacion(destinatario,titulo,mensaje,ref){
   try{
     if(!supabaseClient||cloudStatus!=='online'||!destinatario)return;
