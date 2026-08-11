@@ -343,6 +343,78 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   .toolbar>button,.toolbar>.fbtn{font-size:11px!important;padding:5px 8px!important;white-space:nowrap;flex:0 0 auto}
   /* Utilidad general para texto secundario que solo aplica en desktop */
   .mob-hide{display:none!important}
+
+  /* ═══════ MODAL "MODIFICAR PEDIDO" MOBILE (ago 2026) ═══════
+     Reset del modal grande a full-screen, columna unica, header/footer sticky,
+     cada "caja" interior pintada como card limpia sobre fondo tonal. */
+  #modal.modal-bg{padding:0!important;align-items:stretch!important;overflow:hidden!important}
+  #modal .modal{
+    width:100vw!important;max-width:none!important;
+    height:100vh!important;height:100dvh!important;max-height:none!important;
+    margin:0!important;border-radius:0!important;
+    display:flex!important;flex-direction:column!important;
+    padding:0!important;box-shadow:none!important;
+  }
+  /* Header sticky */
+  #modal .modal>div:first-child{
+    padding:14px 18px!important;
+    border-radius:0!important;position:sticky;top:0;z-index:20;
+    background:#fff!important;
+  }
+  #modal .modal>div:first-child h2{font-size:17px!important;font-weight:700!important;color:#1a1a1a}
+  #modal .modal>div:first-child button{
+    width:32px!important;height:32px!important;border-radius:50%!important;
+    background:#f0ebe5!important;color:#4A4540!important;font-size:20px!important;
+    display:flex!important;align-items:center;justify-content:center;padding:0!important;
+  }
+  /* Body: grid 2 columnas -> 1 columna, fondo tonal, scroll con espacio para footer */
+  #modal .modal>div:nth-child(2){
+    grid-template-columns:1fr!important;gap:10px!important;
+    padding:10px 10px 100px!important;
+    max-height:none!important;
+    background:#F5F2ED!important;
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+  /* Columnas internas (las dos flex-columns dentro del grid) sin padding extra */
+  #modal .modal>div:nth-child(2)>div{gap:10px!important}
+  /* Todas las cajas interiores pintadas como cards claras */
+  #modal .modal>div:nth-child(2) div[style*="background:#fafaf7"]{
+    background:#fff!important;border:1px solid #E9E3DA!important;border-radius:14px!important;padding:12px 14px!important;
+  }
+  /* Titulos de seccion (SEGUIMIENTO / ARCHIVOS DE OBRA) mas discretos */
+  #modal .modal>div:nth-child(2) div[style*="font-size:10px;color:#888;font-weight:700;letter-spacing:1px"]{
+    color:#8F8880!important;letter-spacing:.14em!important;font-size:10px!important;margin-bottom:10px!important;
+  }
+  /* Labels de campo mas legibles */
+  #modal label[style*="font-size:10px;color:#666"]{font-size:11px!important;color:#6B6560!important;letter-spacing:.06em!important}
+  /* Inputs y selects mas grandes para el dedo */
+  #modal input[type="text"],#modal input[type="date"],#modal input[type="tel"],
+  #modal input:not([type]),#modal select,#modal textarea{
+    padding:10px 12px!important;font-size:14px!important;border-radius:8px!important;min-height:42px!important;
+  }
+  /* Botones seg-btn como chips redondos */
+  #modal .seg-btn{
+    border-radius:999px!important;padding:8px 14px!important;font-size:13px!important;min-height:36px!important;
+  }
+  #modal .seg-group{gap:6px!important;flex-wrap:wrap!important}
+  /* Zonas de upload (PLANOS / AVANCE / TERMINACION) mas grandes y legibles */
+  #modal .pdf-zone{padding:16px 10px!important;min-height:72px!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center}
+  #modal .pdf-zone>div:first-child{font-size:13px!important}
+  #modal .pdf-zone>div:last-child{font-size:11px!important}
+  /* Firma del cliente destacada mas amplia */
+  #modal #firma-cliente-box{padding:16px!important}
+  /* Footer sticky con Cancelar / Guardar */
+  #modal .modal>div:last-child{
+    padding:12px 14px!important;padding-bottom:calc(12px + env(safe-area-inset-bottom))!important;
+    border-radius:0!important;
+    position:sticky;bottom:0;z-index:20;
+    background:rgba(255,255,255,.96)!important;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 -4px 12px rgba(0,0,0,.05);
+  }
+  #modal .btn-cancel,#modal .btn-guardar{
+    padding:14px!important;font-size:14px!important;border-radius:12px!important;font-weight:700!important;
+  }
 }
 </style>
 <div class="app">
@@ -1231,7 +1303,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.11.06';
+const APP_VERSION='2026.08.11.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
