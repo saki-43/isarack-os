@@ -1176,7 +1176,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.10.03';
+const APP_VERSION='2026.08.10.04';
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
@@ -6201,13 +6201,21 @@ const _ALIAS_EJEC={
   'romero vinagre isaac':'Isaac Romero',
   'isac romero':'Isaac Romero',
   'adrian solorzano':'Adrian Solorzano',
+  'adrian':'Adrian Solorzano',
   'ing. miguel morga':'Ing. Miguel Morga',
   'miguel morga':'Ing. Miguel Morga',
+  'miguel':'Ing. Miguel Morga',
   'ing. gil osuna':'Ing. Gil Osuna',
   'gil osuna':'Ing. Gil Osuna',
+  'gil':'Ing. Gil Osuna',
   'jesus pelayo':'Jesus Pelayo',
+  'jesus':'Jesus Pelayo',
   'lic. daniel osuna r.':'Lic. Daniel Osuna R.',
-  'daniel osuna':'Lic. Daniel Osuna R.'
+  'lic. daniel osuna':'Lic. Daniel Osuna R.',
+  'lic daniel osuna r.':'Lic. Daniel Osuna R.',
+  'lic daniel osuna':'Lic. Daniel Osuna R.',
+  'daniel osuna':'Lic. Daniel Osuna R.',
+  'daniel':'Lic. Daniel Osuna R.'
 };
 function _normalizaEjecutivo(nombre){
   if(!nombre)return nombre;
@@ -10671,7 +10679,10 @@ setInterval(async()=>{
 // ────────────────────────────────────────────────
 // NOTIFICACIONES INTERNAS (tabla 'notificaciones')
 // ────────────────────────────────────────────────
-function _canonNotif(n){try{return (typeof nombreComercialCanonico==='function'&&nombreComercialCanonico(n))||n;}catch(e){return n;}}
+// Emisor y receptor de notificaciones pasan por la misma normalizacion. Antes esta
+// funcion llamaba a `nombreComercialCanonico` que nunca existio, asi que era no-op y
+// variantes como "Daniel Osuna" vs "Lic. Daniel Osuna R." no matcheaban -> notif perdida.
+function _canonNotif(n){try{return (typeof _normalizaEjecutivo==='function'&&_normalizaEjecutivo(n))||n;}catch(e){return n;}}
 function crearNotificacion(destinatario,titulo,mensaje,ref){
   try{
     if(!supabaseClient||cloudStatus!=='online'||!destinatario)return;
