@@ -980,10 +980,10 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
         <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Fecha <span id="auto-fecha" class="auto-label" style="display:none">auto ✓</span></label><input id="f-fecha" type="date" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px"></div>
       </div>
       
-      <!-- Cliente -->
-      <div>
-        <label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Cliente <span id="auto-cli" class="auto-label" style="display:none">auto ✓</span></label>
-        <input id="f-cliente" placeholder="Cliente" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px">
+      <!-- Cliente (label inline con input para ahorrar alto) -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:10px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto;min-width:60px">Cliente <span id="auto-cli" class="auto-label" style="display:none">auto ✓</span></label>
+        <input id="f-cliente" placeholder="Cliente" style="flex:1;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;min-width:0">
       </div>
       
       <!-- Comercial + Instalador -->
@@ -1019,14 +1019,13 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
         
         <div style="margin-bottom:8px"><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">REPSE</label><div class="seg-group" id="seg-repse" style="display:flex;gap:3px;flex-wrap:wrap"><button class="seg-btn active" data-val="C/ REPSE" onclick="setSeg('seg-repse',this)" style="flex:1">C/ REPSE</button><button class="seg-btn" data-val="S/ REPSE" onclick="setSeg('seg-repse',this)" style="flex:1">S/ REPSE</button><button class="seg-btn" data-val="S/ IMSS" onclick="setSeg('seg-repse',this)" style="flex:1">S/ IMSS</button><button class="seg-btn" data-val="Solo Entrega" onclick="setSeg('seg-repse',this)" style="flex:1">Solo Entrega</button></div></div>
         
-        <div style="margin-bottom:8px"><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Sistemas</label><div class="seg-group" id="seg-sistemas" style="display:flex;gap:3px;flex-wrap:wrap"><button class="seg-btn multi" data-val="Selectivo" onclick="toggleMulti(this)">Selectivo</button><button class="seg-btn multi" data-val="Picking" onclick="toggleMulti(this)">Picking</button><button class="seg-btn multi" data-val="Aplic" onclick="toggleMulti(this)">Aplic</button><button class="seg-btn multi" data-val="Cantilever" onclick="toggleMulti(this)">Cantilever</button><button class="seg-btn multi" data-val="Mecano" onclick="toggleMulti(this)">Mecano</button><button class="seg-btn multi" data-val="Mezzanine" onclick="toggleMulti(this)">Mezzanine</button><button class="seg-btn multi" data-val="Entrega" onclick="toggleMulti(this)">Entrega</button></div></div>
-        
         <div style="margin-bottom:8px"><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><div class="seg-group" id="seg-estatus" style="display:flex;gap:3px"><button class="seg-btn active" data-val="Pendiente" onclick="setSeg('seg-estatus',this)" style="flex:1">Pendiente</button><button class="seg-btn" data-val="En proceso" onclick="setSeg('seg-estatus',this)" style="flex:1">En proceso</button><button class="seg-btn" data-val="Completado" onclick="setSeg('seg-estatus',this)" style="flex:1">Completado</button><button class="seg-btn" data-val="Cancelado" id="seg-btn-cancelado" onclick="setSeg('seg-estatus',this)" style="flex:1;display:none">Cancelado</button></div></div>
-        
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Armado</label><div class="seg-group" id="seg-armado" style="display:flex;gap:3px"><button class="seg-btn active" data-val="Pendiente" onclick="setSeg('seg-armado',this)" style="flex:1">Pendiente</button><button class="seg-btn" data-val="En proceso" onclick="setSeg('seg-armado',this)" style="flex:1">Proc.</button><button class="seg-btn" data-val="Listo" onclick="setSeg('seg-armado',this)" style="flex:1">Listo</button></div></div>
-          <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px">Instalación</label><div class="seg-group" id="seg-instalacion" style="display:flex;gap:3px"><button class="seg-btn active" data-val="Pendiente" onclick="setSeg('seg-instalacion',this)" style="flex:1">Pendiente</button><button class="seg-btn" data-val="En proceso" onclick="setSeg('seg-instalacion',this)" style="flex:1">Proc.</button><button class="seg-btn" data-val="Listo" onclick="setSeg('seg-instalacion',this)" style="flex:1">Listo</button></div></div>
-        </div>
+
+        <!-- Sistemas / Armado / Instalación se removieron visualmente (ago 2026): no aportaban valor y ocupaban mucho alto.
+             Los contenedores se mantienen ocultos con TODOS sus botones para que setSegActive/getSegVal/setMultiActive/getMultiVals sigan preservando y guardando los valores historicos. -->
+        <div id="seg-sistemas" style="display:none"><button class="seg-btn multi" data-val="Selectivo"></button><button class="seg-btn multi" data-val="Picking"></button><button class="seg-btn multi" data-val="Aplic"></button><button class="seg-btn multi" data-val="Cantilever"></button><button class="seg-btn multi" data-val="Mecano"></button><button class="seg-btn multi" data-val="Mezzanine"></button><button class="seg-btn multi" data-val="Entrega"></button></div>
+        <div id="seg-armado" style="display:none"><button class="seg-btn active" data-val="Pendiente"></button><button class="seg-btn" data-val="En proceso"></button><button class="seg-btn" data-val="Listo"></button></div>
+        <div id="seg-instalacion" style="display:none"><button class="seg-btn active" data-val="Pendiente"></button><button class="seg-btn" data-val="En proceso"></button><button class="seg-btn" data-val="Listo"></button></div>
       </div>
 
       </div>
@@ -1232,7 +1231,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.11.03';
+const APP_VERSION='2026.08.11.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
