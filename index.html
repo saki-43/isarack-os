@@ -295,6 +295,48 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 #alm-wrap .alm-chip{font-size:12px;padding:7px 13px;background:var(--alm-chip-bg);border:1px solid var(--alm-chip-bord);color:var(--alm-chip-txt);border-radius:20px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s}
 #alm-wrap .alm-chip-btn{border:none;color:#fff;font-weight:700;cursor:pointer}
 #alm-wrap .alm-badge{font-size:12px;padding:5px 13px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+/* ═══════════════════ CAPA MOBILE (Fase 1, ago 2026) ═══════════════════
+   Estrategia: NO tocamos el desktop, solo montamos overrides bajo 768px.
+   - Botones admin (Sync PWA, Usuarios, Exportar, Importar) se ocultan y
+     se acceden desde un boton "⋯" que abre un mini menu.
+   - Nav-tabs con scroll horizontal claro y fade en el borde derecho.
+   - KPIs de tarjetas gigantes -> chips horizontales scrolleables.
+   - Seguimiento: se oculta la columna FACTURA (se accede desde el detalle). */
+#btn-mobile-more{display:none}
+#mobile-more-menu{position:fixed;top:56px;right:10px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;z-index:5000;min-width:210px;display:none}
+#mobile-more-menu.open{display:block}
+#mobile-more-menu button,#mobile-more-menu label{display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;border-radius:8px;font-size:14px;font-weight:600;color:#333;cursor:pointer;font-family:inherit;box-sizing:border-box}
+#mobile-more-menu button:hover,#mobile-more-menu label:hover{background:#fdf2ee;color:#D85A30}
+@media (max-width:768px){
+  .header{padding:6px 10px!important;flex-wrap:wrap;gap:6px}
+  .header>div:first-child img{height:38px!important}
+  #date-str{font-size:9.5px!important}
+  /* Botones desktop escondidos en movil */
+  #btn-sync-pwa,#btn-admin-users,#btn-exportar,#btn-importar{display:none!important}
+  #btn-mobile-more{display:inline-flex!important;align-items:center;justify-content:center;padding:6px 12px;background:#fff;color:#444;border:1px solid #ddd;border-radius:8px;font-size:18px;line-height:1;cursor:pointer;font-weight:700;min-height:34px}
+  #user-badge{padding:3px 8px!important;gap:4px!important}
+  #user-badge #user-icon{display:none!important}
+  #user-badge div>div:nth-child(2){display:none!important} /* rol */
+  #user-name{font-size:11px!important}
+  #cloud-status-badge{font-size:9px!important;padding:3px 6px!important}
+  #btn-buscador-global,#btn-dark-mode,#btn-resumen-dia,#notif-bell{padding:5px 8px!important;font-size:13px!important;min-height:32px}
+  /* Nav tabs con scroll horizontal claro */
+  .nav-tabs{padding:0 8px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;scroll-snap-type:x proximity}
+  .nav-tabs::-webkit-scrollbar{display:none}
+  .nav-tab{padding:9px 12px!important;font-size:10px!important;scroll-snap-align:start;flex:0 0 auto;letter-spacing:.02em!important}
+  /* KPIs -> chips horizontales scrolleables */
+  .stats{display:flex!important;overflow-x:auto;overflow-y:hidden;gap:8px!important;padding:10px 12px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;grid-template-columns:unset!important}
+  .stats::-webkit-scrollbar{display:none}
+  .stat{flex:0 0 auto;min-width:98px;padding:7px 12px!important}
+  .stat-val{font-size:18px!important;line-height:1.1!important}
+  .stat-label{font-size:9.5px!important}
+  /* Seguimiento: quitar drag handle y columna FACTURA */
+  #tab-pedidos thead th:nth-child(1),
+  #tab-pedidos thead th:nth-child(3),
+  #tab-pedidos tbody td:nth-child(1),
+  #tab-pedidos tbody td:nth-child(3){display:none!important}
+  .toolbar{padding:8px 10px!important;gap:6px!important;flex-wrap:wrap}
+}
 </style>
 <div class="app">
   <div class="header">
@@ -311,7 +353,14 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
       <button onclick="abrirAdminUsuarios()" id="btn-admin-users" style="display:none;padding:8px 14px;background:#7c5cbf;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">👥 Usuarios</button>
       <button onclick="exportarDatos()" id="btn-exportar" class="btn-primary btn-green" style="display:none;font-size:13px;padding:8px 14px">⬇ Exportar</button>
       <label id="btn-importar" style="display:none;padding:8px 14px;background:#fff;color:#D85A30;border:1.5px solid #D85A30;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬆ Importar<input type="file" accept=".json" style="display:none" onchange="importarDatos(this)"></label>
+      <button id="btn-mobile-more" onclick="_toggleMobileMore(event)" title="Más opciones" aria-label="Más opciones">⋯</button>
     </div>
+  </div>
+  <div id="mobile-more-menu" onclick="event.stopPropagation()">
+    <button id="mm-sync" onclick="_hideMobileMore();sincronizarPedidosDesdePWA()">🔄 Sync PWA</button>
+    <button id="mm-users" onclick="_hideMobileMore();abrirAdminUsuarios()" style="display:none">👥 Usuarios</button>
+    <button id="mm-export" onclick="_hideMobileMore();exportarDatos()" style="display:none">⬇ Exportar</button>
+    <button id="mm-import" onclick="_hideMobileMore();document.querySelector('#btn-importar input').click()" style="display:none">⬆ Importar</button>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="cambiarTab('dashboard',this)">📊 Dashboard</button>
@@ -1176,7 +1225,29 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.10.05';
+const APP_VERSION='2026.08.11.01';
+// ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
+// Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
+// admin/ceo vean todo y comerciales solo Sync PWA.
+function _toggleMobileMore(e){
+  if(e)e.stopPropagation();
+  const m=document.getElementById('mobile-more-menu');
+  if(!m)return;
+  const isOpen=m.classList.contains('open');
+  if(isOpen){m.classList.remove('open');return;}
+  // Espejo de visibilidad admin
+  const _vis=id=>{const el=document.getElementById(id);return el&&el.style.display&&el.style.display!=='none';};
+  const mmU=document.getElementById('mm-users');if(mmU)mmU.style.display=_vis('btn-admin-users')?'block':'none';
+  const mmE=document.getElementById('mm-export');if(mmE)mmE.style.display=_vis('btn-exportar')?'block':'none';
+  const mmI=document.getElementById('mm-import');if(mmI)mmI.style.display=_vis('btn-importar')?'block':'none';
+  m.classList.add('open');
+}
+function _hideMobileMore(){const m=document.getElementById('mobile-more-menu');if(m)m.classList.remove('open');}
+document.addEventListener('click',function(e){
+  const m=document.getElementById('mobile-more-menu');
+  const b=document.getElementById('btn-mobile-more');
+  if(m&&m.classList.contains('open')&&!m.contains(e.target)&&e.target!==b)m.classList.remove('open');
+});
 
 // ── SISTEMA DE USUARIOS ──
 const USERS_KEY='isarack_users_v1';
