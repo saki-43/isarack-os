@@ -392,15 +392,62 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   #modal input:not([type]),#modal select,#modal textarea{
     padding:10px 12px!important;font-size:14px!important;border-radius:8px!important;min-height:42px!important;
   }
-  /* Botones seg-btn como chips redondos */
+  /* Chips uniformes: sin flex:1 forzado, ancho por contenido, tamaño consistente */
   #modal .seg-btn{
-    border-radius:999px!important;padding:8px 14px!important;font-size:13px!important;min-height:36px!important;
+    flex:0 0 auto!important;
+    border-radius:999px!important;
+    padding:9px 16px!important;
+    font-size:13px!important;font-weight:600!important;
+    min-height:38px!important;line-height:1!important;
+    white-space:nowrap!important;
   }
-  #modal .seg-group{gap:6px!important;flex-wrap:wrap!important}
-  /* Zonas de upload (PLANOS / AVANCE / TERMINACION) mas grandes y legibles */
-  #modal .pdf-zone{padding:16px 10px!important;min-height:72px!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center}
-  #modal .pdf-zone>div:first-child{font-size:13px!important}
-  #modal .pdf-zone>div:last-child{font-size:11px!important}
+  #modal .seg-group{gap:6px!important;flex-wrap:wrap!important;align-items:center}
+  /* "Cerrar sin firma (admin)" como chip discreto, no rectangulo */
+  #modal #btn-cerrar-sin-firma{
+    width:auto!important;display:inline-block!important;
+    border-radius:999px!important;border-style:dashed!important;
+    padding:6px 14px!important;font-size:11px!important;
+    margin-top:8px!important;
+  }
+  /* Zonas de upload: todas iguales (mismo padding, mismo grosor, misma tipografia) */
+  #modal .pdf-zone{
+    padding:20px 12px!important;min-height:82px!important;
+    border-width:1.5px!important;border-style:dashed!important;
+    display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  }
+  #modal .pdf-zone>div{margin:0!important}
+  #modal .pdf-zone>div:first-child{font-size:13px!important;font-weight:700!important;letter-spacing:.02em!important}
+  #modal .pdf-zone>div:nth-child(2){font-size:11px!important;color:#8F8880!important;font-weight:500!important}
+  /* Ocultar el hint "Ctrl+V aqui" si aparece dinamico, para que las 3 zonas se vean iguales */
+  #modal .pdf-zone>div:nth-child(n+3){display:none!important}
+  /* Labels uniformes (11px, mismo peso, mismo color, mismo tracking) */
+  #modal label{
+    font-size:11px!important;color:#6B6560!important;
+    letter-spacing:.06em!important;font-weight:600!important;
+    text-transform:uppercase!important;line-height:1.25!important;
+  }
+  /* Botones WhatsApp y Mapa: mismo alto que los inputs (42px) */
+  #modal button[onclick*="abrirWA"]{
+    width:44px!important;height:44px!important;min-height:44px!important;
+    border-radius:10px!important;padding:0!important;font-size:16px!important;
+    display:flex!important;align-items:center;justify-content:center;flex-shrink:0!important;
+  }
+  #modal button[onclick*="verMapa"]{
+    height:44px!important;min-height:44px!important;
+    border-radius:10px!important;padding:0 16px!important;font-size:12px!important;font-weight:700!important;
+    white-space:nowrap!important;
+  }
+  /* Apilar los grids internos de 2 columnas EXCEPTO los de zonas de upload,
+     para que labels largos como "CONTACTO CLIENTE" e "INSTALADOR ASIGNADO"
+     no partan en 2 lineas. */
+  #modal .modal>div:nth-child(2) div[style*="grid-template-columns:1fr 1fr"],
+  #modal .modal>div:nth-child(2) div[style*="grid-template-columns:2fr 1fr"]{
+    grid-template-columns:1fr!important;gap:10px!important;
+  }
+  /* Re-activar 2 columnas SOLO en las zonas de upload (PLANOS + AVANCE) */
+  #modal .modal>div:nth-child(2) div[style*="grid-template-columns:1fr 1fr"]:has(.pdf-zone){
+    grid-template-columns:1fr 1fr!important;gap:10px!important;
+  }
   /* Firma del cliente destacada mas amplia */
   #modal #firma-cliente-box{padding:16px!important}
   /* Footer sticky con Cancelar / Guardar */
@@ -1303,7 +1350,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.11.07';
+const APP_VERSION='2026.08.11.08';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
