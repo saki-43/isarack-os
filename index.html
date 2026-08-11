@@ -343,67 +343,6 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   .toolbar>button,.toolbar>.fbtn{font-size:11px!important;padding:5px 8px!important;white-space:nowrap;flex:0 0 auto}
   /* Utilidad general para texto secundario que solo aplica en desktop */
   .mob-hide{display:none!important}
-
-  /* ───── Fase 2A: SEGUIMIENTO como cards ───── */
-  #tab-pedidos .card .card-wrap{overflow-x:visible!important;padding:0!important}
-  #tab-pedidos .card table,
-  #tab-pedidos .card thead,
-  #tab-pedidos .card tbody{display:block!important;width:100%!important}
-  #tab-pedidos .card thead{display:none!important}
-  #tab-pedidos .card tbody tr{
-    display:block!important;
-    background:#fff!important;
-    border:1px solid #e5e5e0!important;
-    border-radius:12px!important;
-    margin:0 8px 10px!important;
-    padding:11px 13px!important;
-    box-shadow:0 1px 3px rgba(0,0,0,.05)!important;
-  }
-  #tab-pedidos .card tbody tr[style*="background:#e8f5e0"]{background:#f2fbeb!important;border-color:#c8e5b0!important}
-  #tab-pedidos .card tbody td{
-    display:block!important;
-    padding:3px 0!important;
-    border:none!important;
-    text-align:left!important;
-    max-width:none!important;
-    white-space:normal!important;
-    overflow:visible!important;
-    line-height:1.35!important;
-  }
-  /* Ocultar drag handle (1), FACTURA (3) y celda vacia final (12) */
-  #tab-pedidos .card tbody td:nth-child(1),
-  #tab-pedidos .card tbody td:nth-child(3),
-  #tab-pedidos .card tbody td:nth-child(12){display:none!important}
-  /* Cliente al frente: grande, con divisor */
-  #tab-pedidos .card tbody td:nth-child(6){
-    font-size:15px!important;
-    font-weight:700!important;
-    color:#1a1a1a!important;
-    padding:4px 0 8px!important;
-    border-bottom:1px solid #f0f0ec!important;
-    margin-bottom:6px!important;
-    -webkit-line-clamp:unset!important;
-  }
-  /* Pedido y Fecha en la misma linea */
-  #tab-pedidos .card tbody td:nth-child(4){display:inline-block!important;width:auto!important;margin-right:12px!important;vertical-align:middle!important}
-  #tab-pedidos .card tbody td:nth-child(5){display:inline-block!important;width:auto!important;font-size:11px!important;color:#777!important;vertical-align:middle!important}
-  /* Comercial, WhatsApp, Instalador, Ubicacion — chicos y compactos */
-  #tab-pedidos .card tbody td:nth-child(7),
-  #tab-pedidos .card tbody td:nth-child(8),
-  #tab-pedidos .card tbody td:nth-child(9),
-  #tab-pedidos .card tbody td:nth-child(10){
-    font-size:12px!important;color:#555!important;-webkit-line-clamp:unset!important;
-  }
-  /* Estatus separado */
-  #tab-pedidos .card tbody td:nth-child(11){padding-top:8px!important}
-  /* Boton Reporte grande al final */
-  #tab-pedidos .card tbody td:nth-child(2){padding-top:10px!important;border-top:1px solid #f0f0ec!important;margin-top:6px!important}
-  #tab-pedidos .card tbody td:nth-child(2) button{width:100%!important;padding:10px!important;font-size:13px!important;justify-content:center!important}
-
-  /* ───── Fase 2B: FACTURACION apilada ───── */
-  #fact-md{flex-direction:column!important;padding:6px!important;gap:8px!important}
-  #fact-md-lista{max-width:none!important;min-width:0!important;max-height:45vh!important}
-  #fact-md-detalle{min-width:0!important;max-height:none!important;align-self:stretch!important}
 }
 </style>
 <div class="app">
@@ -1292,7 +1231,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.11.05';
+const APP_VERSION='2026.08.11.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6552,14 +6491,7 @@ function renderFacturasPanel(fl){
   renderFacturaDetalle();
 }
 
-function seleccionarFacturaPanel(pedido){
-  _factSelPedido=pedido;
-  renderFacturas();
-  // En movil, hacer scroll al detalle para que el usuario lo vea de inmediato.
-  if(window.matchMedia&&window.matchMedia('(max-width:768px)').matches){
-    setTimeout(()=>{const d=document.getElementById('fact-md-detalle');if(d)d.scrollIntoView({behavior:'smooth',block:'start'});},60);
-  }
-}
+function seleccionarFacturaPanel(pedido){_factSelPedido=pedido;renderFacturas();}
 
 function renderFacturaDetalle(){
   const det=document.getElementById('fact-md-detalle');
