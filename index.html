@@ -1350,7 +1350,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.11.08';
+const APP_VERSION='2026.08.11.09';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2756,8 +2756,14 @@ async function renderDashboard(){
   cont.innerHTML='<div style="text-align:center;padding:40px;color:#888">⏳ Cargando dashboard...</div>';
   
   // Collect ventas data (uses same logic as reporte)
+  // Aplica misma regla estructural que Seguimiento: solo pedidos cuya venta ya
+  // esta confirmada como 'Venta' y que no estan archivados. Antes se contaban
+  // cotizaciones sin confirmar y aparecian en Top clientes / Ventas por comercial
+  // como si fueran ventas reales (bug S07xxx Isaac Romero -> Isaac Romero).
   const ventasDetalle=[];
   for(const o of orders){
+    if(!o||o.archivadoCotizacion)continue;
+    if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))continue;
     const fecha=o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):null);
     if(!fecha)continue;
     let lineas=null;
@@ -8001,8 +8007,11 @@ function abrirReporteVentas(){
   setTimeout(()=>cargarVentasReporte(),100);
 }
 async function cargarVentasReporte(){
+  // Misma regla que Dashboard y Seguimiento: solo pedidos con venta confirmada.
   const ventasDetalle=[];
   for(const o of orders){
+    if(!o||o.archivadoCotizacion)continue;
+    if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))continue;
     const fecha=o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):null);
     if(!fecha)continue;
     let lineas=null;
