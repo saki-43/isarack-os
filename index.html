@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.03';
+const APP_VERSION='2026.08.14.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4591,6 +4591,7 @@ async function _instPkgCarpeta(){
   if(!sel.length){if(typeof showToast==='function')showToast('Selecciona al menos un documento','#BA7517');return;}
   // Carpeta con el FOLIO del pedido (S07189, S07267, etc.), como se ha usado historicamente
   var carpeta='Documentos_'+(''+(INST_PKG.folio||INST_PKG.obra||'obra')).replace(/[^\w]+/g,'_').slice(0,40);
+  // Modo 1: File System Access API (Chrome/Edge modernos) — crea la carpeta viva en disco
   if(window.showDirectoryPicker){
     var dir=null;try{dir=await window.showDirectoryPicker({mode:'readwrite'});}catch(e){if(e&&e.name==='AbortError')return;dir=null;}
     if(dir){try{
@@ -4599,6 +4600,17 @@ async function _instPkgCarpeta(){
       _closePkg();if(typeof showToast==='function')showToast('✓ Guardado en la carpeta "'+carpeta+'" ('+sel.length+' archivos)','#3B6D11');return;
     }catch(e){console.error('pkg carpeta',e);}}
   }
+  // Modo 2 (fallback): ZIP con la carpeta ya adentro — al descomprimir queda la carpeta con los archivos
+  try{
+    var zipFiles=sel.map(function(f){return {name:carpeta+'/'+f.name,bytes:f.bytes};});
+    var blob=_izMakeZip(zipFiles);
+    var u=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=u;a.download=carpeta+'.zip';document.body.appendChild(a);a.click();
+    setTimeout(function(){a.remove();URL.revokeObjectURL(u);},1000);
+    _closePkg();if(typeof showToast==='function')showToast('✓ Descargado "'+carpeta+'.zip" ('+sel.length+' archivos)','#3B6D11');
+    return;
+  }catch(e){console.error('pkg zip',e);}
+  // Modo 3 (ultimo recurso): uno por uno
   _instPkgBajar(sel);_closePkg();if(typeof showToast==='function')showToast('✓ '+sel.length+' archivo(s) descargado(s)','#3B6D11');
 }
 async function _instPkgWhats(){
