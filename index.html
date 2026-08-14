@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.01';
+const APP_VERSION='2026.08.14.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4497,9 +4497,14 @@ async function _instCargarDocs(){
 async function _instVerDoc(id){
   try{var res=await supabaseClient.from('documentos').select('archivo,nombre').eq('id',id).single();var d=res&&res.data;
     if(!d||!d.archivo||!d.archivo.data){if(typeof showToast==='function')showToast('Documento sin archivo','#BA7517');return;}
-    var a=d.archivo,nm=a.name||d.nombre||'documento';
+    var a=d.archivo;
+    // Preferir el nombre LEGIBLE (d.nombre) sobre el original (a.name).
+    // Si al nombre legible le falta extension, se la agregamos.
+    var origExt='';var mExt=(a.name||'').match(/\.[a-z0-9]{2,5}$/i);if(mExt)origExt=mExt[0];
+    var base=(d.nombre||a.name||'documento').replace(/[\/\\:*?"<>|]+/g,'_').trim();
+    var nm=/\.[a-z0-9]{2,5}$/i.test(base)?base:(base+(origExt||(/pdf/i.test(a.mime||'')?'.pdf':'')));
     var esPDF=/\.pdf$/i.test(nm)||/pdf/i.test(a.mime||'')||/^data:application\/pdf/i.test(a.data);
-    if(esPDF&&typeof openPDFData==='function'){openPDFData(a.data,d.nombre||nm);}
+    if(esPDF&&typeof openPDFData==='function'){openPDFData(a.data,nm);}
     else{var lk=document.createElement('a');lk.href=a.data;lk.download=nm;document.body.appendChild(lk);lk.click();setTimeout(function(){lk.remove();},150);if(typeof showToast==='function')showToast('⬇ Descargando '+nm,'#185FA5');}
   }catch(e){console.error('verDoc',e);if(typeof showToast==='function')showToast('No se pudo abrir el documento','#BA7517');}
 }
@@ -4566,8 +4571,12 @@ async function _instPkgGather(){
   var rows=(res&&res.data)||[];var out=[],usados={};
   rows.forEach(function(r){
     if(!r.archivo||!r.archivo.data)return;
-    var nm=(r.archivo.name||r.nombre||('doc-'+r.id)).replace(/[\/\\:*?"<>|]+/g,'_');
-    if(!/\.[a-z0-9]{2,5}$/i.test(nm)&&/pdf/i.test(r.archivo.mime||''))nm+='.pdf';
+    // Preferir el nombre LEGIBLE que se le puso en el sistema (r.nombre) sobre el
+    // nombre original del archivo subido (r.archivo.name). Si al nombre legible le
+    // falta la extension, se la agregamos desde el archivo original o el mime.
+    var origExt='';var mExt=(r.archivo.name||'').match(/\.[a-z0-9]{2,5}$/i);if(mExt)origExt=mExt[0];
+    var base=(r.nombre||r.archivo.name||('doc-'+r.id)).replace(/[\/\\:*?"<>|]+/g,'_').trim();
+    var nm=/\.[a-z0-9]{2,5}$/i.test(base)?base:(base+(origExt||(/pdf/i.test(r.archivo.mime||'')?'.pdf':'')));
     while(usados[nm])nm=nm.replace(/(\.[^.]*)?$/,'_'+r.id+'$1');usados[nm]=1;
     try{out.push({name:nm,bytes:_izBytes(r.archivo.data),mime:r.archivo.mime||'application/octet-stream'});}catch(e){}
   });
