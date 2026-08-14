@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.02';
+const APP_VERSION='2026.08.14.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4528,7 +4528,7 @@ async function _instPaquete(){
   var personal=docs.filter(function(d){return d.persona&&crewLow.indexOf(low(d.persona))>=0;});
   var tieneDC3={};docs.forEach(function(d){if(d.persona&&/dc-?3/i.test(d.categoria||''))tieneDC3[low(d.persona)]=1;});
   var faltan=crew.filter(function(n){return !tieneDC3[low(n)];});
-  INST_PKG={obra:(INST_EDIT&&(INST_EDIT.obra||INST_EDIT.folio))||'obra',empresa:empresa,personal:personal,faltan:faltan,sel:{}};
+  INST_PKG={folio:(INST_EDIT&&INST_EDIT.folio)||'',obra:(INST_EDIT&&(INST_EDIT.obra||INST_EDIT.folio))||'obra',empresa:empresa,personal:personal,faltan:faltan,sel:{}};
   empresa.concat(personal).forEach(function(d){INST_PKG.sel[d.id]=true;});
   _instPkgModal();
 }
@@ -4589,7 +4589,8 @@ async function _instPkgCarpeta(){
   if(typeof showToast==='function')showToast('Preparando archivos…','#185FA5');
   var sel=await _instPkgGather();
   if(!sel.length){if(typeof showToast==='function')showToast('Selecciona al menos un documento','#BA7517');return;}
-  var carpeta='Documentos_'+(''+(INST_PKG.obra||'obra')).replace(/[^\w]+/g,'_').slice(0,40);
+  // Carpeta con el FOLIO del pedido (S07189, S07267, etc.), como se ha usado historicamente
+  var carpeta='Documentos_'+(''+(INST_PKG.folio||INST_PKG.obra||'obra')).replace(/[^\w]+/g,'_').slice(0,40);
   if(window.showDirectoryPicker){
     var dir=null;try{dir=await window.showDirectoryPicker({mode:'readwrite'});}catch(e){if(e&&e.name==='AbortError')return;dir=null;}
     if(dir){try{
