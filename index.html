@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.06';
+const APP_VERSION='2026.08.14.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4753,6 +4753,10 @@ function abrirInstEditor(id){
   var r=(id!=null)?INST.rows.find(function(x){return x.id===id;}):null;
   INST_EDIT=r?JSON.parse(JSON.stringify(r)):{id:null,folio:'',obra:'',cliente:'',ubicacion:'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:'En proceso'};
   if(!Array.isArray(INST_EDIT.instaladores))INST_EDIT.instaladores=[];
+  // Snapshot de la cuadrilla ORIGINAL cargada de la nube: si el auto-save
+  // se dispara antes de que el usuario toque la lista, no debemos pisarla
+  // con [] (bug historico que borro cuadrillas entre navegadores).
+  INST_EDIT._instaladoresOriginal=(r&&Array.isArray(r.instaladores))?r.instaladores.slice():[];
   _instModal();
 }
 function _instModal(){
@@ -4822,6 +4826,14 @@ async function _instSaveCore(){
   if(!(e.obra||e.folio||(e.instaladores&&e.instaladores.length))){_instSaveIndicador('');return;} // no guardar vacíos
   _instSaving=true;_instDirty=false;_instSaveIndicador('…');
   var payload={folio:e.folio||'',obra:e.obra||'',cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores||[],lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',updated_at:new Date().toISOString()};
+  // PROTECCION: si el editor no cargo bien la cuadrilla (INST_EDIT.instaladores
+  // llego vacio pero la fila original la traia), NO sobreescribir con [] — es
+  // el bug que borro cuadrillas cuando un usuario abria una obra con cache
+  // desactualizado y tocaba cualquier campo (fecha, nota) sin darse cuenta.
+  if(e.id && (!e.instaladores||!e.instaladores.length) && Array.isArray(e._instaladoresOriginal) && e._instaladoresOriginal.length){
+    delete payload.instaladores;
+    if(!payload.lider && e.lider === '') delete payload.lider;
+  }
   try{
     var res;
     if(e.id){res=await supabaseClient.from('instalaciones_activas').update(payload).eq('id',e.id);}
