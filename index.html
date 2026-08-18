@@ -471,6 +471,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
       <button onclick="abrirBuscadorGlobal()" id="btn-buscador-global" style="padding:6px 11px;background:#fff;color:#444;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" title="Buscar cotizaciones y pedidos">🔍</button>
       <button onclick="toggleDarkMode()" id="btn-dark-mode" style="padding:6px 11px;background:#fff;color:#444;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" title="Modo oscuro / claro">🌙</button>
       <span id="cloud-status-badge" style="padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;background:#FCEBEB;color:#A32D2D;cursor:default;user-select:none" title="Estado de sincronización con la nube">🔴 Offline</span>
+      <button onclick="_recargarAppFuerza()" id="btn-recargar-app" style="padding:5px 10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer" title="Descargar la última versión de la app y recargar. Uso: cuando escuches que hay una versión nueva y aún no te ha llegado.">🔄 Actualizar</button>
       <button id="btn-resumen-dia" onclick="mostrarResumenDiario(true)" style="display:none;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Resumen del día">☀️</button>
       <button id="notif-bell" onclick="toggleNotifPanel()" style="position:relative;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Notificaciones">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#c62828;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span></button>
       <div id="notif-panel" style="display:none;position:fixed;top:62px;right:18px;width:330px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);z-index:4000"></div>
@@ -1357,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.18.02';
+const APP_VERSION='2026.08.18.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2448,6 +2449,17 @@ setTimeout(_checarVersionVercel,60000);
 setInterval(_checarVersionVercel,30*60*1000);
 // Al volver la pestana al frente, chequeo oportunista
 try{document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(_checarVersionVercel,2000);});}catch(e){}
+// Boton manual "🔄 Actualizar" del header: pide confirmacion si hay trabajo
+// en curso, luego hace un location.reload(true) para bajar la ultima version
+// de Vercel. No depende de Supabase.
+function _recargarAppFuerza(){
+  try{
+    if(typeof _hayTrabajoEnCurso==='function' && _hayTrabajoEnCurso()){
+      if(!confirm('Estas capturando algo o tienes cambios sin subir. ¿Recargar de todos modos?\n\n(Se perderia lo que este sin guardar)'))return;
+    }
+    try{location.reload(true);}catch(_e){location.reload();}
+  }catch(e){location.reload();}
+}
 
 async function checarVersion(){
   if(location.protocol==='file:')return; // NUNCA publicar/bloquear desde un archivo local: una pestaña de pruebas con versión alta bloquearía a todo el equipo
