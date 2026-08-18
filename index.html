@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.08';
+const APP_VERSION='2026.08.14.09';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -9207,6 +9207,35 @@ function reconectarAhora(){
   clearTimeout(window._reTestTimer);
   testCloudConnection();
 }
+// AUTO-RETRY SILENCIOSO: aprovechar cualquier ventana de red (usuario cambia de
+// pestaña, vuelve al navegador, hace click, escribe) para reintentar conexion
+// SI estamos offline y hay cola pendiente. Throttle 5s para no saturar.
+// El usuario NO ve nada — todo pasa en el fondo.
+(function(){
+  var _lastRetry=0;
+  function _autoRetryIfNeeded(){
+    try{
+      if(typeof cloudStatus==='undefined')return;
+      if(cloudStatus==='online')return;
+      // Si no hay cola pendiente, no hay urgencia — dejar el ciclo normal de 3s
+      var pend=(typeof cloudQueue!=='undefined'&&Array.isArray(cloudQueue))?cloudQueue.length:0;
+      if(pend<=0)return;
+      var now=Date.now();
+      if(now-_lastRetry<5000)return;
+      _lastRetry=now;
+      if(typeof reconectarAhora==='function')reconectarAhora();
+    }catch(e){}
+  }
+  // Cuando la pestaña vuelve a foreground
+  try{document.addEventListener('visibilitychange',function(){if(!document.hidden)_autoRetryIfNeeded();});}catch(e){}
+  // Cuando la ventana obtiene foco (usuario cambia de app)
+  try{window.addEventListener('focus',_autoRetryIfNeeded);}catch(e){}
+  // Cuando el navegador reporta que la red volvio
+  try{window.addEventListener('online',_autoRetryIfNeeded);}catch(e){}
+  // Rastro de actividad del usuario (click/teclado) — reintento oportunista
+  try{document.addEventListener('click',_autoRetryIfNeeded,true);}catch(e){}
+  try{document.addEventListener('keydown',_autoRetryIfNeeded,true);}catch(e){}
+})();
 
 // ── HELPERS DE UPSERT/DELETE ──
 // Sube/actualiza un registro en Supabase. Si falla, lo encola.
