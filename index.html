@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.18.01';
+const APP_VERSION='2026.08.18.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2418,6 +2418,37 @@ function _bloquearPorVersion(minima){
   if(t)t.textContent='Tienes la versión '+APP_VERSION+' y la mínima permitida es '+minima+'. Por seguridad de la información, actualiza para continuar.';
 }
 function actualizarAppSilencioso(){try{actualizarApp();}catch(e){}}
+// AUTO-ACTUALIZACION DIRECTA (independiente de Supabase). Consulta a Vercel
+// el HTML actual, extrae APP_VERSION y si es mas nueva recarga la app. Sirve
+// para gente que lleva dias offline con Supabase pero SI llega a Vercel — el
+// checarVersion normal no dispara porque exige cloudStatus==='online'.
+async function _checarVersionVercel(){
+  try{
+    if(location.protocol==='file:')return;
+    if(document.hidden)return;
+    var url=location.origin+location.pathname+'?_v='+Date.now();
+    var res=await fetch(url,{cache:'no-store',credentials:'omit'});
+    if(!res||!res.ok)return;
+    var txt=await res.text();
+    var m=txt.match(/const\s+APP_VERSION\s*=\s*['"]([\d.]+)['"]/);
+    if(!m)return;
+    var live=m[1];
+    if(_cmpVer(live,APP_VERSION)<=0)return;
+    // Hay version nueva; NO recargar si el usuario esta trabajando.
+    if(typeof _hayTrabajoEnCurso==='function'&&_hayTrabajoEnCurso()){
+      setTimeout(_checarVersionVercel,5*60*1000);
+      return;
+    }
+    console.log('🔄 Version nueva detectada via Vercel ('+live+' > '+APP_VERSION+'). Recargando...');
+    try{location.reload(true);}catch(_e){location.reload();}
+  }catch(e){/* Si Vercel tampoco llega, no pasa nada */}
+}
+// Arranque: primer chequeo a los 60s, luego cada 30 min mientras la pestana este visible
+setTimeout(_checarVersionVercel,60000);
+setInterval(_checarVersionVercel,30*60*1000);
+// Al volver la pestana al frente, chequeo oportunista
+try{document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(_checarVersionVercel,2000);});}catch(e){}
+
 async function checarVersion(){
   if(location.protocol==='file:')return; // NUNCA publicar/bloquear desde un archivo local: una pestaña de pruebas con versión alta bloquearía a todo el equipo
   if(!supabaseClient||cloudStatus!=='online')return;
