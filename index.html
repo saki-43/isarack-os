@@ -1357,7 +1357,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.14.07';
+const APP_VERSION='2026.08.14.08';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -10781,6 +10781,12 @@ async function bajarCambiosDeNube(){
         if(!o||!o.num)return;
         if(typeof estaPedidoEliminado==='function'&&estaPedidoEliminado(o))return;
         const ix=orders.findIndex(x=>x&&x.num===o.num);
+        // Detectar fotos NUEVAS vs la copia local previa y disparar notificacion
+        // a admin + comercial del pedido. Solo cuando ya teniamos el pedido local
+        // (evita spam al primer download); si es un pedido nuevo, no dispara.
+        try{
+          if(ix>=0)_avisarFotosNuevas(orders[ix],o);
+        }catch(_e){console.warn('avisarFotosNuevas:',_e);}
         if(ix>=0)orders[ix]=o;else orders.unshift(o);
         toco=true;
       });
@@ -11080,6 +11086,36 @@ function _tsVentaOrden(o){if(!o)return 0;var a=Number(o.tsVenta);if(a)return a;v
 function _fechaVentaOrden(o){if(!o)return '';if(o.fechaVenta)return o.fechaVenta;var t=Number(o.tsVenta)||Number(o.id)||0;if(t)return _isoLocal(new Date(t));return o.fecha||'';}
 function _fmtFechaCorta(iso){try{var p=(iso||'').split('-');return p.length===3?(p[2]+'/'+p[1]):iso;}catch(e){return iso;}}
 function _resumenSnapActual(){var snap={};(orders||[]).forEach(function(o){if(!o||!o.num)return;snap[o.num]={pl:(o.planos&&o.planos.length)||0,av:(o.fotosAvance&&o.fotosAvance.length)||0,te:(o.fotosTerminacion&&o.fotosTerminacion.length)||0,en:(o.fotosEntrega&&o.fotosEntrega.length)||0,fi:(o.pdfsRecepcion&&o.pdfsRecepcion.length)||0,est:o.estatus||''};});return snap;}
+// Compara el pedido local previo (viejo) contra el que acaba de bajar de la
+// nube (nuevo). Si el nuevo trae mas fotos (planos/avance/terminacion/entrega),
+// dispara una notificacion al admin y al comercial del pedido. Se llama desde
+// el delta sync — solo cuando ya teniamos el pedido local, para no spamear
+// notificaciones en el primer download.
+function _avisarFotosNuevas(viejo, nuevo){
+  if(!viejo||!nuevo||!nuevo.num)return;
+  if(typeof crearNotificacion!=='function')return;
+  var num=nuevo.num, cli=nuevo.cliente||viejo.cliente||'';
+  var pares=[
+    {campo:'planos',        diff:((nuevo.planos||[]).length)         -((viejo.planos||[]).length),         icono:'📐', label:'plano(s)',                  tipo:'planos'},
+    {campo:'fotosAvance',   diff:((nuevo.fotosAvance||[]).length)    -((viejo.fotosAvance||[]).length),    icono:'📸', label:'foto(s) de avance',        tipo:'avance'},
+    {campo:'fotosTerminacion',diff:((nuevo.fotosTerminacion||[]).length)-((viejo.fotosTerminacion||[]).length),icono:'✅', label:'foto(s) de terminacion', tipo:'termin'},
+    {campo:'fotosEntrega',  diff:((nuevo.fotosEntrega||[]).length)   -((viejo.fotosEntrega||[]).length),   icono:'🚛', label:'foto(s) de entrega',       tipo:'entrega'}
+  ];
+  pares.forEach(function(p){
+    if(p.diff<=0)return;
+    var titulo=p.icono+' +'+p.diff+' '+p.label+' — '+num;
+    var mensaje=cli;
+    // Ref unico por tipo+conteo actual para que el dedup no colapse notificaciones
+    // consecutivas al mismo pedido cuando siguen subiendo mas fotos.
+    var refCount=(nuevo[p.campo]||[]).length;
+    var ref=num+':'+p.tipo+':'+refCount;
+    crearNotificacion('rol:admin', titulo, mensaje, ref);
+    var com=(nuevo.comercial||'').trim();
+    if(com&&typeof _canonNotif==='function'){
+      crearNotificacion('comercial:'+_canonNotif(com), titulo, mensaje, ref);
+    }
+  });
+}
 function _nombreInstalador(o){
   if(!o)return '';
   var n=(o.instaladorNombre||'').trim();
