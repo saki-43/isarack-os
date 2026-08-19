@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.18.05';
+const APP_VERSION='2026.08.19.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -10283,11 +10283,13 @@ async function cloudSyncOrder(o){
           console.warn('🛡 '+o.num+': inventarioDescontado=true en nube; adoptado (no se pisa).');
           try{window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}catch(e){window._skipCloudSync=false;}
         }
-        if(_rw.updated_at){
-          const _tR=new Date(_rw.updated_at).getTime();
-          const _tL=new Date(o._horaCargado||0).getTime();
-          if(!isNaN(_tR)&&(_tR-_tL)>5000){
-            const _fusion=[];
+        // FUSION DE ARCHIVOS — INCONDICIONAL (v2026.08.19: fix data-wipe masivo).
+        // Antes solo corria si remoto era >5s mas nuevo que _horaCargado. Bug: si local
+        // tenia arrays vacios (payload corrupto, plan B de saveOrders con localStorage
+        // lleno, carga fallida) y _horaCargado reciente, se saltaba fusion y se subia
+        // vacio -> pisaba la nube. Ahora corre SIEMPRE que remoto tenga archivos.
+        {
+          const _fusion=[];
           const _tomb=new Set((Array.isArray(o._archivosEliminados)?o._archivosEliminados:[]).filter(Boolean));
           ['planos','fotosAvance','fotosTerminacion','fotosEntrega','pdfsRecepcion','pdfsPresupuesto','firmaEntrega'].forEach(k=>{
             const r=Array.isArray(_rem[k])?_rem[k]:[];if(!r.length)return;
@@ -10297,6 +10299,16 @@ async function cloudSyncOrder(o){
             r.forEach(p=>{const key=p&&(p.path||p.url||p.name);if(key&&!set.has(key)&&!_tomb.has(key)){l.push(p);set.add(key);n++;}});
             if(n){o[k]=l;_fusion.push(k+'+'+n);}
           });
+          if(_fusion.length){
+            try{window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}catch(e){window._skipCloudSync=false;}
+          }
+        }
+        // Los campos de texto y comercial mantienen el gate de tiempo original
+        if(_rw.updated_at){
+          const _tR=new Date(_rw.updated_at).getTime();
+          const _tL=new Date(o._horaCargado||0).getTime();
+          if(!isNaN(_tR)&&(_tR-_tL)>5000){
+            const _fusion=[];
           ['instaladorNombre','instaladorCel','choferNombre','choferCel','contactoNombre','whatsapp','ubicacion','repse','cliente','razon','rfc','po'].forEach(k=>{
             const lv=o[k],rv=_rem[k];
             if((lv===undefined||lv===null||String(lv).trim()===''||String(lv).trim()==='\u2014')&&rv&&String(rv).trim()!==''&&String(rv).trim()!=='\u2014'){o[k]=rv;_fusion.push(k);}
@@ -10315,6 +10327,21 @@ async function cloudSyncOrder(o){
             console.warn('\ud83d\udee1 '+o.num+': nube más nueva; fusionado antes de subir ['+_fusion.join(', ')+'] — nada se pierde.');
             try{window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}catch(e){window._skipCloudSync=false;}
           }
+          }
+        }
+        // HARD-STOP ANTI-WIPE (v2026.08.19): si DESPUES de la fusion mi local sigue
+        // TOTALMENTE vacio de archivos pero la nube tiene, algo esta mal en el estado
+        // local (payload corrupto, cache stale). NO subir — la nube gana.
+        {
+          const _campos=['planos','fotosAvance','fotosTerminacion','fotosEntrega','pdfsRecepcion','pdfsPresupuesto','firmaEntrega'];
+          let _remotoTieneArchivos=false,_localSinArchivos=true;
+          _campos.forEach(k=>{
+            if(Array.isArray(_rem[k])&&_rem[k].length>0)_remotoTieneArchivos=true;
+            if(Array.isArray(o[k])&&o[k].length>0)_localSinArchivos=false;
+          });
+          if(_remotoTieneArchivos&&_localSinArchivos){
+            console.warn('🚨 '+o.num+': local sin archivos pero nube tiene — SUBIDA ANULADA para evitar wipe. Refresca la app (Ctrl+Shift+R).');
+            return;
           }
         }
       }
