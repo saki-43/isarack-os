@@ -10332,15 +10332,25 @@ async function cloudSyncOrder(o){
         // HARD-STOP ANTI-WIPE (v2026.08.19): si DESPUES de la fusion mi local sigue
         // TOTALMENTE vacio de archivos pero la nube tiene, algo esta mal en el estado
         // local (payload corrupto, cache stale). NO subir — la nube gana.
+        // EXCEPCION: si TODOS los archivos remotos estan tombstoneados por
+        // _archivosEliminados (el usuario los borro a proposito), SI dejar subir
+        // para que el delete se persista.
         {
           const _campos=['planos','fotosAvance','fotosTerminacion','fotosEntrega','pdfsRecepcion','pdfsPresupuesto','firmaEntrega'];
-          let _remotoTieneArchivos=false,_localSinArchivos=true;
+          const _tombHS=new Set((Array.isArray(o._archivosEliminados)?o._archivosEliminados:[]).filter(Boolean));
+          let _remotoTieneArchivos=false,_localSinArchivos=true,_todoRemotoTombstoned=true;
           _campos.forEach(k=>{
-            if(Array.isArray(_rem[k])&&_rem[k].length>0)_remotoTieneArchivos=true;
+            const rem=Array.isArray(_rem[k])?_rem[k]:[];
+            if(rem.length>0){
+              _remotoTieneArchivos=true;
+              rem.forEach(p=>{const key=p&&(p.path||p.url||p.name);if(key&&!_tombHS.has(key))_todoRemotoTombstoned=false;});
+            }
             if(Array.isArray(o[k])&&o[k].length>0)_localSinArchivos=false;
           });
-          if(_remotoTieneArchivos&&_localSinArchivos){
+          if(_remotoTieneArchivos&&_localSinArchivos&&!_todoRemotoTombstoned){
             console.warn('🚨 '+o.num+': local sin archivos pero nube tiene — SUBIDA ANULADA para evitar wipe. Refresca la app (Ctrl+Shift+R).');
+            if(typeof showToast==='function')showToast('⚠ '+o.num+': cambios no subidos (refresca con Ctrl+Shift+R)','#c62828');
+            if(typeof _registrarFalloSync==='function')_registrarFalloSync('upsert','orders',o.num,'HARD-STOP anti-wipe: local sin archivos, nube tiene',true);
             return;
           }
         }
