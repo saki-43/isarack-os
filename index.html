@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.21.01';
+const APP_VERSION='2026.08.21.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5935,7 +5935,53 @@ async function descargarXmlFactura(i){
 }
 function adjuntarCampoFact(i,campo){
   if((campo==='factura'||campo==='complemento')&&!puedeEditarFactura(campo==='factura'?facturas[i]:null)){showToast('🔒 Solo Adrián Solórzano puede subir la factura o el complemento (Daniel: solo facturas históricas 🕓)','#BA7517');return;}
-  const labels={rfc:'RFC',factura:'Factura',poNum:'PO',anticipo:'Anticipo',finiquito:'Finiquito',complemento:'Complemento de pago'};const pdfKeys={rfc:'pdfRfc',factura:'pdfFactNum',poNum:'pdfPo',anticipo:'pdfAnticipo',finiquito:'pdfFiniquito',complemento:'pdfComplemento'};const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,image/*';inp.onchange=e=>{const file=e.target.files[0];if(!file)return;if(!validarTamanoArchivo(file,labels[campo]))return;leerArchivoComprimido(file).then(res=>{const _f=facturas[i];facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');}).catch(()=>showToast('Error al procesar archivo','#c62828'));};inp.click();}
+  const labels={rfc:'RFC',factura:'Factura',poNum:'PO',anticipo:'Anticipo',finiquito:'Finiquito',complemento:'Complemento de pago'};
+  const pdfKeys={rfc:'pdfRfc',factura:'pdfFactNum',poNum:'pdfPo',anticipo:'pdfAnticipo',finiquito:'pdfFiniquito',complemento:'pdfComplemento'};
+  const inp=document.createElement('input');inp.type='file';
+  // Para factura y complemento el mismo botón acepta PDF o XML — así el ↻ reemplaza cualquiera.
+  const aceptaXml = (campo==='factura'||campo==='complemento');
+  inp.accept = aceptaXml ? '.pdf,.xml,image/*,text/xml,application/xml' : '.pdf,image/*';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    // Rama XML: si es .xml delegamos a la función XML correspondiente
+    if(aceptaXml && /\.xml$/i.test(file.name)){
+      if(campo==='factura' && typeof _adjuntarXmlFacturaConFile==='function'){ _adjuntarXmlFacturaConFile(i,file); return; }
+      if(campo==='complemento' && typeof _adjuntarXmlComplementoConFile==='function'){ _adjuntarXmlComplementoConFile(i,file); return; }
+    }
+    if(!validarTamanoArchivo(file,labels[campo]))return;
+    leerArchivoComprimido(file).then(res=>{
+      const _f=facturas[i];
+      facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};
+      guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();
+      showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');
+    }).catch(()=>showToast('Error al procesar archivo','#c62828'));
+  };
+  inp.click();
+}
+// Helpers para adjuntar XML directamente desde un File (comparten lógica con los inputs).
+function _adjuntarXmlFacturaConFile(i,file){
+  if(!validarTamanoArchivo(file,'XML'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    facturas[i].xmlCfdi={name:file.name,data:ev.target.result};
+    if(!(facturas[i].factura&&(''+facturas[i].factura).trim())){
+      const _fo=_folioDesdeXml(ev.target.result);if(_fo)facturas[i].factura=_fo;
+    }
+    guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();
+    showToast('✓ XML cargado','#3B6D11');
+  };
+  reader.readAsDataURL(file);
+}
+function _adjuntarXmlComplementoConFile(i,file){
+  if(!validarTamanoArchivo(file,'XML Complemento'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    facturas[i].xmlComplemento={name:file.name,data:ev.target.result};
+    guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();
+    showToast('✓ XML del complemento cargado','#3B6D11');
+  };
+  reader.readAsDataURL(file);
+}
 // Reusa la logica de adjuntarCampoFact pero recibe el File directo (drag/drop, paste).
 function _procesarPdfCampoFact(i,campo,file){
   if(!file)return;
@@ -6829,9 +6875,12 @@ function renderFacturaDetalle(){
     const xmlH=tieneXml
       ?'<button onclick="descargarXmlFactura('+ri2+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">XML</button>'
       :'<button onclick="adjuntarXmlFactura('+ri2+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:4px 0;width:100%;cursor:pointer;font-weight:600">XML</button>';
-    // Cuando ya hay PDF, el botón ↻ permite reemplazar la factura (mismo patrón que PO/CSF).
-    // adjuntarCampoFact ya valida puedeEditarFactura, así que Adrián/admin son los únicos que llegan aquí.
-    const naH=(!tienePdf&&!tieneXml)?_btnNA('factura'):(tienePdf?_btnAdj('factura','↻'):'<span></span>');
+    // Cuando ya hay PDF o XML, el botón ↻ permite reemplazar cualquiera de los dos
+    // (adjuntarCampoFact detecta si el archivo es .pdf o .xml y lo guarda en el campo correcto).
+    // Solo Adrián/admin llegan aquí — la rama anterior con !puedeEditarFactura ya salió.
+    let naH;
+    if(!tienePdf && !tieneXml) naH = _btnNA('factura');
+    else naH = '<button onclick="adjuntarCampoFact('+ri2+',\'factura\')" title="Reemplazar factura (PDF o XML)" style="font-size:11px;color:#888;background:#fff;border:1px solid #ddd;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">↻</button>';
     return _row2(lab,estado,pdfH,xmlH,naH,'factura');
   };
   // Complemento alineado con PDF + XML en la misma fila (solo Adrián sube)
@@ -6850,7 +6899,10 @@ function renderFacturaDetalle(){
     const xmlH=tieneXml
       ?'<button onclick="descargarXmlComplemento('+ri2+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">XML</button>'
       :'<button onclick="adjuntarXmlComplemento('+ri2+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:4px 0;width:100%;cursor:pointer;font-weight:600">XML</button>';
-    const naH=(!tienePdf&&!tieneXml)?_btnNA('complemento'):'<span></span>';
+    // ↻ para reemplazar PDF o XML del complemento (mismo patrón que factura)
+    let naH;
+    if(!tienePdf && !tieneXml) naH = _btnNA('complemento');
+    else naH = '<button onclick="adjuntarCampoFact('+ri2+',\'complemento\')" title="Reemplazar complemento (PDF o XML)" style="font-size:11px;color:#888;background:#fff;border:1px solid #ddd;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">↻</button>';
     return _row2(lab,estado,pdfH,xmlH,naH,'complemento');
   };
   // Pago fijo alineado (Anticipo / Finiquito): monto pill + comprobante
