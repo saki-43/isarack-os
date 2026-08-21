@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.19.01';
+const APP_VERSION='2026.08.21.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6829,7 +6829,9 @@ function renderFacturaDetalle(){
     const xmlH=tieneXml
       ?'<button onclick="descargarXmlFactura('+ri2+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:4px 0;width:100%;cursor:pointer">XML</button>'
       :'<button onclick="adjuntarXmlFactura('+ri2+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:4px 0;width:100%;cursor:pointer;font-weight:600">XML</button>';
-    const naH=(!tienePdf&&!tieneXml)?_btnNA('factura'):'<span></span>';
+    // Cuando ya hay PDF, el botón ↻ permite reemplazar la factura (mismo patrón que PO/CSF).
+    // adjuntarCampoFact ya valida puedeEditarFactura, así que Adrián/admin son los únicos que llegan aquí.
+    const naH=(!tienePdf&&!tieneXml)?_btnNA('factura'):(tienePdf?_btnAdj('factura','↻'):'<span></span>');
     return _row2(lab,estado,pdfH,xmlH,naH,'factura');
   };
   // Complemento alineado con PDF + XML en la misma fila (solo Adrián sube)
