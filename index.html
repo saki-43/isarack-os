@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.04';
+const APP_VERSION='2026.08.24.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -15071,11 +15071,13 @@ function actualizarBadgeWeb(){
 }
 
 function _webContarPorEstatus(){
-  const c={todas:_webCotis.length,nueva:0,contactada:0,descartada:0,convertida:0};
+  // "Todas" cuenta solo lo accionable (Nuevas + Contactadas). Convertidas/Descartadas
+  // ya no aparecen en la vista por defecto porque se manejan en el pipeline normal.
+  const c={todas:0,nueva:0,contactada:0,descartada:0,convertida:0};
   _webCotis.forEach(v=>{
     const s=v.estatus||'';
-    if(s===WEB_ESTATUS_ORIG)c.nueva++;
-    else if(s==='WebContactada')c.contactada++;
+    if(s===WEB_ESTATUS_ORIG){c.nueva++;c.todas++;}
+    else if(s==='WebContactada'){c.contactada++;c.todas++;}
     else if(s==='WebDescartada')c.descartada++;
     else if(s==='WebConvertida')c.convertida++;
   });
@@ -15122,7 +15124,12 @@ function renderWeb(){
     chip('descartada','✗ Descartadas ('+cnt.descartada+')',_webFiltro==='descartada')
   ].join('');
   let fl=_webCotis;
-  if(_webFiltro==='nueva')fl=fl.filter(c=>(c.estatus||'')===WEB_ESTATUS_ORIG);
+  if(_webFiltro==='todas'){
+    // "Todas" muestra solo lo accionable: Nuevas + Contactadas. Convertidas/Descartadas
+    // solo se ven al pedirlas explicitamente con su chip.
+    fl=fl.filter(c=>{const s=c.estatus||'';return s===WEB_ESTATUS_ORIG||s==='WebContactada';});
+  }
+  else if(_webFiltro==='nueva')fl=fl.filter(c=>(c.estatus||'')===WEB_ESTATUS_ORIG);
   else if(_webFiltro==='contactada')fl=fl.filter(c=>c.estatus==='WebContactada');
   else if(_webFiltro==='convertida')fl=fl.filter(c=>c.estatus==='WebConvertida');
   else if(_webFiltro==='descartada')fl=fl.filter(c=>c.estatus==='WebDescartada');
