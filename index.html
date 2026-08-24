@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.01';
+const APP_VERSION='2026.08.24.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3648,8 +3648,32 @@ if(f.data&&f.data.includes('application/pdf')){openPDFData(f.data,nombreDocFactu
 if(f.data&&(f.data.includes('image/png')||f.data.includes('image/jpeg'))){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="printViaIframe('<div style=text-align:center><img src=\\''+document.getElementById('vp-img').src+'\\' style=max-width:100%></div>')" style="padding:6px 16px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5;cursor:zoom-out" onclick="cerrarVisorOverlay(this)"><img id="vp-img" src="${f.data}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`;document.body.appendChild(ov);return;}
 // Fallback: try to open
 openPDFData(f.data,nombreDocFactura(o.num,o.cliente,(t==='presupuesto'?'COTIZACION':'PEDIDO'),f));}
+// Cotizaciones generadas desde la web (isarack-web) traen folio con prefijo
+// RW-/GW-/PW-. El PDF del diseno 3D vive en el bucket publico "planos", en
+// cotizaciones-web/{folio}_{cliente}.pdf. El sufijo del cliente varia, asi que
+// hay que listar el folder y quedarse con el archivo que empiece por "folio_".
+function _esFolioWeb(f){return /^(RW|GW|PW)-/i.test((''+(f||'')).trim());}
+async function _verDiseno3D(folio){
+  folio=(''+(folio||'')).trim();
+  if(!_esFolioWeb(folio)){if(typeof showToast==='function')showToast('Este folio no tiene diseño 3D','#BA7517');return;}
+  if(typeof supabaseClient==='undefined'||!supabaseClient){if(typeof showToast==='function')showToast('Sin conexión — no se puede abrir el diseño','#BA7517');return;}
+  if(typeof showToast==='function')showToast('Buscando diseño 3D…','#185FA5');
+  try{
+    var res=await supabaseClient.storage.from('planos').list('cotizaciones-web',{search:folio});
+    var rows=(res&&res.data)||[];
+    var match=rows.find(function(r){return r&&r.name&&r.name.toLowerCase().indexOf(folio.toLowerCase()+'_')===0;})||rows[0];
+    if(!match||!match.name){if(typeof showToast==='function')showToast('No se encontró el diseño 3D de '+folio,'#BA7517');return;}
+    var url=SUPABASE_URL+'/storage/v1/object/public/planos/cotizaciones-web/'+encodeURIComponent(match.name);
+    window.open(url,'_blank','noopener');
+  }catch(e){console.error('ver diseño 3D',e);if(typeof showToast==='function')showToast('No se pudo abrir el diseño 3D','#BA7517');}
+}
 function openHTMLViewer(html,title){const ex=document.getElementById('html-viewer-modal');if(ex)ex.remove();const m=document.createElement('div');m.id='html-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';
-m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
+// Si el titulo tiene un folio web (RW-/GW-/PW-...), mostrar un boton extra que abre
+// el PDF del diseno 3D desde Storage. Los folios de ISA-OS (S07xxx) no lo muestran.
+var _mFolio=(''+(title||'')).match(/((?:RW|GW|PW)-[A-Za-z0-9-]+)/i);
+var _folioWeb=_mFolio?_mFolio[1]:'';
+var _btn3D=_folioWeb?('<button onclick="_verDiseno3D(\''+_folioWeb.replace(/[\\\'"]/g,'')+'\')" style="padding:6px 14px;background:#DA6635;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📐 Ver diseño 3D</button>'):'';
+m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;gap:8px;flex-wrap:wrap">${_btn3D}<button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
 document.body.appendChild(m);
 const container=document.getElementById('html-viewer-body');
 const DOC_W=800;const _avail=Math.max(280,(container.clientWidth||window.innerWidth)-40);const _scale=Math.min(1,_avail/DOC_W);
