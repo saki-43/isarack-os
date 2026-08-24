@@ -498,7 +498,6 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
     <button class="nav-tab" onclick="cambiarTab('ventas',this)">🛒 Ventas / Cotización</button>
     <button class="nav-tab" id="nav-comisiones" onclick="cambiarTab('comisiones',this)" style="display:none">💰 Comisiones</button>
     <button class="nav-tab" onclick="cambiarTab('contactos',this)">👥 Contactos</button>
-    <button class="nav-tab" id="nav-web" onclick="cambiarTab('web',this)" style="display:none">🌐 Web <span id="badge-web-count" style="background:#c62828;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
     <button class="nav-tab" id="nav-almacen" onclick="cambiarTab('almacen',this)" style="display:none">🏭 Almacén</button>
     <button class="nav-tab" id="nav-asistente" onclick="cambiarTab('asistente',this)" style="display:none">🤖 Asistente</button>
     <button class="nav-tab" id="nav-diagnostico" onclick="cambiarTab('diagnostico',this)" style="display:none">🩺 Diagnóstico</button>
@@ -742,24 +741,6 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
         <div class="card-hdr"><span>👥 CONTACTOS</span><span class="card-hint" id="ct-count">0 registros</span></div>
         <div class="card-wrap"><table><thead><tr><th>Empresa / Contacto</th><th>Teléfono</th><th>Celular</th><th>Email</th><th>Dirección</th><th>RFC</th><th></th></tr></thead><tbody id="tbody-ct"></tbody></table></div>
       </div>
-    </div>
-  </div>
-
-  <!-- ══ TAB WEB (Cotizaciones del sitio isarack-web) ══ -->
-  <div class="tab-content" id="tab-web">
-    <div class="tab-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-        <div>
-          <div style="font-size:20px;font-weight:700;color:#111">🌐 Cotizaciones del sitio web</div>
-          <div style="font-size:12px;color:#888;margin-top:2px">Solicitudes desde el configurador 3D · isarack-web.vercel.app</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="webAbrirSitio()" style="padding:8px 12px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer">🔗 Abrir sitio</button>
-          <button onclick="cargarCotizacionesWeb(true)" style="padding:8px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔄 Refrescar</button>
-        </div>
-      </div>
-      <div id="web-filtros" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
-      <div id="web-lista" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
   </div>
 
@@ -1358,7 +1339,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.06';
+const APP_VERSION='2026.08.24.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -1612,7 +1593,6 @@ function aplicarPermisos(){
     let visible;
     if(tabName==='config'){visible=(u.rol==='admin');} // config solo admin
     else if(tabName==='diagnostico'){visible=(u.rol==='admin');} // diagnostico solo admin
-    else if(tabName==='web'){visible=(u.rol==='admin');} // web (cotizaciones sitio) solo admin
     else if(tabName==='asistente'){visible=(u.rol==='admin');} // asistente 🤖 solo admin por ahora
     else if(tabName==='comisiones'){visible=(typeof esUsuarioComisiones==='function'&&esUsuarioComisiones(u));} // comisiones: solo admin + ejecutivos
     else if(tabName==='instalaciones'){visible=true;} // Instalaciones: visible para todos los usuarios
@@ -3088,7 +3068,7 @@ async function abrirPanelDeficit(){
   document.getElementById('deficit-body').innerHTML=html;
 }
 
-function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='instalaciones')renderInstalaciones();if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='diagnostico')correrDiagnostico();if(t==='comisiones')renderComisiones();if(t==='web')cargarCotizacionesWeb();if(t==='asistente')inicializarAsistente();}
+function cambiarTab(t,b){document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+t).classList.add('active');if(t==='dashboard')renderDashboard();if(t==='facturacion'){const _goFact=()=>{if(typeof autoCrearFacturasFaltantes==='function')autoCrearFacturasFaltantes();actualizarFiltrosEjec();renderFacturas();};if(typeof cargarFacturasExcluidas==='function'){cargarFacturasExcluidas().then(_goFact).catch(_goFact);}else _goFact();}if(t==='inventario')renderInventario();if(t==='ventas'){irAVentasLista();renderVentas();}if(t==='instalaciones')renderInstalaciones();if(t==='contactos')renderContactos();if(t==='almacen')renderAlmacen();if(t==='config')inicializarPanelConfig();if(t==='diagnostico')correrDiagnostico();if(t==='comisiones')renderComisiones();if(t==='asistente')inicializarAsistente();}
 
 // ── PEDIDOS ──
 function loadOrders(){const keys=['isarack-v3','isarack-v2','isarack_pedidos_v2'];let found=[];for(const k of keys){try{const d=localStorage.getItem(k);if(d){const p=JSON.parse(d);if(Array.isArray(p)&&p.length>found.length)found=p;}}catch(e){}}orders=found;if(orders.length){window._skipCloudSync=true;saveOrders();window._skipCloudSync=false;}render();}
@@ -15027,329 +15007,6 @@ function comFilas(selOrd){
   filas.sort((a,b)=>{const na=parseInt(String(a.v.num||'').replace(/\D/g,''))||0,nb=parseInt(String(b.v.num||'').replace(/\D/g,''))||0;return nb-na;});
   return filas;
 }
-
-// ═══════════════════════════════════════════════
-// 🌐 PESTAÑA WEB — Cotizaciones del sitio isarack-web
-// ═══════════════════════════════════════════════
-let _webCotis=[]; // cache de cotizaciones cargadas
-let _webFiltro='todas'; // todas | nueva | contactada | descartada | convertida
-let _webCargando=false;
-const WEB_ESTATUS_ORIG='Web'; // valor en la BD para cotizaciones nuevas del sitio
-
-async function cargarCotizacionesWeb(force){
-  const lista=document.getElementById('web-lista');
-  if(!lista)return;
-  if(_webCargando)return;
-  _webCargando=true;
-  if(force||!_webCotis.length){
-    lista.innerHTML='<div style="text-align:center;padding:40px;color:#888;font-size:13px">⏳ Cargando cotizaciones…</div>';
-  }
-  try{
-    // Trae todas las cotizaciones marcadas como Web (comercial='Web' o estatus='Web')
-    // + las que ya fueron procesadas (para verlas en filtros de estado)
-    const url=SUPABASE_URL+'/rest/v1/ventas?or=(comercial.eq.Web,estatus.eq.Web,estatus.eq.WebContactada,estatus.eq.WebDescartada,estatus.eq.WebConvertida)&order=created_at.desc&limit=200';
-    const r=await fetch(url,{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}});
-    if(!r.ok)throw new Error('Supabase '+r.status);
-    _webCotis=await r.json();
-  }catch(e){
-    console.error('cargarCotizacionesWeb',e);
-    lista.innerHTML='<div style="text-align:center;padding:40px;color:#c62828;font-size:13px">✗ Error al cargar: '+e.message+'</div>';
-    _webCargando=false;
-    return;
-  }
-  _webCargando=false;
-  renderWeb();
-  actualizarBadgeWeb();
-}
-
-function actualizarBadgeWeb(){
-  const nuevas=_webCotis.filter(c=>(c.estatus||'')===WEB_ESTATUS_ORIG).length;
-  const badge=document.getElementById('badge-web-count');
-  if(!badge)return;
-  if(nuevas>0){badge.textContent=nuevas;badge.style.display='inline-block';}
-  else{badge.style.display='none';}
-}
-
-function _webContarPorEstatus(){
-  // "Todas" cuenta solo lo accionable (Nuevas + Contactadas). Convertidas/Descartadas
-  // ya no aparecen en la vista por defecto porque se manejan en el pipeline normal.
-  const c={todas:0,nueva:0,contactada:0,descartada:0,convertida:0};
-  _webCotis.forEach(v=>{
-    const s=v.estatus||'';
-    if(s===WEB_ESTATUS_ORIG){c.nueva++;c.todas++;}
-    else if(s==='WebContactada'){c.contactada++;c.todas++;}
-    else if(s==='WebDescartada')c.descartada++;
-    else if(s==='WebConvertida')c.convertida++;
-  });
-  return c;
-}
-
-function _webBadgeEstado(s){
-  if(s===WEB_ESTATUS_ORIG)return {t:'🆕 NUEVA',bg:'#FEF3C7',fg:'#92400E',bd:'#F59E0B'};
-  if(s==='WebContactada')return {t:'📞 CONTACTADA',bg:'#DBEAFE',fg:'#1E40AF',bd:'#3B82F6'};
-  if(s==='WebConvertida')return {t:'✓ CONVERTIDA',bg:'#D1FAE5',fg:'#065F46',bd:'#10B981'};
-  if(s==='WebDescartada')return {t:'✗ DESCARTADA',bg:'#F3F4F6',fg:'#6B7280',bd:'#9CA3AF'};
-  return {t:s||'—',bg:'#F3F4F6',fg:'#6B7280',bd:'#9CA3AF'};
-}
-
-function _webFmtMoneda(v,mon){
-  const n=parseFloat(v)||0;
-  return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+(mon||'USD');
-}
-
-function _webFmtFechaCorta(iso){
-  if(!iso)return '—';
-  const d=new Date(iso);
-  const ahora=new Date();
-  const diffMin=Math.floor((ahora-d)/60000);
-  if(diffMin<60)return 'hace '+diffMin+' min';
-  const diffH=Math.floor(diffMin/60);
-  if(diffH<24)return 'hace '+diffH+' h';
-  const diffD=Math.floor(diffH/24);
-  if(diffD<7)return 'hace '+diffD+' d';
-  return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
-}
-
-function renderWeb(){
-  const filtros=document.getElementById('web-filtros');
-  const lista=document.getElementById('web-lista');
-  if(!filtros||!lista)return;
-  const cnt=_webContarPorEstatus();
-  const chip=(k,label,activo)=>`<button onclick="webFiltrar('${k}')" style="padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid ${activo?'#D85A30':'#ddd'};background:${activo?'#D85A30':'#fff'};color:${activo?'#fff':'#666'};cursor:pointer;font-weight:${activo?'600':'400'}">${label}</button>`;
-  filtros.innerHTML=[
-    chip('todas','Todas ('+cnt.todas+')',_webFiltro==='todas'),
-    chip('nueva','🆕 Nuevas ('+cnt.nueva+')',_webFiltro==='nueva'),
-    chip('contactada','📞 Contactadas ('+cnt.contactada+')',_webFiltro==='contactada'),
-    chip('convertida','✓ Convertidas ('+cnt.convertida+')',_webFiltro==='convertida'),
-    chip('descartada','✗ Descartadas ('+cnt.descartada+')',_webFiltro==='descartada')
-  ].join('');
-  let fl=_webCotis;
-  if(_webFiltro==='todas'){
-    // "Todas" muestra solo lo accionable: Nuevas + Contactadas. Convertidas/Descartadas
-    // solo se ven al pedirlas explicitamente con su chip.
-    fl=fl.filter(c=>{const s=c.estatus||'';return s===WEB_ESTATUS_ORIG||s==='WebContactada';});
-  }
-  else if(_webFiltro==='nueva')fl=fl.filter(c=>(c.estatus||'')===WEB_ESTATUS_ORIG);
-  else if(_webFiltro==='contactada')fl=fl.filter(c=>c.estatus==='WebContactada');
-  else if(_webFiltro==='convertida')fl=fl.filter(c=>c.estatus==='WebConvertida');
-  else if(_webFiltro==='descartada')fl=fl.filter(c=>c.estatus==='WebDescartada');
-  if(!fl.length){
-    lista.innerHTML='<div style="text-align:center;padding:60px 20px;color:#888;font-size:13px;background:#fff;border-radius:10px">Sin cotizaciones en este filtro</div>';
-    return;
-  }
-  lista.innerHTML=fl.map(c=>_webCardHTML(c)).join('');
-}
-
-function _webCardHTML(c){
-  const b=_webBadgeEstado(c.estatus);
-  const sistema=(c.plantilla||'').split(' · ')[0]||'—';
-  const config=(c.plantilla||'').split(' · ').slice(1).join(' · ')||'';
-  const tel=(c.tel||c.cel||'').replace(/\D/g,'');
-  const wa=tel?'https://wa.me/52'+tel+'?text='+encodeURIComponent('Hola '+c.cliente+', te contacto de ISARACK sobre tu cotización '+c.num):'#';
-  const mail=c.email?'mailto:'+c.email+'?subject='+encodeURIComponent('ISARACK - Cotización '+c.num):'#';
-  const opacity=(c.estatus==='WebDescartada'||c.estatus==='WebConvertida')?'0.65':'1';
-  return `<div style="background:#fff;border:1px solid #e5e5e7;border-left:4px solid ${b.bd};border-radius:8px;padding:14px;opacity:${opacity}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-      <div style="min-width:0;flex:1">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-          <span style="background:${b.bg};color:${b.fg};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${b.t}</span>
-          <span style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;color:#555">${c.num}</span>
-          <span style="color:#888;font-size:11px">${_webFmtFechaCorta(c.created_at)}</span>
-          ${c.comercial&&c.comercial!=='Web'?'<span style="font-size:11px;color:#185FA5;font-weight:600">· '+c.comercial+'</span>':''}
-        </div>
-        <div style="font-weight:600;font-size:15px;color:#111">${c.cliente||'Cliente sin nombre'}</div>
-        <div style="font-size:12px;color:#666;margin-top:2px">${[c.contacto,c.tel||c.cel,c.email].filter(Boolean).join(' · ')||'Sin datos de contacto'}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:16px;font-weight:700;color:#D85A30">${_webFmtMoneda(c.total,c.moneda)}</div>
-        <div style="font-size:11px;color:#888">${sistema}</div>
-      </div>
-    </div>
-    ${config?'<div style="background:#fafafa;padding:8px 10px;border-radius:6px;font-size:12px;color:#555;margin-bottom:10px">'+config+'</div>':''}
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${tel?'<a href="'+wa+'" target="_blank" style="flex:1;min-width:110px;padding:8px;background:#25D366;color:#fff;text-align:center;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">💬 WhatsApp</a>':''}
-      ${c.email?'<a href="'+mail+'" style="flex:1;min-width:110px;padding:8px;background:#fff;border:1px solid #ddd;text-align:center;border-radius:6px;font-size:12px;color:#333;text-decoration:none">📧 Email</a>':''}
-      <button onclick="webVerDetalle('${c.num}')" style="flex:1;min-width:110px;padding:8px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:12px;cursor:pointer">👁 Ver detalle</button>
-      ${c.estatus===WEB_ESTATUS_ORIG?'<button onclick="webCambiarEstatus(\''+c.num+'\',\'WebContactada\')" style="flex:1;min-width:110px;padding:8px;background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📞 Marcar contactada</button>':''}
-      ${(c.estatus===WEB_ESTATUS_ORIG||c.estatus==='WebContactada')?'<button onclick="webAsignarEjecutivo(\''+c.num+'\')" style="flex:1;min-width:130px;padding:8px;background:#D85A30;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">→ Asignar ejecutivo</button>':''}
-      ${(c.estatus===WEB_ESTATUS_ORIG||c.estatus==='WebContactada')?'<button onclick="webCambiarEstatus(\''+c.num+'\',\'WebDescartada\')" style="padding:8px 10px;background:#fff;border:1px solid #ddd;color:#c62828;border-radius:6px;font-size:12px;cursor:pointer" title="Descartar">✗</button>':''}
-    </div>
-  </div>`;
-}
-
-function webFiltrar(f){_webFiltro=f;renderWeb();}
-
-function webAbrirSitio(){window.open('https://isarack-web.vercel.app/configurador.html','_blank');}
-
-function webVerDetalle(num){
-  const c=_webCotis.find(x=>x.num===num);
-  if(!c)return;
-  const lineas=Array.isArray(c.lineas)?c.lineas:[];
-  const subtotal=lineas.reduce((s,l)=>s+(parseFloat(l.precio)||0)*(parseFloat(l.cantidad)||0),0);
-  const iva=subtotal*0.08;
-  const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px';
-  ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  const lineasHTML=lineas.map(l=>`<tr>
-    <td style="padding:6px 4px;font-family:monospace;font-size:11px;color:#555">${l.producto||''}</td>
-    <td style="padding:6px 4px;text-align:center;font-size:12px">${l.cantidad}</td>
-    <td style="padding:6px 4px;text-align:right;font-size:12px">${_webFmtMoneda(l.precio,c.moneda)}</td>
-    <td style="padding:6px 4px;text-align:right;font-size:12px;font-weight:600">${_webFmtMoneda((l.precio||0)*(l.cantidad||0),c.moneda)}</td>
-  </tr>`).join('');
-  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="padding:20px 24px;border-bottom:2px solid #D85A30;background:linear-gradient(135deg,#fff8f5,#fff);border-radius:12px 12px 0 0">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div style="font-size:11px;color:#D85A30;font-weight:700;letter-spacing:1px">COTIZACIÓN WEB</div>
-          <div style="font-size:22px;font-weight:700;color:#111;margin-top:2px">${c.num}</div>
-          <div style="font-size:13px;color:#666;margin-top:2px">${c.cliente} · ${c.plantilla||''}</div>
-        </div>
-        <button onclick="this.closest('[style*=fixed]').remove()" style="padding:6px 12px;background:#f0f0f0;border:none;border-radius:6px;font-size:12px;cursor:pointer">✕</button>
-      </div>
-      <div style="margin-top:12px">
-        <button onclick="webGenerarPDF('${c.num}')" style="padding:9px 16px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📄 Ver / Imprimir PDF</button>
-      </div>
-    </div>
-    <div style="padding:20px 24px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:12px;margin-bottom:16px">
-        <div><span style="color:#888">Contacto:</span> ${c.contacto||'—'}</div>
-        <div><span style="color:#888">Tel:</span> ${c.tel||c.cel||'—'}</div>
-        <div><span style="color:#888">Email:</span> ${c.email||'—'}</div>
-        <div><span style="color:#888">RFC:</span> ${c.rfc||'—'}</div>
-        <div style="grid-column:1/-1"><span style="color:#888">Dirección:</span> ${c.dir||'—'}</div>
-        <div style="grid-column:1/-1"><span style="color:#888">Razón social:</span> ${c.razon||'—'}</div>
-      </div>
-      <div style="border-top:1px solid #eee;padding-top:14px">
-        <div style="font-size:11px;color:#888;font-weight:700;letter-spacing:1px;margin-bottom:8px">MATERIALES</div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="border-bottom:2px solid #eee">
-            <th style="text-align:left;padding:6px 4px;font-size:10px;color:#888;font-weight:600">PRODUCTO</th>
-            <th style="text-align:center;padding:6px 4px;font-size:10px;color:#888;font-weight:600">CANT</th>
-            <th style="text-align:right;padding:6px 4px;font-size:10px;color:#888;font-weight:600">P. UNIT</th>
-            <th style="text-align:right;padding:6px 4px;font-size:10px;color:#888;font-weight:600">IMPORTE</th>
-          </tr></thead>
-          <tbody>${lineasHTML}</tbody>
-        </table>
-        <div style="border-top:1px solid #eee;margin-top:10px;padding-top:10px;text-align:right;font-size:13px">
-          <div style="margin-bottom:3px">Subtotal: <b>${_webFmtMoneda(subtotal,c.moneda)}</b></div>
-          <div style="margin-bottom:3px;color:#666">IVA 8%: ${_webFmtMoneda(iva,c.moneda)}</div>
-          <div style="font-size:16px;color:#D85A30;font-weight:700">TOTAL: ${_webFmtMoneda(subtotal+iva,c.moneda)}</div>
-        </div>
-      </div>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-}
-
-function webGenerarPDF(num){
-  const c=_webCotis.find(x=>x.num===num);
-  if(!c){showToast('Cotización no encontrada','#BA7517');return;}
-  if(typeof generarCotHTML!=='function'||typeof openHTMLViewer!=='function'){
-    showToast('No disponible en esta versión','#BA7517');return;
-  }
-  const dataIn={
-    num:c.num,
-    cliente:c.cliente||'CLIENTE',
-    rfc:c.rfc||'',
-    razon:c.razon||'',
-    fecha:c.fecha||new Date().toISOString().slice(0,10),
-    comercial:c.comercial||'',
-    moneda:c.moneda||'MXN',
-    contacto:c.contacto||'',
-    cel:c.cel||c.tel||'',
-    dir:c.dir||'',
-    lineas:Array.isArray(c.lineas)?c.lineas:[]
-  };
-  try{
-    const cot=generarCotHTML(dataIn);
-    const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';
-    openHTMLViewer(fullHTML,'Presupuesto '+num);
-  }catch(e){console.error('webGenerarPDF',e);showToast('Error al generar PDF','#c62828');}
-}
-
-function webAsignarEjecutivo(num){
-  const c=_webCotis.find(x=>x.num===num);
-  if(!c)return;
-  const ejecutivos=['Adrian Solorzano','Ing. Miguel Morga','Ing. Gil Osuna','Isaac Romero','Jesus Pelayo','Lic. Daniel Osuna R.'];
-  const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px';
-  ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="padding:18px 22px;border-bottom:2px solid #D85A30">
-      <div style="font-size:16px;font-weight:700;color:#111">Asignar ejecutivo a ${c.num}</div>
-      <div style="font-size:12px;color:#666;margin-top:2px">${c.cliente}</div>
-    </div>
-    <div style="padding:20px 22px">
-      <label style="display:block;font-size:11px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ejecutivo comercial</label>
-      <select id="web-sel-ejec" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff">
-        ${ejecutivos.map(e=>`<option value="${e}">${e}</option>`).join('')}
-      </select>
-      <div style="font-size:11px;color:#888;margin-top:10px">Al asignar, la cotización pasa al pipeline normal de Ventas (estatus: Borrador) y desaparece de la pestaña Web (queda como "Convertida").</div>
-    </div>
-    <div style="padding:14px 22px;background:#fafafa;border-top:1px solid #eee;border-radius:0 0 12px 12px;display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="this.closest('[style*=fixed]').remove()" style="padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="_webConfirmarAsignar('${num}')" style="padding:8px 18px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Asignar y convertir</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-}
-
-async function _webConfirmarAsignar(num){
-  const sel=document.getElementById('web-sel-ejec');
-  const ejec=sel?sel.value:'';
-  if(!ejec)return;
-  const btn=event.target;btn.disabled=true;btn.textContent='Guardando…';
-  try{
-    const r=await fetch(SUPABASE_URL+'/rest/v1/ventas?num=eq.'+encodeURIComponent(num),{
-      method:'PATCH',
-      headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
-      body:JSON.stringify({comercial:ejec,estatus:'WebConvertida'})
-    });
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    // Actualizar cache local
-    const c=_webCotis.find(x=>x.num===num);
-    if(c){c.comercial=ejec;c.estatus='WebConvertida';}
-    document.querySelectorAll('[style*=fixed]').forEach(x=>{if(x.style.zIndex==='3000')x.remove();});
-    if(typeof showToast==='function')showToast('✓ Asignada a '+ejec,'#3B6D11');
-    renderWeb();
-    actualizarBadgeWeb();
-    // Refrescar ventas si está visible
-    if(typeof cloudSyncFromCloud==='function'){setTimeout(()=>cloudSyncFromCloud(),500);}
-  }catch(e){
-    console.error(e);
-    if(typeof showToast==='function')showToast('✗ Error: '+e.message,'#c62828');
-    btn.disabled=false;btn.textContent='Asignar y convertir';
-  }
-}
-
-async function webCambiarEstatus(num,nuevoEstatus){
-  const c=_webCotis.find(x=>x.num===num);
-  if(!c)return;
-  if(nuevoEstatus==='WebDescartada'&&!confirm('¿Descartar la cotización '+num+' ('+c.cliente+')?'))return;
-  try{
-    const r=await fetch(SUPABASE_URL+'/rest/v1/ventas?num=eq.'+encodeURIComponent(num),{
-      method:'PATCH',
-      headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
-      body:JSON.stringify({estatus:nuevoEstatus})
-    });
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    c.estatus=nuevoEstatus;
-    if(typeof showToast==='function')showToast('✓ Estado actualizado','#3B6D11');
-    renderWeb();
-    actualizarBadgeWeb();
-  }catch(e){
-    console.error(e);
-    if(typeof showToast==='function')showToast('✗ Error: '+e.message,'#c62828');
-  }
-}
-
-// Auto-carga inicial del badge si el usuario es admin
-setTimeout(()=>{
-  try{
-    const u=(typeof getCurrentUser==='function')?getCurrentUser():null;
-    if(u&&u.rol==='admin')cargarCotizacionesWeb();
-  }catch(e){}
-},2000);
 
 function renderComisiones(){
   const cont=document.getElementById('com-content');if(!cont)return;
