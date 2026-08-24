@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.21.02';
+const APP_VERSION='2026.08.24.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4662,25 +4662,49 @@ async function _instPkgCarpeta(){
   // Modo 3 (ultimo recurso): uno por uno
   _instPkgBajar(sel);_closePkg();if(typeof showToast==='function')showToast('✓ '+sel.length+' archivo(s) descargado(s)','#3B6D11');
 }
+// Web Share API con archivos (iOS/Android modernos). Devuelve true si el sistema
+// abrio la hoja de compartir (aunque el usuario cancele); false si el equipo no
+// soporta compartir archivos y hay que caer al fallback (wa.me / mailto).
+async function compartirPaquete(files, texto){
+  if(navigator.canShare && navigator.canShare({files:files})){
+    try{
+      await navigator.share({files:files, text:texto});
+      return true;
+    }catch(e){
+      if(e && e.name==='AbortError') return true; // usuario cancelo
+      console.warn('share fallo', e);
+    }
+  }
+  return false;
+}
+function _instPkgFiles(sel){
+  return sel.map(function(f){return new File([f.bytes],f.name,{type:f.mime});});
+}
 async function _instPkgWhats(){
   if(typeof showToast==='function')showToast('Preparando envío…','#185FA5');
   var sel=await _instPkgGather();
   if(!sel.length){if(typeof showToast==='function')showToast('Selecciona al menos un documento','#BA7517');return;}
   var msg='Buenos días. Anexo documentación de ISARACK'+(INST_PKG.obra?(' — '+INST_PKG.obra):'')+'.';
-  var files=sel.map(function(f){return new File([f.bytes],f.name,{type:f.mime});});
-  if(navigator.canShare&&navigator.canShare({files:files})){
-    try{await navigator.share({files:files,title:'Documentación ISARACK',text:msg});_closePkg();return;}catch(e){if(e&&e.name==='AbortError')return;}
-  }
+  var files=_instPkgFiles(sel);
+  if(await compartirPaquete(files,msg)){_closePkg();return;}
   if(typeof showToast==='function')showToast('Este equipo no comparte directo; descargo los archivos para adjuntar en WhatsApp','#BA7517');
   _instPkgBajar(sel);
   setTimeout(function(){window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');},sel.length*350+400);
   _closePkg();
 }
-function _instPkgCorreo(){
-  var to=((document.getElementById('pkg-correo')||{}).value||'').trim();
+async function _instPkgCorreo(){
+  if(typeof showToast==='function')showToast('Preparando envío…','#185FA5');
+  var sel=await _instPkgGather();
+  if(!sel.length){if(typeof showToast==='function')showToast('Selecciona al menos un documento','#BA7517');return;}
   var obra=INST_PKG.obra||'';
   var subject='ISARACK Documentación'+(obra?(' - '+obra):'');
   var body='Estimado(a) cliente,\n\nReciba un cordial saludo de parte de ISARACK.\n\nPor este medio le hago llegar la documentación requerida de nuestro personal para el ingreso y ejecución de los trabajos en sus instalaciones, la cual incluye las constancias de competencias (DC-3) y los comprobantes de seguridad social correspondientes.\n\nToda la documentación se encuentra vigente. Quedo a sus órdenes para cualquier requisito o formato adicional que necesiten.\n\nSaludos cordiales,\nISARACK\nmontajes@isarack.com\nLib. Salvador Rosas Magallón 202, Camino Verde\nTijuana BC México CP 22190';
+  var files=_instPkgFiles(sel);
+  // Intento 1: hoja nativa de iOS/Android (deja elegir Correo/Outlook/Gmail con adjuntos).
+  // El campo "Correo del cliente" se usa SOLO en el fallback de abajo.
+  if(await compartirPaquete(files, subject+'\n\n'+body)){_closePkg();return;}
+  // Fallback: Outlook web (sin adjuntos) usando el correo del cliente capturado.
+  var to=((document.getElementById('pkg-correo')||{}).value||'').trim();
   var url='https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(to)+'&subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
   var w=window.open(url,'_blank');
   if(!w){if(typeof showToast==='function')showToast('El navegador bloqueó la ventana — permite pop-ups para abrir Outlook','#BA7517');}
