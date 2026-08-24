@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.02';
+const APP_VERSION='2026.08.24.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2369,6 +2369,13 @@ function _abrirDesdeBuscador(k){
   const bm=document.getElementById('buscador-global-modal');if(bm)bm.style.display='none';
   window._buscadorAbierto=true;
   const o=it.ref;
+  // Cotizacion/pedido web con PDF adjunto → priorizarlo (conserva render + chip).
+  if(_esFolioWeb(o.num)&&o.pdfsPresupuesto&&o.pdfsPresupuesto[0]&&o.pdfsPresupuesto[0]._fromWeb){
+    if(o.id){viewPDF({stopPropagation:()=>{}},o.id,'presupuesto');return;}
+    window._currentCotData={num:o.num,cliente:o.cliente||'',email:o.email||''};
+    openPDFData(o.pdfsPresupuesto[0].data,nombreDocFactura(o.num,o.cliente,'COTIZACION',o.pdfsPresupuesto[0]));return;
+  }
+  if(_esFolioWeb(o.num)&&!(o.pdfsPresupuesto&&o.pdfsPresupuesto.length)){_adjuntarPDFWebAlPedido(o);}
   // Mostrar el PDF/presupuesto directamente
   if(o.cotData){window._currentCotData=o.cotData;const cot=generarCotHTML(o.cotData);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,(it.fuente==='pedido'?'Pedido ':'Presupuesto ')+o.num);return;}
   if(o.lineas&&o.lineas.length){window._currentCotData=o;const cot=generarCotHTML(o);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,'Presupuesto '+o.num);return;}
@@ -3630,6 +3637,18 @@ if(!f.data)return;
 if(f.data.startsWith('data:text/html')){try{const decoded=decodeURIComponent(escape(atob(f.data.split(',')[1])));openHTMLViewer(decoded,'Documento');}catch(e){showToast('Error al abrir','#c62828');}return;}if(f.data.includes('application/pdf')){openPDFData(f.data);return;}if(f.data.includes('image/')){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5" onclick="cerrarVisorOverlay(this)"><img src="${f.data}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`;document.body.appendChild(ov);}}
 function removeChip(t,i){var _a=(t==='presupuesto')?pdfPresupuesto:pdfRecepcion;_marcarBorradoModal(_a[i]);if(t==='presupuesto')pdfPresupuesto.splice(i,1);else pdfRecepcion.splice(i,1);renderChips(t);}
 function viewPDF(e,id,t){e.stopPropagation();const o=orders.find(x=>x.id==id);if(!o)return;
+// Cotizacion web con PDF ya adjunto → priorizarlo sobre cotData/cotHTML
+// (conserva el render 3D + chip CONFIGURACION originales del configurador).
+if(t==='presupuesto'&&_esFolioWeb(o.num)&&o.pdfsPresupuesto&&o.pdfsPresupuesto[0]&&o.pdfsPresupuesto[0]._fromWeb&&o.pdfsPresupuesto[0].data){
+  const _fw=o.pdfsPresupuesto[0];
+  window._currentCotData={num:o.num,cliente:o.cliente||'',email:o.email||''};
+  openPDFData(_fw.data,nombreDocFactura(o.num,o.cliente,'COTIZACION',_fw));
+  return;
+}
+// Cotizacion web sin PDF adjunto → bajarlo en background para la proxima vez.
+if(t==='presupuesto'&&_esFolioWeb(o.num)&&!(o.pdfsPresupuesto&&o.pdfsPresupuesto.length)){
+  _adjuntarPDFWebAlPedido(o);
+}
 // Priority 1: Regenerate from cotData (always current format)
 if(t==='presupuesto'&&o.cotData){window._currentCotData=o.cotData;const cot=generarCotHTML(o.cotData);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,'Presupuesto '+o.num);return;}
 // Priority 2: cotHTML from generated cotización (legacy)
@@ -3648,32 +3667,47 @@ if(f.data&&f.data.includes('application/pdf')){openPDFData(f.data,nombreDocFactu
 if(f.data&&(f.data.includes('image/png')||f.data.includes('image/jpeg'))){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="printViaIframe('<div style=text-align:center><img src=\\''+document.getElementById('vp-img').src+'\\' style=max-width:100%></div>')" style="padding:6px 16px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5;cursor:zoom-out" onclick="cerrarVisorOverlay(this)"><img id="vp-img" src="${f.data}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`;document.body.appendChild(ov);return;}
 // Fallback: try to open
 openPDFData(f.data,nombreDocFactura(o.num,o.cliente,(t==='presupuesto'?'COTIZACION':'PEDIDO'),f));}
-// Cotizaciones generadas desde la web (isarack-web) traen folio con prefijo
-// RW-/GW-/PW-. El PDF del diseno 3D vive en el bucket publico "planos", en
-// cotizaciones-web/{folio}_{cliente}.pdf. El sufijo del cliente varia, asi que
-// hay que listar el folder y quedarse con el archivo que empiece por "folio_".
+// Cotizaciones nacidas en el configurador web (isarack-web) traen folio con
+// prefijo RW-/GW-/PW-. El PDF completo (con render 3D + chip CONFIGURACION)
+// vive en el bucket publico "planos", en cotizaciones-web/{folio}_{cliente}.pdf.
+// La primera vez que se abre esa cotizacion en ISA-OS, se baja el PDF y se
+// adjunta al pedido (pdfsPresupuesto) igual que si un vendedor lo hubiera
+// arrastrado a la zona COTIZACION. A partir de ahi es una venta 100% normal.
 function _esFolioWeb(f){return /^(RW|GW|PW)-/i.test((''+(f||'')).trim());}
-async function _verDiseno3D(folio){
-  folio=(''+(folio||'')).trim();
-  if(!_esFolioWeb(folio)){if(typeof showToast==='function')showToast('Este folio no tiene diseño 3D','#BA7517');return;}
-  if(typeof supabaseClient==='undefined'||!supabaseClient){if(typeof showToast==='function')showToast('Sin conexión — no se puede abrir el diseño','#BA7517');return;}
-  if(typeof showToast==='function')showToast('Buscando diseño 3D…','#185FA5');
+// Baja el PDF web de Storage y lo adjunta al pedido. Solo si el folio es web y
+// aun no tiene NINGUN pdfsPresupuesto (respetamos cualquier PDF que ya haya
+// subido un vendedor a mano). Marca el adjunto con _fromWeb:true para poder
+// distinguirlo del manual mas adelante.
+var _bajandoPDFWeb={};
+async function _adjuntarPDFWebAlPedido(o){
+  if(!o||!_esFolioWeb(o.num))return false;
+  if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length)return false;
+  if(_bajandoPDFWeb[o.num])return false;
+  if(typeof supabaseClient==='undefined'||!supabaseClient)return false;
+  _bajandoPDFWeb[o.num]=true;
   try{
-    var res=await supabaseClient.storage.from('planos').list('cotizaciones-web',{search:folio});
+    var res=await supabaseClient.storage.from('planos').list('cotizaciones-web',{search:o.num});
     var rows=(res&&res.data)||[];
-    var match=rows.find(function(r){return r&&r.name&&r.name.toLowerCase().indexOf(folio.toLowerCase()+'_')===0;})||rows[0];
-    if(!match||!match.name){if(typeof showToast==='function')showToast('No se encontró el diseño 3D de '+folio,'#BA7517');return;}
+    var match=rows.find(function(r){return r&&r.name&&r.name.toLowerCase().indexOf((''+o.num).toLowerCase()+'_')===0;})||rows[0];
+    if(!match||!match.name){delete _bajandoPDFWeb[o.num];return false;}
     var url=SUPABASE_URL+'/storage/v1/object/public/planos/cotizaciones-web/'+encodeURIComponent(match.name);
-    window.open(url,'_blank','noopener');
-  }catch(e){console.error('ver diseño 3D',e);if(typeof showToast==='function')showToast('No se pudo abrir el diseño 3D','#BA7517');}
+    var resp=await fetch(url);
+    if(!resp.ok){delete _bajandoPDFWeb[o.num];return false;}
+    var blob=await resp.blob();
+    var dataUrl=await new Promise(function(ok,ko){var r=new FileReader();r.onload=function(){ok(r.result);};r.onerror=ko;r.readAsDataURL(blob);});
+    // Segundo chequeo tras el await: pudo haber llegado un adjunto manual mientras bajaba.
+    if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){delete _bajandoPDFWeb[o.num];return false;}
+    o.pdfsPresupuesto=[{name:match.name,data:dataUrl,mime:'application/pdf',_fromWeb:true}];
+    o.updated=Date.now();
+    try{if(typeof saveOrders==='function')saveOrders();}catch(e){}
+    try{if(typeof cloudSyncPedido==='function')cloudSyncPedido(o);}catch(e){}
+    if(typeof showToast==='function')showToast('✓ Diseño 3D adjuntado a '+o.num,'#3B6D11');
+    delete _bajandoPDFWeb[o.num];
+    return true;
+  }catch(e){console.error('adjuntar PDF web',e);delete _bajandoPDFWeb[o.num];return false;}
 }
 function openHTMLViewer(html,title){const ex=document.getElementById('html-viewer-modal');if(ex)ex.remove();const m=document.createElement('div');m.id='html-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';
-// Si el titulo tiene un folio web (RW-/GW-/PW-...), mostrar un boton extra que abre
-// el PDF del diseno 3D desde Storage. Los folios de ISA-OS (S07xxx) no lo muestran.
-var _mFolio=(''+(title||'')).match(/((?:RW|GW|PW)-[A-Za-z0-9-]+)/i);
-var _folioWeb=_mFolio?_mFolio[1]:'';
-var _btn3D=_folioWeb?('<button onclick="_verDiseno3D(\''+_folioWeb.replace(/[\\\'"]/g,'')+'\')" style="padding:6px 14px;background:#DA6635;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📐 Ver diseño 3D</button>'):'';
-m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;gap:8px;flex-wrap:wrap">${_btn3D}<button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
+m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
 document.body.appendChild(m);
 const container=document.getElementById('html-viewer-body');
 const DOC_W=800;const _avail=Math.max(280,(container.clientWidth||window.innerWidth)-40);const _scale=Math.min(1,_avail/DOC_W);
@@ -3738,7 +3772,7 @@ function imprimirPDFDesdeData(source,nombre){
     showToast('⚠ No se pudo imprimir','#c62828');
   }
 }
-function openPDFData(data,nombreDescarga){if(typeof data!=='string'||data.indexOf('base64,')<0){if(typeof data==='string'&&/^https?:\/\//i.test(data.trim())){abrirVisorStorage(data.trim(),nombreDescarga||'Documento');return;}showToast('⚠ No se pudo leer el documento','#BA7517');return;}window._descargaNombre=nombreDescarga||null;const ex=document.getElementById('pdf-viewer-modal');if(ex)ex.remove();let u;try{const b=atob(data.split(',')[1]);u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);}catch(e){showToast('⚠ Documento dañado o ilegible','#BA7517');return;}const m=document.createElement('div');m.id='pdf-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:12px"><button onclick="pdfP(-1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">◀</button><span id="pdf-pg" style="color:#1a1a1a;font-size:13px;font-weight:600">1/1</span><button onclick="pdfP(1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">▶</button></div><div style="display:flex;align-items:center;gap:6px"><button onclick="pdfZ(-0.25)" title="Alejar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">−</button><span id="pdf-zoom" onclick="pdfZR()" title="Click para 100%" style="min-width:52px;text-align:center;color:#1a1a1a;font-size:12px;font-weight:600;cursor:pointer;user-select:none">150%</span><button onclick="pdfZ(0.25)" title="Acercar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">+</button></div><div style="display:flex;gap:8px"><button onclick="descargarPDFCanvas()" style="padding:6px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar</button><button onclick="printPDFCanvas()" style="padding:6px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="document.getElementById('pdf-viewer-modal').remove()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">✕ Cerrar</button></div></div><div id="pdf-scroll" style="flex:1;overflow:auto;display:flex;justify-content:center;padding:20px;background:#e8e8e5"><canvas id="pdf-cv" style="box-shadow:0 4px 20px rgba(0,0,0,.3)"></canvas></div></div>`;document.body.appendChild(m);// Ctrl+rueda para zoom
+function openPDFData(data,nombreDescarga){if(typeof data!=='string'||data.indexOf('base64,')<0){if(typeof data==='string'&&/^https?:\/\//i.test(data.trim())){abrirVisorStorage(data.trim(),nombreDescarga||'Documento');return;}showToast('⚠ No se pudo leer el documento','#BA7517');return;}window._descargaNombre=nombreDescarga||null;const ex=document.getElementById('pdf-viewer-modal');if(ex)ex.remove();let u;try{const b=atob(data.split(',')[1]);u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);}catch(e){showToast('⚠ Documento dañado o ilegible','#BA7517');return;}const m=document.createElement('div');m.id='pdf-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:12px"><button onclick="pdfP(-1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">◀</button><span id="pdf-pg" style="color:#1a1a1a;font-size:13px;font-weight:600">1/1</span><button onclick="pdfP(1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">▶</button></div><div style="display:flex;align-items:center;gap:6px"><button onclick="pdfZ(-0.25)" title="Alejar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">−</button><span id="pdf-zoom" onclick="pdfZR()" title="Click para 100%" style="min-width:52px;text-align:center;color:#1a1a1a;font-size:12px;font-weight:600;cursor:pointer;user-select:none">150%</span><button onclick="pdfZ(0.25)" title="Acercar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">+</button></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo(descargarPDFCanvas)" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarPDFCanvas()" style="padding:6px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar</button><button onclick="printPDFCanvas()" style="padding:6px 16px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="document.getElementById('pdf-viewer-modal').remove()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">✕ Cerrar</button></div></div><div id="pdf-scroll" style="flex:1;overflow:auto;display:flex;justify-content:center;padding:20px;background:#e8e8e5"><canvas id="pdf-cv" style="box-shadow:0 4px 20px rgba(0,0,0,.3)"></canvas></div></div>`;document.body.appendChild(m);// Ctrl+rueda para zoom
 try{document.getElementById('pdf-scroll').addEventListener('wheel',function(ev){if(ev.ctrlKey||ev.metaKey){ev.preventDefault();pdfZ(ev.deltaY<0?0.15:-0.15);}},{passive:false});}catch(e){}
 window._pdfRawBytes=u.slice(0);pdfjsLib.getDocument({data:u}).promise.then(pdf=>{window._pd=pdf;window._pp=1;window._ps=1.5;pdfR();}).catch(()=>{showToast('⚠ No se pudo renderizar el PDF','#BA7517');});}
 // Cambiar zoom (+/−) y actualizar el label
@@ -3847,7 +3881,7 @@ if(typeof html2pdf==='undefined'){showToast('html2pdf no cargó, descargando HTM
 const _htmlPedidoNube=(()=>{try{return clone.outerHTML;}catch(_){return '';}})();
 html2pdf().set({margin:0,filename:filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,letterRendering:true},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}}).from(clone).save().then(()=>{wrap.remove();showToast('✓ PDF descargado: '+filename,'#3B6D11');try{if(_htmlPedidoNube&&num&&typeof _subirPedidoPDFNube==='function')_subirPedidoPDFNube(num,_htmlPedidoNube);}catch(_){}}).catch(err=>{wrap.remove();console.error(err);showToast('Error al generar PDF','#c62828');});}
 function descargarComoHTML(){const ifr=document.getElementById('cot-render-frame')||document.getElementById('cot-preview-frame');let content='';if(ifr){try{const d=ifr.contentDocument||ifr.contentWindow.document;content=d.documentElement.outerHTML;}catch(e){}}if(!content){const body=document.getElementById('html-viewer-body');content=body?body.innerHTML:'';}const numMatch=content.match(/S\d{4,6}/);const num=numMatch?numMatch[0]:'';const blob=new Blob(['<!DOCTYPE html><html>'+content+'</html>'],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=nombreDocFactura(num||'Cotizacion',(window._currentCotData&&window._currentCotData.cliente)||'','COTIZACION','html');a.click();URL.revokeObjectURL(url);}
-function enviarPorCorreo(){
+function enviarPorCorreo(descargarFn){
   // 1. Get client email from current context
   let email='';let numPres='';let cliente='';
   const emailInput=document.getElementById('vf-email');if(emailInput)email=emailInput.value.trim();
@@ -3901,9 +3935,10 @@ function enviarPorCorreo(){
   bodyText+='Lib. Salvador Rosas Magallón 202, Camino Verde\n';
   bodyText+='Tijuana BC México CP 22190';
   
-  // 2. Auto-download the PDF first
+  // 2. Auto-download the PDF first (descargarFn permite reusar este flujo desde
+  //     el visor de PDFs: se le pasa descargarPDFCanvas en vez del default HTML).
   showToast('📥 Descargando PDF... No cierres esta ventana','#185FA5');
-  descargarViewer();
+  (typeof descargarFn==='function'?descargarFn:descargarViewer)();
   
   // 3. After PDF download, detect mail provider and open the right one
   setTimeout(()=>{
@@ -6588,6 +6623,9 @@ function verPedidoDesdeFactura(num){const o=orders.find(x=>x.num===num);
     }
     return showToast('Pedido no encontrado','#BA7517');
   }
+  // Pedido web con PDF ya adjunto → priorizarlo (conserva render + chip original).
+  if(_esFolioWeb(o.num)&&o.pdfsPresupuesto&&o.pdfsPresupuesto[0]&&o.pdfsPresupuesto[0]._fromWeb){viewPDF({stopPropagation:()=>{}},o.id,'presupuesto');return;}
+  if(_esFolioWeb(o.num)&&!(o.pdfsPresupuesto&&o.pdfsPresupuesto.length)){_adjuntarPDFWebAlPedido(o);}
   if(o.cotData){window._currentCotData=o.cotData;const cot=generarCotHTML(o.cotData);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,'Pedido '+num);return;}if(o.cotHTML){window._currentCotData=null;openHTMLViewer(o.cotHTML,'Pedido '+num);return;}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){viewPDF({stopPropagation:()=>{}},o.id,'presupuesto');return;}openModal(o.id);}
 function verFacturaDesdePedido(num){const f=facturas.find(x=>x.pedido===num);if(!f)return showToast('Factura no encontrada','#BA7517');if(f.pdfFactNum&&_esCascaronLocal(f.pdfFactNum)){verPdfFacturaNube(num);return;}if(f.pdfFactNum&&f.pdfFactNum.data){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML='<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:hidden;background:#e8e8e5"><iframe src="'+f.pdfFactNum.data+'" style="width:100%;height:100%;border:0"></iframe></div>';document.body.appendChild(ov);return;}document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));const btnFact=Array.from(document.querySelectorAll('.nav-tab')).find(b=>b.textContent.includes('Facturación'));if(btnFact)btnFact.classList.add('active');document.getElementById('tab-facturacion').classList.add('active');actualizarFiltrosEjec();renderFacturas();setTimeout(()=>{const idx=facturas.indexOf(f);if(idx>=0)abrirFactura(idx);},100);}
 // Normaliza el nombre del ejecutivo para que variantes (espacios/puntos de más,
@@ -13497,6 +13535,14 @@ function verPresupuestoVenta(ri){
     const _o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(x=>x&&x.num===v.num):null;
     const _tit=(v.tipo==='Venta'?'Venta ':'Cotización ')+v.num;
     const _envolver=h=>'<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+h+'</body></html>';
+    // Cotizacion web con PDF ya adjunto → priorizarlo (conserva render + chip original).
+    if(_o&&_esFolioWeb(v.num)&&_o.pdfsPresupuesto&&_o.pdfsPresupuesto[0]&&_o.pdfsPresupuesto[0]._fromWeb){
+      viewPDF({stopPropagation:()=>{}},_o.id,'presupuesto'); return;
+    }
+    // Cotizacion web sin PDF adjunto → bajarlo en background para la proxima vez.
+    if(_o&&_esFolioWeb(v.num)&&!(_o.pdfsPresupuesto&&_o.pdfsPresupuesto.length)){
+      _adjuntarPDFWebAlPedido(_o);
+    }
     if(_o&&_o.cotHTML){ window._currentCotData=_o.cotData||null; openHTMLViewer(_o.cotHTML,_tit); return; }
     if(_o&&_o.cotData){ window._currentCotData=_o.cotData; const _c=generarCotHTML(_o.cotData);
       openHTMLViewer(_envolver((_c&&typeof _c==='object')?_c.html:_c),_tit); return; }
