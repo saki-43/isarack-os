@@ -1358,7 +1358,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.03';
+const APP_VERSION='2026.08.24.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -13535,11 +13535,56 @@ function verPresupuestoVenta(ri){
     const _o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(x=>x&&x.num===v.num):null;
     const _tit=(v.tipo==='Venta'?'Venta ':'Cotización ')+v.num;
     const _envolver=h=>'<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+h+'</body></html>';
-    // Cotizacion web con PDF ya adjunto → priorizarlo (conserva render + chip original).
+    // Cotizacion web con PDF ya adjunto al pedido → priorizarlo (conserva render+chip).
     if(_o&&_esFolioWeb(v.num)&&_o.pdfsPresupuesto&&_o.pdfsPresupuesto[0]&&_o.pdfsPresupuesto[0]._fromWeb){
       viewPDF({stopPropagation:()=>{}},_o.id,'presupuesto'); return;
     }
-    // Cotizacion web sin PDF adjunto → bajarlo en background para la proxima vez.
+    // Cotizacion web SIN pedido creado (caso "WebConvertida" tras asignar ejecutivo):
+    // bajar el PDF web de Storage y abrirlo directo. Se guarda el nombre del match
+    // en v._pdfWebName para no re-listar la carpeta la proxima vez.
+    if(!_o&&_esFolioWeb(v.num)){
+      (async function(){
+        try{
+          if(typeof supabaseClient==='undefined'||!supabaseClient)return _abrirCotClasica();
+          var nm=v._pdfWebName;
+          if(!nm){
+            var res=await supabaseClient.storage.from('planos').list('cotizaciones-web',{search:v.num});
+            var rows=(res&&res.data)||[];
+            var match=rows.find(function(r){return r&&r.name&&r.name.toLowerCase().indexOf((''+v.num).toLowerCase()+'_')===0;})||rows[0];
+            if(!match||!match.name)return _abrirCotClasica();
+            nm=match.name;
+            v._pdfWebName=nm;
+            try{if(typeof guardarLS==='function'&&typeof VTA_KEY!=='undefined')guardarLS(VTA_KEY,ventas);}catch(e){}
+          }
+          var url=SUPABASE_URL+'/storage/v1/object/public/planos/cotizaciones-web/'+encodeURIComponent(nm);
+          var resp=await fetch(url);
+          if(!resp.ok)return _abrirCotClasica();
+          var blob=await resp.blob();
+          var dataUrl=await new Promise(function(ok,ko){var r=new FileReader();r.onload=function(){ok(r.result);};r.onerror=ko;r.readAsDataURL(blob);});
+          window._currentCotData={num:v.num,cliente:v.cliente||'',email:v.email||''};
+          openPDFData(dataUrl,nombreDocFactura(v.num,v.cliente,'COTIZACION',{name:nm}));
+        }catch(e){console.error('abrir PDF web',e);_abrirCotClasica();}
+      })();
+      // Cuerpo compartido del flujo clasico si la bajada del PDF falla o no aplica.
+      var _abrirCotClasica=function(){
+        if(_o&&_o.cotHTML){ window._currentCotData=_o.cotData||null; openHTMLViewer(_o.cotHTML,_tit); return; }
+        if(_o&&_o.cotData){ window._currentCotData=_o.cotData; const _c=generarCotHTML(_o.cotData);
+          openHTMLViewer(_envolver((_c&&typeof _c==='object')?_c.html:_c),_tit); return; }
+        if(_o&&_o.pdfsPresupuesto&&_o.pdfsPresupuesto.length){ viewPDF({stopPropagation:()=>{}},_o.id,'presupuesto'); return; }
+        if(!Array.isArray(v.lineas)||!v.lineas.length) return showToast('Esta cotización no tiene partidas','#BA7517');
+        const _cd={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',
+          expira:v.expira||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',
+          tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',
+          incMan:v.maniobra||'SI',plantilla:v.plantilla||'GENERAL',
+          email:v.email||'',tel:v.tel||'',contacto:v.contacto||'',cel:v.cel||'',dir:v.dir||'',
+          lineas:v.lineas};
+        window._currentCotData=_cd;
+        const _c=generarCotHTML(_cd);
+        openHTMLViewer(_envolver((_c&&typeof _c==='object')?_c.html:_c),_tit);
+      };
+      return;
+    }
+    // Cotizacion web CON pedido pero sin PDF → bajar en background al pedido.
     if(_o&&_esFolioWeb(v.num)&&!(_o.pdfsPresupuesto&&_o.pdfsPresupuesto.length)){
       _adjuntarPDFWebAlPedido(_o);
     }
