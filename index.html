@@ -330,6 +330,14 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   .stat{flex:0 0 auto;min-width:70px;padding:4px 8px!important}
   .stat-val{font-size:15px!important;line-height:1.1!important}
   .stat-label{font-size:8.5px!important;letter-spacing:.02em!important}
+  /* Comisiones: KPIs como chips scrolleables (mismo patrón que Seguimiento) */
+  .com-kpis{display:flex!important;overflow-x:auto;overflow-y:hidden;gap:6px!important;padding:6px 0!important;margin-bottom:6px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;grid-template-columns:unset!important}
+  .com-kpis::-webkit-scrollbar{display:none}
+  .com-kpi{flex:0 0 auto;min-width:140px;padding:6px 10px!important}
+  .com-kpi .lab{font-size:8.5px!important;letter-spacing:.02em!important}
+  .com-kpi .val{font-size:14px!important;margin-top:1px!important}
+  .com-kpi .val2{font-size:11px!important}
+  .com-kpi .sub{font-size:9.5px!important;margin-top:1px!important}
   /* Seguimiento: quitar drag handle y columna FACTURA */
   #tab-pedidos thead th:nth-child(1),
   #tab-pedidos thead th:nth-child(3),
@@ -1339,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.24.07';
+const APP_VERSION='2026.08.28.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -15122,7 +15130,7 @@ function renderComisiones(){
         <button onclick="comReporteImprimir()" style="background:#D85A30;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer">📄 Reporte a pagar</button></div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
+    <div class="com-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="com-kpi"><div class="lab">Pagadas · ${comBimLabel(comFiltroBim)}</div><div class="val" style="color:#3B6D11">${money(libUSD)} USD</div><div class="val2" style="color:#3B6D11">${money(libMXN)} MXN</div><div class="sub">${nLib} ventas cobradas al 100%${nArr?` · ${nArr} de arrastre ↩`:''}</div></div>
       <div class="com-kpi"><div class="lab">Pendientes (se arrastran)</div><div class="val" style="color:#BA7517">${money(pendUSD)} USD</div><div class="val2" style="color:#BA7517">${money(pendMXN)} MXN</div><div class="sub">${nPend} ventas sin 100%</div></div>
       <div class="com-kpi"><div class="lab">💵 Pagada en efectivo</div><div class="val" style="color:#0F6E56">${money(efeUSD)} USD</div><div class="val2" style="color:#0F6E56">${money(efeMXN)} MXN</div><div class="sub">${nEfe} ventas liquidadas aparte</div></div>
