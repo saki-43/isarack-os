@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.28.04';
+const APP_VERSION='2026.08.28.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -15082,6 +15082,8 @@ function comAbrirVenta(num){
 }
 /* ── Render principal ── */
 var comFiltroComercial='',comFiltroBim=null,comFiltroBusqueda='';
+var comKpisColapsados=(function(){try{return localStorage.getItem('isarack_com_kpis_colap')==='1';}catch(e){return false;}})();
+function toggleComKpis(){comKpisColapsados=!comKpisColapsados;try{localStorage.setItem('isarack_com_kpis_colap',comKpisColapsados?'1':'0');}catch(e){}renderComisiones();}
 var comFiltroEstado='todas';           // todas|lib|pend|efe|arr
 var comOrdenCol='fecha',comOrdenDir='desc';  // col: pedido|cliente|fecha|base|pcom|com
 function comSetOrden(col){if(comOrdenCol===col){comOrdenDir=(comOrdenDir==='asc')?'desc':'asc';}else{comOrdenCol=col;comOrdenDir=(col==='fecha')?'desc':'asc';}renderComisiones();}
@@ -15252,12 +15254,16 @@ function renderComisiones(){
         <button onclick="comReporteImprimir()" style="background:#D85A30;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer">📄 Reporte a pagar</button></div>
       </div>
     </div>
-    <div class="com-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+      <button onclick="toggleComKpis()" style="background:none;border:1px solid #d5d0c1;color:#666;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;letter-spacing:.02em">${comKpisColapsados?'▶ Mostrar KPIs':'▼ Ocultar KPIs'}</button>
+      ${comKpisColapsados?`<div style="font-size:11px;color:#888"><b style="color:#3B6D11">${money(libUSD)} USD</b> pagadas · <b style="color:#BA7517">${money(pendUSD)} USD</b> pendientes</div>`:''}
+    </div>
+    ${comKpisColapsados?'':`<div class="com-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="com-kpi"><div class="lab">Pagadas · ${comBimLabel(comFiltroBim)}</div><div class="val" style="color:#3B6D11">${money(libUSD)} USD</div><div class="val2" style="color:#3B6D11">${money(libMXN)} MXN</div><div class="sub">${nLib} ventas cobradas al 100%${nArr?` · ${nArr} de arrastre ↩`:''}</div></div>
       <div class="com-kpi"><div class="lab">Pendientes (se arrastran)</div><div class="val" style="color:#BA7517">${money(pendUSD)} USD</div><div class="val2" style="color:#BA7517">${money(pendMXN)} MXN</div><div class="sub">${nPend} ventas sin 100%</div></div>
       <div class="com-kpi"><div class="lab">💵 Pagada en efectivo</div><div class="val" style="color:#0F6E56">${money(efeUSD)} USD</div><div class="val2" style="color:#0F6E56">${money(efeMXN)} MXN</div><div class="sub">${nEfe} ventas liquidadas aparte</div></div>
       <div class="com-kpi"><div class="lab">Equivalente pagado en MXN</div><div class="val">${money(libUSD*tc+libMXN)} MXN</div><div class="sub">USD × TC DOF + MXN · solo referencia</div></div>
-    </div>
+    </div>`}
     </div>
     ${chipsHTML}
     <div style="flex:1;min-height:0;overflow:auto;padding-bottom:70px"><table class="com-table">
