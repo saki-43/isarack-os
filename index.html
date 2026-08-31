@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.28.03';
+const APP_VERSION='2026.08.28.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2565,11 +2565,25 @@ function guardarLS(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch(e){_
 
 // ═══ Aviso de storage lleno con acción para limpiar ═══
 let _avisandoStorage=false;
+let _autoLimpiezaHecha=false;
 function _avisarStorageLleno(e){
   if(_avisandoStorage)return;
   _avisandoStorage=true;
   console.error('Storage lleno:',e);
-  // Crear banner clickeable arriba
+  // Intento 1: auto-limpiar silenciosamente los archivos que ya están en la nube.
+  // Solo la primera vez por sesión: si sigue lleno después, mostramos banner.
+  if(!_autoLimpiezaHecha){
+    _autoLimpiezaHecha=true;
+    try{
+      const liberados=ejecutarLimpiezaStorageAuto();
+      if(liberados>0){
+        showToast('🧹 Storage lleno: liberados '+liberados+' archivos ya respaldados','#3B6D11');
+        _avisandoStorage=false;
+        return;
+      }
+    }catch(_e){console.warn('auto-limpieza:',_e);}
+  }
+  // Intento 2: mostrar banner clickeable para limpieza manual (más agresiva)
   const bId='_storage-lleno-banner';
   if(document.getElementById(bId))return;
   const b=document.createElement('div');
@@ -2578,8 +2592,36 @@ function _avisarStorageLleno(e){
   b.style.cssText='position:fixed;top:64px;right:16px;background:#c62828;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);animation:pulse 2s ease-in-out infinite;font-family:inherit';
   b.onclick=()=>{abrirLimpiezaStorage();b.remove();_avisandoStorage=false;};
   document.body.appendChild(b);
-  // Auto-quitar en 30s
   setTimeout(()=>{if(document.getElementById(bId)){document.getElementById(bId).remove();_avisandoStorage=false;}},30000);
+}
+// Auto-limpieza silenciosa: libera SOLO archivos ya respaldados en la nube de pedidos
+// Completados/Cancelados y de cualquier pedido con updated > 90 días. Ultra seguro:
+// no toca archivos sin url ni pedidos activos recientes.
+function ejecutarLimpiezaStorageAuto(){
+  if(typeof orders==='undefined'||!Array.isArray(orders))return 0;
+  const camposArchivos=['pdfsPresupuesto','pdfsRecepcion','planosOrder','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega','fotosSurtido'];
+  const LIMITE_MS=90*24*60*60*1000;   // 90 días
+  const ahora=Date.now();
+  let liberados=0;
+  orders.forEach(o=>{
+    const antiguo=o.updated&&(ahora-o.updated)>LIMITE_MS;
+    const terminado=(o.estatus==='Completado'||o.estatus==='Cancelado');
+    if(!terminado&&!antiguo)return;
+    camposArchivos.forEach(k=>{
+      if(!Array.isArray(o[k]))return;
+      o[k].forEach(p=>{
+        if(!p||!p.data)return;
+        const enNube=!!(p.url||p.publicUrl||p.storagePath||p.path);
+        if(enNube){delete p.data;liberados++;}
+      });
+    });
+  });
+  if(liberados>0){
+    try{if(typeof K!=='undefined')localStorage.setItem(K,JSON.stringify(orders));
+      else{const kOrders=Object.keys(localStorage).find(k=>k.includes('orders')||k.includes('pedidos'));if(kOrders)localStorage.setItem(kOrders,JSON.stringify(orders));}
+    }catch(_e){console.warn('guardar tras auto-limpieza:',_e);}
+  }
+  return liberados;
 }
 
 function abrirLimpiezaStorage(){
