@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.08.28.01';
+const APP_VERSION='2026.08.28.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3762,6 +3762,39 @@ function imprimirPDFDesdeData(source,nombre){
 }
 function openPDFData(data,nombreDescarga){if(typeof data!=='string'||data.indexOf('base64,')<0){if(typeof data==='string'&&/^https?:\/\//i.test(data.trim())){abrirVisorStorage(data.trim(),nombreDescarga||'Documento');return;}showToast('⚠ No se pudo leer el documento','#BA7517');return;}window._descargaNombre=nombreDescarga||null;const ex=document.getElementById('pdf-viewer-modal');if(ex)ex.remove();let u;try{const b=atob(data.split(',')[1]);u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);}catch(e){showToast('⚠ Documento dañado o ilegible','#BA7517');return;}const m=document.createElement('div');m.id='pdf-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';m.innerHTML=`<div style="width:100%;max-width:940px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:12px"><button onclick="pdfP(-1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">◀</button><span id="pdf-pg" style="color:#1a1a1a;font-size:13px;font-weight:600">1/1</span><button onclick="pdfP(1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">▶</button></div><div style="display:flex;align-items:center;gap:6px"><button onclick="pdfZ(-0.25)" title="Alejar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">−</button><span id="pdf-zoom" onclick="pdfZR()" title="Click para 100%" style="min-width:52px;text-align:center;color:#1a1a1a;font-size:12px;font-weight:600;cursor:pointer;user-select:none">150%</span><button onclick="pdfZ(0.25)" title="Acercar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">+</button></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo(descargarPDFCanvas)" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarPDFCanvas()" style="padding:6px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar</button><button onclick="printPDFCanvas()" style="padding:6px 16px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="document.getElementById('pdf-viewer-modal').remove()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">✕ Cerrar</button></div></div><div id="pdf-scroll" style="flex:1;overflow:auto;display:flex;justify-content:center;padding:20px;background:#e8e8e5"><canvas id="pdf-cv" style="box-shadow:0 4px 20px rgba(0,0,0,.3)"></canvas></div></div>`;document.body.appendChild(m);// Ctrl+rueda para zoom
 try{document.getElementById('pdf-scroll').addEventListener('wheel',function(ev){if(ev.ctrlKey||ev.metaKey){ev.preventDefault();pdfZ(ev.deltaY<0?0.15:-0.15);}},{passive:false});}catch(e){}
+// Pinch-to-zoom en móvil sobre el canvas del PDF (dos dedos separan/juntan)
+try{
+  const _sc=document.getElementById('pdf-scroll');
+  let _pd0=null;   // distancia base entre dedos
+  let _ps0=null;   // escala al inicio del gesto
+  _sc.addEventListener('touchstart',function(ev){
+    if(ev.touches.length===2){
+      const dx=ev.touches[0].clientX-ev.touches[1].clientX;
+      const dy=ev.touches[0].clientY-ev.touches[1].clientY;
+      _pd0=Math.hypot(dx,dy);
+      _ps0=window._ps||1.5;
+    }
+  },{passive:true});
+  _sc.addEventListener('touchmove',function(ev){
+    if(ev.touches.length===2&&_pd0){
+      ev.preventDefault();
+      const dx=ev.touches[0].clientX-ev.touches[1].clientX;
+      const dy=ev.touches[0].clientY-ev.touches[1].clientY;
+      const d=Math.hypot(dx,dy);
+      const factor=d/_pd0;
+      const nueva=Math.max(0.4,Math.min(5,_ps0*factor));
+      if(Math.abs(nueva-(window._ps||1.5))>0.05){
+        window._ps=nueva;
+        const lbl=document.getElementById('pdf-zoom');
+        if(lbl)lbl.textContent=Math.round(nueva/1.5*100)+'%';
+        pdfR();
+      }
+    }
+  },{passive:false});
+  _sc.addEventListener('touchend',function(ev){
+    if(ev.touches.length<2){_pd0=null;_ps0=null;}
+  },{passive:true});
+}catch(e){}
 window._pdfRawBytes=u.slice(0);pdfjsLib.getDocument({data:u}).promise.then(pdf=>{window._pd=pdf;window._pp=1;window._ps=1.5;pdfR();}).catch(()=>{showToast('⚠ No se pudo renderizar el PDF','#BA7517');});}
 // Cambiar zoom (+/−) y actualizar el label
 function pdfZ(delta){if(!window._pd)return;window._ps=Math.max(0.4,Math.min(5,(window._ps||1.5)+delta));const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent=Math.round(window._ps/1.5*100)+'%';pdfR();}
@@ -5378,6 +5411,35 @@ async function cargarFacturasExcluidas(){
     var tab=document.getElementById('tab-facturacion');
     if(tab&&tab.classList.contains('active')&&typeof renderFacturas==='function')renderFacturas();
   }catch(e){console.warn('facturas_excluidas:',e);}
+}
+// Sincroniza el monto de la factura correspondiente cuando cambia el presupuesto de la venta.
+// Se llama desde guardarVenta después del save. Solo actualiza si el nuevo total es > 0.
+function sincronizarMontoFacturaConVenta(v){
+  if(!v||!v.num||!Array.isArray(facturas))return false;
+  const f=facturas.find(x=>x&&x.pedido===v.num);
+  if(!f)return false;
+  const lineas=(v.lineas||[]);
+  if(!lineas.length)return false;
+  let sub=0,iva=0;
+  lineas.forEach(l=>{
+    if(l&&l.tipo)return;                // línea informativa (título/subtítulo)
+    const cant=parseFloat(l.cantidad)||0;
+    const precio=parseFloat(l.precio)||0;
+    const desc=parseFloat(l.descuento)||0;
+    const taxR=parseFloat(l.impuesto)||0;
+    const base=cant*precio*(1-desc/100);
+    sub+=base;
+    iva+=base*taxR/100;
+  });
+  const total=sub+iva;
+  if(!(total>0))return false;
+  if(Math.abs((Number(f.monto)||0)-total)<0.01)return false;   // sin cambio significativo
+  f.monto=parseFloat(total.toFixed(2));
+  if(!f._ts)f._ts={};
+  f._ts.monto=new Date().toISOString();
+  guardarFacturasLS();
+  if(typeof cloudSyncFactura==='function')cloudSyncFactura(f);
+  return true;
 }
 function autoCrearFacturasFaltantes(){
   let creadas=0;
@@ -13080,6 +13142,7 @@ else{
   else{ventas.push(v);editVtaIdx=ventas.length-1;}
 }
 guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);if(_hist)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf');
+try{if(typeof sincronizarMontoFacturaConVenta==='function'&&sincronizarMontoFacturaConVenta(v)){if(typeof renderFacturas==='function')renderFacturas();if(typeof renderComisiones==='function')renderComisiones();}}catch(_e){console.warn('sincMontoFactura:',_e);}
 if(v._historica){const _oHist=orders.find(o=>o&&o.num===v.num);if(_oHist){if(_oHist.inventarioDescontado===true){const _ln=(_oHist.cotData&&Array.isArray(_oHist.cotData.lineas))?_oHist.cotData.lineas:(v.lineas||[]);if(_ln.length&&typeof regresarInventarioPedido==='function')regresarInventarioPedido(_oHist,_ln);}orders=orders.filter(x=>x!==_oHist);if(typeof marcarPedidoEliminado==='function'){marcarPedidoEliminado(_oHist.id);if(_oHist.num)marcarPedidoEliminado(_oHist.num);}if(typeof cloudDelete==='function'){if(_oHist.id!=null)cloudDelete('orders','id',_oHist.id);if(_oHist.num)cloudDelete('orders','num',_oHist.num);}saveOrders();showToast('🕓 Histórica: se quitó su pedido de Seguimiento','#7c5cbf');}}
 // ── v.14: aplicar inventario según TRANSICIÓN ──
 try{
