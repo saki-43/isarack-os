@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.01.07';
+const APP_VERSION='2026.09.01.08';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3679,8 +3679,15 @@ if(!f.data)return;
 if(f.data.startsWith('data:text/html')){try{const decoded=decodeURIComponent(escape(atob(f.data.split(',')[1])));openHTMLViewer(decoded,'Documento');}catch(e){showToast('Error al abrir','#c62828');}return;}if(f.data.includes('application/pdf')){openPDFData(f.data);return;}if(f.data.includes('image/')){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5" onclick="cerrarVisorOverlay(this)"><img src="${f.data}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`;document.body.appendChild(ov);}}
 function removeChip(t,i){var _a=(t==='presupuesto')?pdfPresupuesto:pdfRecepcion;_marcarBorradoModal(_a[i]);if(t==='presupuesto')pdfPresupuesto.splice(i,1);else pdfRecepcion.splice(i,1);renderChips(t);}
 function viewPDF(e,id,t){e.stopPropagation();const o=orders.find(x=>x.id==id);if(!o)return;
-// Cotizacion web con PDF ya adjunto → priorizarlo sobre cotData/cotHTML
-// (conserva el render 3D + chip CONFIGURACION originales del configurador).
+// v2026.09.01.08: TODO pedido con cotData/cotHTML usa el visor HTML (imagen 2 — mas
+// grande, limpio y con el mismo header en todo ISA-OS). Antes RW/GW/PW priorizaba
+// el PDF web (imagen 1) que se veia pequeno. Ahora el HTML es el default; solo si
+// falta cotData el RW cae al PDF web como fallback.
+// Priority 1: Regenerate from cotData (always current format)
+if(t==='presupuesto'&&o.cotData){window._currentCotData=o.cotData;const cot=generarCotHTML(o.cotData);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,'Presupuesto '+o.num);return;}
+// Priority 2: cotHTML from generated cotización (legacy)
+if(t==='presupuesto'&&o.cotHTML){window._currentCotData=null;openHTMLViewer(o.cotHTML,'Presupuesto '+o.num);return;}
+// Fallback RW/GW/PW sin cotData: usar el PDF web que se descargo del configurador.
 if(t==='presupuesto'&&_esFolioWeb(o.num)&&o.pdfsPresupuesto&&o.pdfsPresupuesto[0]&&o.pdfsPresupuesto[0]._fromWeb&&o.pdfsPresupuesto[0].data){
   const _fw=o.pdfsPresupuesto[0];
   window._currentCotData={num:o.num,cliente:o.cliente||'',email:o.email||''};
@@ -3691,10 +3698,6 @@ if(t==='presupuesto'&&_esFolioWeb(o.num)&&o.pdfsPresupuesto&&o.pdfsPresupuesto[0
 if(t==='presupuesto'&&_esFolioWeb(o.num)&&!(o.pdfsPresupuesto&&o.pdfsPresupuesto.length)){
   _adjuntarPDFWebAlPedido(o);
 }
-// Priority 1: Regenerate from cotData (always current format)
-if(t==='presupuesto'&&o.cotData){window._currentCotData=o.cotData;const cot=generarCotHTML(o.cotData);const fullHTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+cot.html+'</body></html>';openHTMLViewer(fullHTML,'Presupuesto '+o.num);return;}
-// Priority 2: cotHTML from generated cotización (legacy)
-if(t==='presupuesto'&&o.cotHTML){window._currentCotData=null;openHTMLViewer(o.cotHTML,'Presupuesto '+o.num);return;}
 const l=t==='presupuesto'?(o.pdfsPresupuesto||[]):(o.pdfsRecepcion||[]);
 if(!l.length)return showToast('Sin PDF adjunto','#BA7517');
 const f=l[0];
@@ -13705,14 +13708,11 @@ function verPresupuestoVenta(ri){
     const _o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(x=>x&&x.num===v.num):null;
     const _tit=(v.tipo==='Venta'?'Venta ':'Cotización ')+v.num;
     const _envolver=h=>'<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;background:#e8e8e5;padding:20px;min-height:100vh}</style></head><body>'+h+'</body></html>';
-    // Cotizacion web con PDF ya adjunto al pedido → priorizarlo (conserva render+chip).
-    if(_o&&_esFolioWeb(v.num)&&_o.pdfsPresupuesto&&_o.pdfsPresupuesto[0]&&_o.pdfsPresupuesto[0]._fromWeb){
-      viewPDF({stopPropagation:()=>{}},_o.id,'presupuesto'); return;
-    }
+    // v2026.09.01.08: RW/GW/PW con pedido cae a la ruta HTML normal de abajo (misma
+    // vista limpia que S07XXX). Antes se priorizaba el PDF web pequeno.
     // Cotizacion web SIN pedido creado (caso "WebConvertida" tras asignar ejecutivo):
-    // bajar el PDF web de Storage y abrirlo directo. Se guarda el nombre del match
-    // en v._pdfWebName para no re-listar la carpeta la proxima vez.
-    if(!_o&&_esFolioWeb(v.num)){
+    // preferir HTML si la venta trae lineas; solo caer al PDF web si no hay lineas.
+    if(!_o&&_esFolioWeb(v.num)&&(!Array.isArray(v.lineas)||!v.lineas.length)){
       (async function(){
         try{
           if(typeof supabaseClient==='undefined'||!supabaseClient)return _abrirCotClasica();
