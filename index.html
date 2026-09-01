@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.01.04';
+const APP_VERSION='2026.09.01.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2583,6 +2583,18 @@ function _avisarStorageLleno(e){
       }
     }catch(_e){console.warn('auto-limpieza:',_e);}
   }
+  // v2026.09.01.05: silenciar falsos positivos. Si el localStorage de ISA-OS pesa poco
+  // (< 4 MB) es que la cuota se acabo por otra causa (otras apps del origen, cuota
+  // reducida del navegador, valor individual grande) y el usuario no tiene nada util
+  // que liberar aqui — solo se loguea, no se molesta con un banner rojo que dice "0 MB".
+  try{
+    const mb=(new Blob([Object.keys(localStorage).map(k=>k+localStorage[k]).join('')]).size)/1024/1024;
+    if(mb<4){
+      console.warn('Storage lleno IGNORADO: uso local solo '+mb.toFixed(2)+' MB (falso positivo, nada que liberar en ISA-OS).');
+      _avisandoStorage=false;
+      return;
+    }
+  }catch(_e){}
   // Intento 2: mostrar banner clickeable para limpieza manual (más agresiva)
   const bId='_storage-lleno-banner';
   if(document.getElementById(bId))return;
