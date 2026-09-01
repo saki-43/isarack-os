@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.01.06';
+const APP_VERSION='2026.09.01.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3849,12 +3849,24 @@ try{
     if(ev.touches.length<2){_pd0=null;_ps0=null;}
   },{passive:true});
 }catch(e){}
-window._pdfRawBytes=u.slice(0);pdfjsLib.getDocument({data:u}).promise.then(pdf=>{window._pd=pdf;window._pp=1;window._ps=1.5;pdfR();}).catch(()=>{showToast('⚠ No se pudo renderizar el PDF','#BA7517');});}
+// v2026.09.01.07: zoom inicial ajustado al ancho del modal (como el visor HTML) — antes
+// abria en scale=1.5 fijo y el PDF quedaba chico centrado con mucho aire. Ahora usa el
+// ancho del scroll para arrancar en ~95% del ancho disponible, y scrolleas para ver.
+window._pdfRawBytes=u.slice(0);pdfjsLib.getDocument({data:u}).promise.then(pdf=>{
+  window._pd=pdf;window._pp=1;
+  pdf.getPage(1).then(pg=>{
+    const sc=document.getElementById('pdf-scroll');
+    const dispW=Math.max(320,((sc&&sc.clientWidth)||900)-40);
+    const vp1=pg.getViewport({scale:1});
+    window._ps=Math.max(1.5,Math.min(3.2,(dispW*0.98)/vp1.width));
+    pdfR();
+  }).catch(()=>{window._ps=1.5;pdfR();});
+}).catch(()=>{showToast('⚠ No se pudo renderizar el PDF','#BA7517');});}
 // Cambiar zoom (+/−) y actualizar el label
 function pdfZ(delta){if(!window._pd)return;window._ps=Math.max(0.4,Math.min(5,(window._ps||1.5)+delta));const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent=Math.round(window._ps/1.5*100)+'%';pdfR();}
 // Reset al 100% (== escala 1.5, que es el default original)
 function pdfZR(){if(!window._pd)return;window._ps=1.5;const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent='100%';pdfR();}
-function pdfR(){const p=window._pd;if(!p)return;p.getPage(window._pp).then(pg=>{const vp=pg.getViewport({scale:window._ps});const c=document.getElementById('pdf-cv');c.width=vp.width;c.height=vp.height;pg.render({canvasContext:c.getContext('2d'),viewport:vp});document.getElementById('pdf-pg').textContent=window._pp+'/'+p.numPages;});}
+function pdfR(){const p=window._pd;if(!p)return;p.getPage(window._pp).then(pg=>{const vp=pg.getViewport({scale:window._ps});const c=document.getElementById('pdf-cv');c.width=vp.width;c.height=vp.height;pg.render({canvasContext:c.getContext('2d'),viewport:vp});document.getElementById('pdf-pg').textContent=window._pp+'/'+p.numPages;const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent=Math.round(window._ps/1.5*100)+'%';});}
 function pdfP(d){if(!window._pd)return;window._pp=Math.max(1,Math.min(window._pd.numPages,window._pp+d));pdfR();}
 function printPDFCanvas(){
   // En iPad/iOS imprimir el PDF abriendo una pestaña (window.open) es poco confiable.
