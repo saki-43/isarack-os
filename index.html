@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.01.01';
+const APP_VERSION='2026.09.01.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -15307,7 +15307,7 @@ function renderComisiones(){
       <tbody>${filasHTML}</tbody>
       
     </table></div>
-    <div style="margin-top:12px;font-size:12px;color:#999;line-height:1.6">* Proyección: lo que valdrá al completar el 100%; no suma a pagadas. · La comisión se muestra en la moneda de cada venta (USD o MXN); el equivalente en MXN usa el TC DOF como referencia. · Los pagos vienen de Facturación: la comisión se libera cuando la factura se marca Pagada. · Lo pendiente pasa automático al siguiente bimestre.</div>`;
+    <details style="margin-top:10px"><summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0;list-style:none;user-select:none">ⓘ Cómo se calculan las comisiones</summary><div style="margin-top:6px;font-size:12px;color:#999;line-height:1.55">* Proyección: lo que valdrá al completar el 100%; no suma a pagadas. · La comisión se muestra en la moneda de cada venta (USD o MXN); el equivalente en MXN usa el TC DOF como referencia. · Los pagos vienen de Facturación: la comisión se libera cuando la factura se marca Pagada. · Lo pendiente pasa automático al siguiente bimestre.</div></details>`;
 }
 /* ── Modal de pago ── */
 var _comPagoCtx=null;
