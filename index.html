@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.01.09';
+const APP_VERSION='2026.09.02.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3817,7 +3817,7 @@ function imprimirPDFDesdeData(source,nombre){
     showToast('⚠ No se pudo imprimir','#c62828');
   }
 }
-function openPDFData(data,nombreDescarga){if(typeof data!=='string'||data.indexOf('base64,')<0){if(typeof data==='string'&&/^https?:\/\//i.test(data.trim())){abrirVisorStorage(data.trim(),nombreDescarga||'Documento');return;}showToast('⚠ No se pudo leer el documento','#BA7517');return;}window._descargaNombre=nombreDescarga||null;const ex=document.getElementById('pdf-viewer-modal');if(ex)ex.remove();let u;try{const b=atob(data.split(',')[1]);u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);}catch(e){showToast('⚠ Documento dañado o ilegible','#BA7517');return;}const m=document.createElement('div');m.id='pdf-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';m.innerHTML=`<div style="width:100%;max-width:1400px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:12px"><button onclick="pdfP(-1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">◀</button><span id="pdf-pg" style="color:#1a1a1a;font-size:13px;font-weight:600">1/1</span><button onclick="pdfP(1)" style="padding:5px 12px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer">▶</button></div><div style="display:flex;align-items:center;gap:6px"><button onclick="pdfZ(-0.5)" title="Alejar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">−</button><span id="pdf-zoom" onclick="pdfZR()" title="Click para 100%" style="min-width:52px;text-align:center;color:#1a1a1a;font-size:12px;font-weight:600;cursor:pointer;user-select:none">100%</span><button onclick="pdfZ(0.5)" title="Acercar" style="padding:5px 10px;background:#f0f0ee;color:#1a1a1a;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-weight:700">+</button></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo(descargarPDFCanvas)" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarPDFCanvas()" style="padding:6px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar</button><button onclick="printPDFCanvas()" style="padding:6px 16px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="document.getElementById('pdf-viewer-modal').remove()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">✕ Cerrar</button></div></div><div id="pdf-scroll" style="flex:1;overflow:auto;text-align:center;padding:20px;background:#e8e8e5"><canvas id="pdf-cv" style="box-shadow:0 4px 20px rgba(0,0,0,.3);display:inline-block;max-width:none;height:auto"></canvas></div></div>`;document.body.appendChild(m);// Ctrl+rueda para zoom
+function openPDFData(data,nombreDescarga){if(typeof data!=='string'||data.indexOf('base64,')<0){if(typeof data==='string'&&/^https?:\/\//i.test(data.trim())){abrirVisorStorage(data.trim(),nombreDescarga||'Documento');return;}showToast('⚠ No se pudo leer el documento','#BA7517');return;}window._descargaNombre=nombreDescarga||null;const ex=document.getElementById('pdf-viewer-modal');if(ex)ex.remove();let u;try{const b=atob(data.split(',')[1]);u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);}catch(e){showToast('⚠ Documento dañado o ilegible','#BA7517');return;}const m=document.createElement('div');m.id='pdf-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';m.innerHTML=`<div style="width:100%;max-width:1400px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:8px"><span style="color:#1a1a1a;font-size:13px;font-weight:600">📄 <span id="pdf-pg">Documento</span></span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo(descargarPDFCanvas)" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarPDFCanvas()" style="padding:6px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar</button><button onclick="printPDFCanvas()" style="padding:6px 16px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="document.getElementById('pdf-viewer-modal').remove()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">✕ Cerrar</button></div></div><div id="pdf-scroll" style="flex:1;overflow:auto;text-align:center;padding:20px;background:#e8e8e5"></div></div>`;document.body.appendChild(m);// Ctrl+rueda para zoom
 try{document.getElementById('pdf-scroll').addEventListener('wheel',function(ev){if(ev.ctrlKey||ev.metaKey){ev.preventDefault();pdfZ(ev.deltaY<0?0.15:-0.15);}},{passive:false});}catch(e){}
 // Pinch-to-zoom en móvil sobre el canvas del PDF (dos dedos separan/juntan)
 try{
@@ -3855,24 +3855,44 @@ try{
 // v2026.09.01.07: zoom inicial ajustado al ancho del modal (como el visor HTML) — antes
 // abria en scale=1.5 fijo y el PDF quedaba chico centrado con mucho aire. Ahora usa el
 // ancho del scroll para arrancar en ~95% del ancho disponible, y scrolleas para ver.
+// v2026.09.01.10: renderiza TODAS las paginas apiladas verticalmente (como el visor
+// HTML de presupuestos). Se abre al ancho y solo scrolleas hacia abajo. Sin flechas de
+// pagina. Ctrl+rueda sigue haciendo zoom.
 window._pdfRawBytes=u.slice(0);pdfjsLib.getDocument({data:u}).promise.then(pdf=>{
   window._pd=pdf;window._pp=1;
   pdf.getPage(1).then(pg=>{
     const sc=document.getElementById('pdf-scroll');
     const dispW=Math.max(320,((sc&&sc.clientWidth)||1200)-40);
     const vp1=pg.getViewport({scale:1});
-    // v2026.09.01.09: fit AL ANCHO real del scroll (sin cap absurdo). Antes topaba a
-    // 3.2x y el canvas quedaba chico en pantallas grandes con el modal ampliado a 1400px.
     window._ps=Math.max(1.2,Math.min(5,(dispW*0.98)/vp1.width));
     pdfR();
   }).catch(()=>{window._ps=1.5;pdfR();});
 }).catch(()=>{showToast('⚠ No se pudo renderizar el PDF','#BA7517');});}
-// Cambiar zoom (+/−) y actualizar el label
-function pdfZ(delta){if(!window._pd)return;window._ps=Math.max(0.4,Math.min(5,(window._ps||1.5)+delta));const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent=Math.round(window._ps/1.5*100)+'%';pdfR();}
-// Reset al 100% (== escala 1.5, que es el default original)
-function pdfZR(){if(!window._pd)return;window._ps=1.5;const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent='100%';pdfR();}
-function pdfR(){const p=window._pd;if(!p)return;p.getPage(window._pp).then(pg=>{const vp=pg.getViewport({scale:window._ps});const c=document.getElementById('pdf-cv');c.width=vp.width;c.height=vp.height;pg.render({canvasContext:c.getContext('2d'),viewport:vp});document.getElementById('pdf-pg').textContent=window._pp+'/'+p.numPages;const lbl=document.getElementById('pdf-zoom');if(lbl)lbl.textContent=Math.round(window._ps/1.5*100)+'%';});}
-function pdfP(d){if(!window._pd)return;window._pp=Math.max(1,Math.min(window._pd.numPages,window._pp+d));pdfR();}
+// Zoom (Ctrl+rueda) — reajusta el ancho de todas las paginas y re-renderiza.
+function pdfZ(delta){if(!window._pd)return;window._ps=Math.max(0.4,Math.min(5,(window._ps||1.5)+delta));pdfR();}
+function pdfZR(){if(!window._pd)return;window._ps=1.5;pdfR();}
+function pdfP(){/* navegacion por pagina desactivada: todas se renderizan apiladas */}
+// Renderiza TODAS las paginas del PDF en el contenedor pdf-scroll, apiladas.
+function pdfR(){
+  const p=window._pd;if(!p)return;
+  const sc=document.getElementById('pdf-scroll');if(!sc)return;
+  sc.innerHTML='';
+  const lbl=document.getElementById('pdf-pg');if(lbl)lbl.textContent=p.numPages>1?('Documento — '+p.numPages+' paginas'):'Documento';
+  const n=p.numPages;
+  for(let i=1;i<=n;i++){
+    ((idx)=>{
+      p.getPage(idx).then(pg=>{
+        const vp=pg.getViewport({scale:window._ps});
+        const c=document.createElement('canvas');
+        c.id='pdf-cv'+(idx===1?'':('-'+idx));
+        c.width=vp.width;c.height=vp.height;
+        c.style.cssText='box-shadow:0 4px 20px rgba(0,0,0,.3);display:block;margin:0 auto '+(idx<n?'20px':'0')+' auto;max-width:none;height:auto;background:#fff;border-radius:4px';
+        sc.appendChild(c);
+        pg.render({canvasContext:c.getContext('2d'),viewport:vp});
+      });
+    })(i);
+  }
+}
 function printPDFCanvas(){
   // En iPad/iOS imprimir el PDF abriendo una pestaña (window.open) es poco confiable.
   // En su lugar, renderizamos TODAS las páginas como imágenes y las imprimimos desde la
