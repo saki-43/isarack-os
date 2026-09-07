@@ -1110,8 +1110,14 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
         <div class="cfg-pane" id="cfg-pane-instaladores" style="display:none">
           <div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-              <h3 style="margin:0;font-size:15px;color:#333">🔧 Instaladores</h3>
-              <button onclick="cfgAgregarItem('instaladores')" style="padding:8px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px">＋ Agregar</button>
+              <div>
+                <h3 style="margin:0;font-size:15px;color:#333">🔧 Instaladores</h3>
+                <div style="font-size:11px;color:#999;margin-top:2px">Lista única de personal: de aquí salen los pedidos, las entregas y (pronto) las cuadrillas de Instalaciones.</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button onclick="cfgImportarPersonalObras()" style="padding:8px 16px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px" title="Trae el personal que hoy solo existe dentro del código de Instalaciones">⬇ Importar personal de obras</button>
+                <button onclick="cfgAgregarItem('instaladores')" style="padding:8px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px">＋ Agregar</button>
+              </div>
             </div>
             <div id="cfg-tabla-instaladores"></div>
           </div>
@@ -1441,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.02';
+const APP_VERSION='2026.09.07.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -14412,7 +14418,9 @@ const CFG_COLS={
   ],
   instaladores:[
     {k:'nombre',label:'Nombre',type:'text',required:true},
-    {k:'tel',label:'Teléfono',type:'tel'},
+    {k:'tel',label:'Teléfono',type:'tel',hint:'Sin teléfono no aparece en los pedidos ni puede entrar a la PWA.'},
+    {k:'cuadrilla',label:'Cuadrilla',type:'select',opts:['Gilberto','Brayan','Samuel','Otros'],hint:'Con quién trabaja. Agrupa el personal en Instalaciones.'},
+    {k:'rol',label:'Rol',type:'select',opts:['Instala','Entrega','Ambos'],hint:'Instala = va a obra · Entrega = lleva material · Ambos = las dos.'},
     {k:'salario',label:'Salario',type:'number'},
   ],
   proveedores:[
@@ -14431,7 +14439,17 @@ function cfgRenderTabla(tipo){
     cont.innerHTML='<div style="padding:40px;text-align:center;color:#888;background:#fafafa;border:1px dashed #ddd;border-radius:8px"><div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:13px">Sin '+tipo+' registrados</div><div style="font-size:11px;margin-top:4px">Haz clic en "＋ Agregar" para añadir uno</div></div>';
     return;
   }
-  let h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8f8f6;border-bottom:2px solid #e5e5e5">';
+  let h='';
+  // Aviso util: quien no tiene telefono no existe para los pedidos ni para la PWA.
+  if(tipo==='instaladores'){
+    const sinTel=items.filter(x=>!(''+(x.tel||'')).replace(/\D/g,'')).length;
+    const sinCuad=items.filter(x=>!x.cuadrilla).length;
+    const avisos=[];
+    if(sinTel)avisos.push('<b>'+sinTel+'</b> sin teléfono — no aparecen en los pedidos ni pueden entrar a la PWA');
+    if(sinCuad)avisos.push('<b>'+sinCuad+'</b> sin cuadrilla asignada');
+    if(avisos.length)h+='<div style="background:#FCF1DE;border:1px solid #EFC77B;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7A4E08">⚠ '+avisos.join(' · ')+'</div>';
+  }
+  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8f8f6;border-bottom:2px solid #e5e5e5">';
   cols.forEach(c=>h+='<th style="text-align:left;padding:10px;font-size:11px;color:#888;text-transform:uppercase;font-weight:600">'+c.label+'</th>');
   if(tipo==='instaladores')h+='<th style="text-align:left;padding:10px;font-size:11px;color:#888;text-transform:uppercase;font-weight:600" title="Login en la PWA. Los marcados fijo tienen codigo propio; el resto usa los ultimos 4 del telefono">Código</th>';
   h+='<th style="width:90px"></th></tr></thead><tbody>';
@@ -14453,6 +14471,43 @@ function cfgRenderTabla(tipo){
   cont.innerHTML=h;
 }
 function cfgAgregarItem(tipo){cfgAbrirEditor(tipo,-1);}
+// Trae a Configuración el personal que hoy vive clavado en el código (INST_CUAD,
+// el selector de cuadrillas de Instalaciones). Objetivo: UNA sola lista de gente.
+// No pisa a nadie: solo agrega los que faltan, comparando por nombre normalizado
+// (sin acentos ni mayúsculas), y los deja SIN teléfono a propósito — hasta que se
+// les capture no aparecen en los selects de pedidos, así nada cambia de golpe.
+function _cfgNormNombre(s){
+  return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+}
+function cfgImportarPersonalObras(){
+  if(typeof INST_CUAD==='undefined'||!Array.isArray(INST_CUAD))
+    return showToast('No encontré la lista de cuadrillas','#c62828');
+  if(!empresaCfg.instaladores)empresaCfg.instaladores=[];
+  const yaHay={};
+  empresaCfg.instaladores.forEach(x=>{yaHay[_cfgNormNombre(x.nombre)]=1;});
+  const porAgregar=[];let repetidos=0;
+  INST_CUAD.forEach(g=>{
+    const cuad=(g.nombre||'').replace(/^Personal de\s*/i,'').trim()||'Otros';
+    (g.miembros||[]).forEach(n=>{
+      if(!n)return;
+      const k=_cfgNormNombre(n);
+      if(yaHay[k]){repetidos++;return;}
+      yaHay[k]=1;
+      porAgregar.push({nombre:n,cuadrilla:cuad,rol:'Instala'});
+    });
+  });
+  if(!porAgregar.length)
+    return showToast('Ya estaban todos ('+repetidos+' encontrados)','#BA7517');
+  if(!confirm('Se van a agregar '+porAgregar.length+' personas:\n\n'+
+      porAgregar.map(x=>'· '+x.nombre+' ('+x.cuadrilla+')').join('\n')+
+      '\n\n'+repetidos+' ya estaban y no se tocan.\n\n'+
+      'Quedan SIN teléfono: hay que capturárselo para que aparezcan en los pedidos y puedan entrar a la PWA.\n\n¿Continuar?'))return;
+  porAgregar.forEach(x=>empresaCfg.instaladores.push(x));
+  guardarEmpresaConfig(empresaCfg);
+  cfgRenderTabla('instaladores');
+  if(typeof refrescarSelectInstalador==='function'){refrescarSelectInstalador();refrescarSelectChofer();}
+  showToast('✓ '+porAgregar.length+' agregados — captúrales el teléfono','#3B6D11');
+}
 function cfgEditarItem(tipo,i){cfgAbrirEditor(tipo,i);}
 function cfgEliminarItem(tipo,i){
   const it=empresaCfg[tipo][i];
@@ -14469,12 +14524,20 @@ function cfgAbrirEditor(tipo,idx){
   const ov=document.createElement('div');
   ov.id='cfg-editor-modal';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px';
   let h='<div style="background:#fff;border-radius:12px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">';
-  h+='<div style="padding:18px 24px;border-bottom:2px solid #D85A30;display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:700">'+titulo+' '+tipo.replace(/s$/,'')+'</span><button onclick="document.getElementById(\'cfg-editor-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:4px 10px">✕</button></div>';
+  h+='<div style="padding:18px 24px;border-bottom:2px solid #D85A30;display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:700">'+titulo+' '+tipo.replace(/es$/,'')+'</span><button onclick="document.getElementById(\'cfg-editor-modal\').remove()" style="background:none;border:1px solid #ddd;border-radius:8px;color:#888;cursor:pointer;font-size:16px;padding:4px 10px">✕</button></div>';
   h+='<div style="padding:22px 24px;display:flex;flex-direction:column;gap:14px">';
   cols.forEach(c=>{
     const v=(item[c.k]!=null?item[c.k]:'');
     h+='<div><label style="font-size:11px;color:#888;text-transform:uppercase;font-weight:600;display:block;margin-bottom:6px">'+c.label+(c.required?' *':'')+'</label>';
-    h+='<input id="cfg-edit-'+c.k+'" type="'+(c.type||'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'" style="width:100%;padding:10px;border:2px solid #e5e5e5;border-radius:6px;font-size:14px">';
+    if(c.type==='select'){
+      h+='<select id="cfg-edit-'+c.k+'" style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #e5e5e5;border-radius:6px;font-size:14px;background:#fff">';
+      h+='<option value="">— Sin definir —</option>';
+      h+=(c.opts||[]).map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('');
+      h+='</select>';
+    }else{
+      h+='<input id="cfg-edit-'+c.k+'" type="'+(c.type||'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #e5e5e5;border-radius:6px;font-size:14px">';
+    }
+    if(c.hint)h+='<div style="font-size:11px;color:#999;margin-top:4px">'+c.hint+'</div>';
     h+='</div>';
   });
   h+='</div>';
