@@ -256,38 +256,117 @@ html.dark-mode #alm-wrap{--alm-bg:#1a1f2e;--alm-card:rgba(255,255,255,0.07);--al
    Tarjetas grandes en vez de filas apretadas, palabras normales en vez de
    abreviaturas, y los papeles (pedido/PO/factura) como botones de imprimir
    en vez de una alarma "Falta PO+Fact" que salía en 79 de 81 pedidos. */
-.a2-sec{margin:0 0 22px}
-.a2-sech{display:flex;align-items:baseline;gap:9px;margin:0 0 10px;padding:0 2px}
-.a2-sech b{font-size:17px;font-weight:600;color:var(--a2-ink,#1E1B19)}
-.a2-sech span{font-size:13px;color:var(--a2-ink3,#9A9088)}
-.a2-card{background:var(--a2-card,#fff);border:1px solid var(--a2-line,#E7DFD8);border-left:7px solid #ccc;border-radius:12px;padding:18px 20px;margin-bottom:11px}
-.a2-w{border-left-color:#D89B22}.a2-r{border-left-color:#5E8F1E}.a2-o{border-left-color:#C0472C}.a2-b{border-left-color:#378ADD}
-.a2-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start}
-.a2-folio{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--a2-ink,#1E1B19)}
-.a2-cli{font-size:18px;margin-top:3px;color:var(--a2-ink,#1E1B19)}
-.a2-ctx{font-size:14px;color:var(--a2-ink2,#6B625B);margin-top:3px}
-.a2-nota{margin-top:11px;font-size:15px;line-height:1.45;color:var(--a2-ink,#1E1B19);background:#FEF9EF;border:1px solid #EFC77B;border-radius:9px;padding:9px 13px}
-.a2-nota b{color:#7A4E08;font-weight:600}
-html.dark-mode #alm-wrap .a2-nota{background:#3A2C10;border-color:#5c4718}
-html.dark-mode #alm-wrap .a2-nota b{color:#F0C878}
-.a2-pill{font-size:15px;font-weight:600;padding:8px 16px;border-radius:9px;white-space:nowrap}
-.a2-pw{background:#FCF1DE;color:#7A4E08}.a2-pr{background:#EBF3DF;color:#2E5A0C}
-.a2-po{background:#FBEAE7;color:#8A2E1B}.a2-pb{background:#E6F1FB;color:#0C447C}
-.a2-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:12px}
-.a2-chip{background:var(--a2-bg,#FAF7F4);border:1px solid var(--a2-line,#E7DFD8);border-radius:8px;padding:5px 12px;font-size:14px;color:var(--a2-ink2,#6B625B)}
-.a2-chip.hi{background:#EBF3DF;color:#2E5A0C;border-color:transparent;font-weight:600}
-.a2-dias{font-size:14px;font-weight:600;color:var(--a2-ink2,#6B625B)}
-.a2-dias.bad{color:#8A2E1B}
-.a2-docs{border-top:1px solid var(--a2-line,#E7DFD8);margin-top:14px;padding-top:12px}
-.a2-docs-t{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--a2-ink3,#9A9088);margin-bottom:8px}
-.a2-docrow{display:flex;gap:8px;flex-wrap:wrap}
-.a2-doc{display:inline-flex;align-items:center;gap:7px;background:var(--a2-bg,#FAF7F4);border:1px solid var(--a2-line,#E7DFD8);border-radius:9px;padding:10px 14px;font-size:15px;color:var(--a2-ink,#1E1B19);cursor:pointer;font-family:inherit}
-.a2-doc i{font-style:normal;font-size:13px;color:#D85A30;font-weight:600}
-.a2-doc.none{color:var(--a2-ink3,#9A9088);border-style:dashed;cursor:default}
-.a2-btn{border:0;border-radius:10px;padding:15px 24px;font-size:17px;font-weight:600;cursor:pointer;width:100%;margin-top:11px;font-family:inherit}
-.a2-go{background:#D85A30;color:#fff}.a2-done{background:#3B6D11;color:#fff}
-.a2-print{background:var(--a2-card,#fff);color:var(--a2-ink,#1E1B19);border:2px solid var(--a2-ink,#1E1B19)}
-html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a2-ink:#F2EDE8;--a2-ink2:#B3A89F;--a2-ink3:#877C73}
+/* ══ ALMACÉN — vista de piso (v2026.09.07.02) ══
+   Fila compacta: la carga del día cabe en una pantalla en vez de una tarjeta
+   por pantalla. El detalle (partidas, papeles, chofer) se abre solo si se pide. */
+.al-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:13px}
+.al-t{margin:0;font-size:20px;color:#1a1a1a}
+.al-fecha{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#9A9088;font-weight:700;margin-bottom:2px}
+.al-vista{display:flex;background:#fff;border:1px solid #ddd;border-radius:8px;padding:3px;gap:2px}
+.al-vista button{border:0;background:transparent;color:#666;font:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:6px;cursor:pointer}
+.al-vista button[aria-pressed="true"]{background:#1E1B19;color:#fff}
+.al-estados{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:12px}
+.al-est{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #E7DFD8;border-left:5px solid #ccc;border-radius:10px;padding:11px 14px;cursor:pointer;font:inherit;text-align:left}
+.al-est .n{font-size:28px;font-weight:700;line-height:.95;font-variant-numeric:tabular-nums}
+.al-est .t{font-size:13px;font-weight:600;color:#6B625B;line-height:1.25}
+.al-est .t small{display:block;font-weight:400;color:#9A9088;font-size:11px}
+.al-est[aria-pressed="true"]{background:#FAF7F4;box-shadow:inset 0 0 0 2px #E7DFD8}
+.al-e-falta{border-left-color:#D89B22}.al-e-falta .n{color:#B07A10}
+.al-e-listo{border-left-color:#5E8F1E}.al-e-listo .n{color:#3B6D11}
+.al-e-ent{border-left-color:#378ADD}.al-e-ent .n{color:#185FA5}
+.al-busca{margin-bottom:14px}
+.al-busca input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:12px 14px;border:1px solid #ddd;border-radius:10px}
+#alm-wrap{--c:#fff;--bg2:#FAF7F4;--ln:#E7DFD8;--tx:#1E1B19;--tx2:#6B625B;--tx3:#9A9088}
+html.dark-mode #alm-wrap{--c:#211E1B;--bg2:#171513;--ln:#332E29;--tx:#F2EDE8;--tx2:#B3A89F;--tx3:#877C73}
+.al-sec{margin:0 0 20px}
+.al-sech{display:flex;align-items:baseline;gap:9px;margin:0 2px 8px}
+.al-sech b{font-size:16px;color:var(--tx)}
+.al-sech span{font-size:12.5px;color:var(--tx3)}
+.al-sech i{margin-left:auto;font-style:normal;font-size:12px;font-weight:700;color:var(--tx3)}
+.al-fila{background:var(--c);border:1px solid var(--ln);border-radius:11px;margin-bottom:8px;overflow:hidden}
+.al-fila.ab{border-color:#D85A30}
+.al-cab{display:grid;grid-template-columns:6px 1fr auto;cursor:pointer}
+.al-fr{background:var(--ln)}
+.al-p3 .al-fr{background:#C0472C}
+.al-p2 .al-fr{background:#D89B22}
+.al-p1 .al-fr{background:#5E8F1E}
+.al-p0 .al-fr{background:#378ADD}
+.al-cuerpo{padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:9px 16px;min-width:0}
+.al-id{flex:1 1 240px;min-width:0}
+.al-folio{font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.1;color:var(--tx)}
+.al-cli{font-size:14px;font-weight:600;color:var(--tx);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-ctx{font-size:12px;color:var(--tx3);margin-top:2px}
+.al-prog{flex:0 0 150px;min-width:130px}
+.al-pt{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--tx2);margin-bottom:4px}
+.al-pt b{color:var(--tx);font-variant-numeric:tabular-nums}
+.al-barra{height:7px;border-radius:4px;background:var(--ln);overflow:hidden}
+.al-barra i{display:block;height:100%;background:#D85A30}
+.al-p1 .al-barra i{background:#5E8F1E}
+.al-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 190px}
+.al-chip{font-size:12px;font-weight:600;padding:5px 9px;border-radius:7px;background:var(--bg2);color:var(--tx2);border:1px solid var(--ln);white-space:nowrap}
+.al-chip.cr{background:#FBEAE7;color:#8A2E1B;border-color:transparent}
+.al-chip.wr{background:#FCF1DE;color:#7A4E08;border-color:transparent}
+.al-chip.ok{background:#EBF3DF;color:#2E5A0C;border-color:transparent}
+.al-chip.nf{background:#E6F1FB;color:#0C447C;border-color:transparent}
+html.dark-mode #alm-wrap .al-chip.cr{background:#3A1F1A;color:#EE9080}
+html.dark-mode #alm-wrap .al-chip.wr{background:#332616;color:#E0B060}
+html.dark-mode #alm-wrap .al-chip.ok{background:#25301A;color:#9CC85A}
+html.dark-mode #alm-wrap .al-chip.nf{background:#1B2836;color:#7FB2E4}
+.al-acc{display:flex;align-items:center;gap:8px;padding:12px 14px 12px 0}
+.al-b{border:0;border-radius:9px;padding:12px 20px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;min-height:46px;white-space:nowrap}
+.al-b.go{background:#D85A30;color:#fff}
+.al-b.ok{background:#3B6D11;color:#fff}
+.al-b.gh{background:var(--bg2);color:var(--tx2);border:1px solid var(--ln)}
+.al-fl{width:14px;height:14px;fill:none;stroke:var(--tx3);stroke-width:2.4;transition:transform .16s;flex-shrink:0}
+.al-fila.ab .al-fl{transform:rotate(180deg)}
+.al-det{display:none;border-top:1px solid var(--ln);background:var(--bg2);padding:15px 16px 16px}
+.al-fila.ab .al-det{display:block}
+.al-dg{display:grid;grid-template-columns:1.3fr 1fr;gap:20px}
+.al-det h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3)}
+.al-part{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--c);border:1px solid var(--ln);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.al-mk{width:24px;height:24px;border-radius:6px;border:2px solid var(--ln);flex-shrink:0;display:grid;place-items:center}
+.al-mk svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:3;opacity:0}
+.al-part.hh .al-mk{background:#3B6D11;border-color:#3B6D11}
+.al-part.hh .al-mk svg{opacity:1}
+.al-part.hh .al-pn{text-decoration:line-through;color:var(--tx3)}
+.al-pi{flex:1;min-width:0}
+.al-pn{font-size:13.5px;font-weight:600;color:var(--tx);line-height:1.3}
+.al-ps{font-size:11.5px;color:var(--tx3)}
+.al-pf{display:block;font-size:11px;font-weight:700;color:#8A2E1B;margin-top:2px}
+html.dark-mode #alm-wrap .al-pf{color:#EE9080}
+.al-pc{font-size:19px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;flex-shrink:0}
+.al-pc span{font-size:11px;color:var(--tx3);font-weight:600}
+.al-doc{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px;font-weight:600;color:var(--tx);padding:10px 12px;border-radius:8px;background:var(--c);border:1px solid var(--ln);cursor:pointer;margin-bottom:6px;font-family:inherit;width:100%;text-align:left}
+.al-doc i{font-style:normal;font-size:12px;color:#D85A30}
+.al-doc.no{border-style:dashed;background:transparent;color:var(--tx3);font-weight:500;cursor:default}
+.al-campo{margin:14px 0}
+.al-campo label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);font-weight:700;margin-bottom:5px}
+.al-campo select{width:100%;box-sizing:border-box;font:inherit;font-size:14px;font-weight:600;padding:11px 10px;border-radius:8px;border:1px solid var(--ln);background:var(--c);color:var(--tx);min-height:44px}
+.al-nota{background:#FEF9EF;border:1px solid #EFC77B;border-radius:8px;padding:9px 12px;font-size:13px;color:var(--tx);line-height:1.45}
+.al-nota b{color:#7A4E08}
+html.dark-mode #alm-wrap .al-nota{background:#3A2C10;border-color:#5c4718}
+html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
+.al-dacc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:13px;border-top:1px solid var(--ln)}
+.al-tab{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+.al-col{background:var(--bg2);border:1px solid var(--ln);border-radius:11px;padding:10px}
+.al-colh{display:flex;justify-content:space-between;align-items:center;margin:0 3px 9px}
+.al-colh b{font-size:15px;color:var(--tx)}
+.al-colh span{font-size:12px;font-weight:700;color:var(--tx3)}
+.al-tj{background:var(--c);border:1px solid var(--ln);border-left:4px solid var(--ln);border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer}
+.al-tj.al-p3{border-left-color:#C0472C}.al-tj.al-p2{border-left-color:#D89B22}
+.al-tj.al-p1{border-left-color:#5E8F1E}.al-tj.al-p0{border-left-color:#378ADD}
+.al-tj .f{font-size:18px;font-weight:700;color:var(--tx);line-height:1.1}
+.al-tj .c{font-size:12.5px;font-weight:600;color:var(--tx2);margin:2px 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-tj .m{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--tx3);margin-top:5px}
+.al-vacio{text-align:center;color:var(--tx3);padding:44px 10px;font-size:14px}
+@media(max-width:900px){.al-dg{grid-template-columns:1fr}.al-tab{grid-template-columns:1fr}}
+@media(max-width:640px){
+  .al-estados{grid-template-columns:1fr}
+  .al-cab{grid-template-columns:6px 1fr}
+  .al-acc{grid-column:2;padding:0 14px 12px}
+  .al-b{flex:1}
+  .al-prog{flex:1 1 100%}
+}
 #alm-wrap .alm-num{font-size:18px;font-weight:800;color:var(--alm-num);letter-spacing:-0.3px;line-height:1.1}
 #alm-wrap .alm-cli{font-size:12.5px;color:var(--alm-cli);margin-top:1px}
 #alm-wrap .alm-ico{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
@@ -755,17 +834,32 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
   <!-- ══ TAB ALMACÉN ══ -->
   <div class="tab-content" id="tab-almacen">
     <div class="tab-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div class="al-head">
         <div>
-          <h2 style="margin:0;font-size:20px;color:#1a1a1a">🏭 Almacén — Preparación de pedidos</h2>
-          <div style="font-size:12px;color:#888;margin-top:2px">🔵 entregado · 🟢 listo para entregar · 🟡 falta algo</div>
+          <div class="al-fecha" id="al-fecha"></div>
+          <h2 class="al-t">🏭 Almacén — Preparación</h2>
         </div>
-        <input id="alm-buscar" class="sbx" placeholder="🔍 Buscar pedido o cliente..." oninput="renderAlmacen()" style="min-width:240px">
+        <div class="al-vista">
+          <button id="al-v-lista" aria-pressed="true" onclick="setAlmVista('lista')">Lista</button>
+          <button id="al-v-tablero" aria-pressed="false" onclick="setAlmVista('tablero')">Tablero</button>
+        </div>
       </div>
-      <div id="alm-tabs" style="display:flex;gap:6px;margin-bottom:14px">
-        <button id="alm-tab-porentregar" onclick="setAlmTab('porentregar')" style="padding:9px 18px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📦 Por entregar <span id="alm-cnt-porentregar" style="background:rgba(255,255,255,0.3);padding:1px 7px;border-radius:10px;margin-left:4px">0</span></button>
-        <button id="alm-tab-entregado" onclick="setAlmTab('entregado')" style="padding:9px 18px;background:#fff;color:#555;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✅ Entregado <span id="alm-cnt-entregado" style="background:#eee;padding:1px 7px;border-radius:10px;margin-left:4px">0</span></button>
-        <button id="alm-tab-todos" onclick="setAlmTab('todos')" style="padding:9px 18px;background:#fff;color:#555;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Todos <span id="alm-cnt-todos" style="background:#eee;padding:1px 7px;border-radius:10px;margin-left:4px">0</span></button>
+      <div class="al-estados">
+        <button class="al-est al-e-falta" id="alm-tab-falta" aria-pressed="true" onclick="setAlmTab('falta')">
+          <span class="n" id="alm-cnt-falta">0</span>
+          <span class="t">Falta armar<small>material por juntar</small></span>
+        </button>
+        <button class="al-est al-e-listo" id="alm-tab-listo" aria-pressed="false" onclick="setAlmTab('listo')">
+          <span class="n" id="alm-cnt-listo">0</span>
+          <span class="t">Armados, esperando salida<small>ya se pueden entregar</small></span>
+        </button>
+        <button class="al-est al-e-ent" id="alm-tab-entregado" aria-pressed="false" onclick="setAlmTab('entregado')">
+          <span class="n" id="alm-cnt-entregado">0</span>
+          <span class="t">Entregados<small>historial</small></span>
+        </button>
+      </div>
+      <div class="al-busca">
+        <input id="alm-buscar" placeholder="🔍 Buscar pedido o cliente..." oninput="renderAlmacen()">
       </div>
       <div id="alm-lista" style="overflow-y:auto;flex:1;min-height:0"></div>
     </div>
@@ -1347,7 +1441,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.01';
+const APP_VERSION='2026.09.07.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6337,8 +6431,11 @@ function _almEstadoDoc(f,campo,pdfKey){
   if(f&&f[campo+'_na'])return 'na';
   return 'falta';
 }
-let _almTab='porentregar';
+let _almTab='falta';        // falta | listo | entregado
+let _almVis='lista';        // lista | tablero
+let _almAb={};              // folios con el detalle abierto
 function setAlmTab(t){_almTab=t;renderAlmacen();}
+function setAlmVista(v){_almVis=v;renderAlmacen();}
 function asignarChoferAlmacen(num,sel){
   const i=orders.findIndex(o=>o.num===num);if(i<0)return;
   orders[i].choferCel=sel.value;
@@ -6576,138 +6673,270 @@ function marcarArmadoListo(num){
 function renderAlmacen(){
   const cont=document.getElementById('alm-lista');if(!cont)return;
   const q=(document.getElementById('alm-buscar')?.value||'').trim().toLowerCase();
+  // Fecha en el encabezado: en el piso se usa para saber contra qué día se mide.
+  const elF=document.getElementById('al-fecha');
+  if(elF){const d=new Date();
+    const DS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const MS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    elF.textContent=DS[d.getDay()]+' '+d.getDate()+' de '+MS[d.getMonth()]+' de '+d.getFullYear();}
   // Recorremos los pedidos (orders) y emparejamos con su factura por número.
-  // Ventas históricas se excluyen: por definición ya se entregaron antes; no deben aparecer aquí.
+  // Ventas históricas se excluyen: por definición ya se entregaron antes.
   let items=orders.filter(o=>{
     if(!o||o.archivadoCotizacion||!_pedidoVendido(o.num))return false;
     const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===o.num):null;
     if(v&&v._historica)return false;
     return true;
-  }).map(o=>{
-    const f=facturas.find(x=>x.pedido===o.num)||null;
-    return {o,f};
-  });
+  }).map(o=>({o,f:facturas.find(x=>x.pedido===o.num)||null}));
   if(q)items=items.filter(({o,f})=>(o.num||'').toLowerCase().includes(q)||(o.cliente||'').toLowerCase().includes(q)||(f&&(f.cliente||'').toLowerCase().includes(q)));
 
   // Clasificar por lo que el ALMACÉN puede hacer, no por papeleo.
-  // Antes el estado salía de PO+Factura, que casi nunca se capturan: 79 de 81 pedidos
-  // mostraban la misma alarma y la gente aprendió a ignorar la pantalla. El campo que
-  // el piso sí mantiene es 'armado' (115 de 120 pedidos lo traen).
   const clasificar=({o})=>{
     const entregado=(o.entregado==='Si'||o.entregado==='Sí')||(o.pdfsRecepcion&&o.pdfsRecepcion.length>0);
     if(entregado)return 'entregado';
     return (o.armado==='Listo')?'listo':'falta';
   };
-  // Días esperando: sirve para que lo viejo no se hunda al fondo de la lista.
-  const _dias=o=>{
-    const s=o&&o.fecha;if(!s)return 0;
-    const d=new Date(s+'T00:00:00');if(isNaN(d))return 0;
-    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
-  };
   items.forEach(it=>{it._estado=clasificar(it);});
 
-  // Contadores
-  const nEntregado=items.filter(it=>it._estado==='entregado').length;
-  const nPorEntregar=items.filter(it=>it._estado!=='entregado').length;
-  const setCnt=(id,n)=>{const e=document.getElementById(id);if(e)e.textContent=n;};
-  setCnt('alm-cnt-porentregar',nPorEntregar);
-  setCnt('alm-cnt-entregado',nEntregado);
-  setCnt('alm-cnt-todos',items.length);
-  // Estilo de pestaña activa
-  ['porentregar','entregado','todos'].forEach(t=>{const b=document.getElementById('alm-tab-'+t);if(!b)return;const act=t===_almTab;b.style.background=act?'#D85A30':'#fff';b.style.color=act?'#fff':'#555';b.style.border=act?'none':'1px solid #ddd';const sp=b.querySelector('span');if(sp){sp.style.background=act?'rgba(255,255,255,0.3)':'#eee';}});
+  // Contadores y estado visual de los tres botones de arriba.
+  const cnt={falta:0,listo:0,entregado:0};
+  items.forEach(it=>{cnt[it._estado]++;});
+  ['falta','listo','entregado'].forEach(k=>{
+    const n=document.getElementById('alm-cnt-'+k);if(n)n.textContent=cnt[k];
+    const b=document.getElementById('alm-tab-'+k);if(b)b.setAttribute('aria-pressed',String(k===_almTab));
+  });
+  ['lista','tablero'].forEach(v=>{
+    const b=document.getElementById('al-v-'+v);if(b)b.setAttribute('aria-pressed',String(v===_almVis));
+  });
 
-  // Filtrar por pestaña
-  let visibles=items;
-  if(_almTab==='porentregar')visibles=items.filter(it=>it._estado!=='entregado');
-  else if(_almTab==='entregado')visibles=items.filter(it=>it._estado==='entregado');
-  // Orden estable e idéntico en todos los equipos: más reciente primero (fecha desc, luego # de pedido desc)
-  const _almTs=o=>o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):'');
-  // v2: el que lleva MÁS tiempo esperando va primero. Antes era al revés y los pedidos
-  // de hace semanas quedaban hundidos abajo de 80 filas, donde nadie los veía.
-  // En 'Entregado' se conserva el orden viejo (lo recién entregado arriba).
-  const _dirAlm=(_almTab==='entregado')?-1:1;
-  visibles=visibles.slice().sort((a,b)=>{const fa=_almTs(a.o),fb=_almTs(b.o);if(fa!==fb)return (fa<fb?-1:1)*_dirAlm;const na=String(a.o.num||''),nb=String(b.o.num||'');return na<nb?-_dirAlm:(na>nb?_dirAlm:0);});
+  // ── Vista Tablero: las tres columnas de un jalón, para la tableta del piso ──
+  if(_almVis==='tablero'){
+    const col=(tit,est)=>{
+      const l=_almOrdenar(items.filter(it=>it._estado===est),est);
+      return '<div class="al-col"><div class="al-colh"><b>'+tit+'</b><span>'+l.length+'</span></div>'+
+        (l.length?l.map(_almTarjeta).join(''):'<div class="al-vacio" style="padding:22px 6px">Nada aquí</div>')+'</div>';
+    };
+    cont.innerHTML='<div id="alm-wrap" data-no-invert><div class="al-tab">'+
+      col('Falta armar','falta')+col('Esperando salida','listo')+col('Entregados','entregado')+'</div></div>';
+    return;
+  }
 
-  if(!visibles.length){cont.innerHTML='<div style="text-align:center;color:#aaa;padding:40px;font-size:14px">'+(_almTab==='entregado'?'Aún no hay pedidos entregados.':(_almTab==='porentregar'?'No hay pedidos por entregar. 🎉':'Sin pedidos para mostrar.'))+'</div>';return;}
-
-  // Una tarjeta de pedido. Todo en palabras normales: el personal de piso no
-  // tiene por qué descifrar abreviaturas ni saber qué es una PO.
-  const tarjeta=({o,f,_estado})=>{
-    const ri=f?facturas.indexOf(f):-1;
-    const d=_dias(o),viejo=d>60;
-    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    let cls,pill,pillTxt;
-    if(_estado==='entregado'){cls='a2-b';pill='a2-pb';pillTxt='Entregado';}
-    else if(_estado==='listo'){cls='a2-r';pill='a2-pr';pillTxt='Listo';}
-    else{cls='a2-w';pill='a2-pw';pillTxt='Falta armar';}
-    // Ubicación: cuando el cliente pasa por él, el almacén no tiene que salir. Va resaltado.
-    const ub=(o.ubicacion||'').trim();
-    const recoge=/recoge|recoger|paqueter/i.test(ub);
-    let chipUbic='';
-    if(ub)chipUbic=recoge?`<span class="a2-chip hi">${esc(ub.length>40?ub.slice(0,38)+'…':ub)}</span>`
-                        :`<span class="a2-chip" onclick="verMapaInline(event,${o.id})">Ver mapa</span>`;
-    // Mismo criterio que verListaSurtido: cuenta material y montacargas, no servicios.
-    const _esMont=l=>/montacarga/i.test((l&&l.producto)||'');
-    const _esSv=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!_esMont(l);
-    const nPart=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(l=>l&&!_esSv(l)&&(l.producto||l.sku)).length:0;
-    // Quién entrega: select embebido para que el almacén no tenga que abrir el modal.
-    // Usa la MISMA lista central (instaladores + choferes + bodega), igual que refrescarSelectChofer.
-    const _listaE=(typeof getInstaladoresLista==='function')?getInstaladoresLista().filter(x=>x.cel):[];
-    const _optsE=_listaE.map(p=>`<option value="${esc(p.cel)}" data-nombre="${esc(p.nombre)}"${p.cel===o.choferCel?' selected':''}>${esc(p.nombre)}</option>`).join('');
-    const _tieneE=!!o.choferNombre;
-    const chipEntrega=`<span class="a2-chip" onclick="event.stopPropagation()" style="padding:0;background:${_tieneE?'#EAF3DE':'#FBEAE7'};border-color:transparent;font-weight:600">🚛&nbsp;<select onchange="asignarChoferAlmacen('${esc(o.num)}',this)" style="border:0;background:transparent;font:inherit;color:${_tieneE?'#2E5A0C':'#8A2E1B'};padding:4px 8px 4px 2px;cursor:pointer;font-family:inherit"><option value="">Sin asignar</option>${_optsE}</select></span>`;
-    // Papeles: se muestran en TODAS las tarjetas (armar y entregar). En las de armar
-    // sirven de consulta -ver el pedido, saber si ya hay factura-; en las de entrega
-    // se imprimen y se van con el material. Lo que falta se dice en gris, sin alarma.
-    const bPed=(o.cotData||o.cotHTML)?`<button class="a2-doc" onclick="event.stopPropagation();verPedidoDesdeFactura('${esc(o.num)}')">Pedido <b>${esc(o.num)}</b> <i>Ver</i></button>`:'';
-    const hayPO=f&&typeof _hayAdj==='function'&&_hayAdj(f.pdfPo);
-    const bPO=hayPO?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'pdfPo')">Orden de compra${f.poNum?' <b>'+esc(f.poNum)+'</b>':''} <i>Ver</i></button>`
-                   :`<span class="a2-doc none">Sin orden de compra</span>`;
-    const hayFac=f&&typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura));
-    const bFac=hayFac?`<button class="a2-doc" onclick="event.stopPropagation();verAdjuntoFact(${ri},'${_hayAdj(f.pdfFactNum)?'pdfFactNum':'pdfFactura'}')">Factura${f.factura?' <b>'+esc(f.factura)+'</b>':''} <i>Ver</i></button>`
-                     :`<span class="a2-doc none">Sin factura todavía</span>`;
-    const tituloDocs=(_estado==='falta')?'Documentos del pedido':'Papeles para entregar';
-    const docs=`<div class="a2-docs"><div class="a2-docs-t">${tituloDocs}</div><div class="a2-docrow">${bPed}${bFac}${bPO}</div></div>`;
-    // Comercial y fecha: quién vendió y de cuándo es, para saber a quién preguntar.
-    const com=(o.comercial||'').trim();
-    let fLarga='';
-    if(o.fecha){const p=o.fecha.split('-');if(p.length===3)fLarga=p[2]+'/'+p[1]+'/'+p[0];}
-    const linCtx=(com||fLarga)?`<div class="a2-ctx">${com?esc(com):''}${com&&fLarga?' · ':''}${fLarga?esc(fLarga):''}</div>`:'';
-    // Notas del pedido: solo si trae algo real (se omite el texto autogenerado de totales).
-    const nt=(o.notas||'').trim();
-    const notaUtil=nt&&!/^Moneda:/i.test(nt)?nt:'';
-    const linNota=notaUtil?`<div class="a2-nota"><b>Nota:</b> ${esc(notaUtil.length>160?notaUtil.slice(0,158)+'…':notaUtil)}</div>`:'';
-    // Un solo botón principal, y solo el que aplica en ese momento.
-    let acciones='';
-    if(_estado==='falta')acciones=`<button class="a2-btn a2-go" onclick="event.stopPropagation();verListaSurtido('${esc(o.num)}')">Ver qué hay que juntar</button>`+
-      `<button class="a2-btn a2-done" onclick="event.stopPropagation();marcarArmadoListo('${esc(o.num)}')">Ya quedó armado</button>`;
-    else if(_estado==='listo')acciones=`<button class="a2-btn a2-print" onclick="event.stopPropagation();imprimirTodoAlmacen('${esc(o.num)}')">Imprimir los papeles</button>`+
-      `<button class="a2-btn a2-done" onclick="event.stopPropagation();openModal(${o.id})">Marcar como entregado</button>`;
-    return `<div class="a2-card ${cls}">
-      <div class="a2-top">
-        <div><div class="a2-folio">${esc(o.num)}</div><div class="a2-cli">${esc(o.cliente||(f&&f.cliente)||'')}</div>${linCtx}</div>
-        <div class="a2-pill ${pill}">${pillTxt}</div>
-      </div>
-      <div class="a2-meta">
-        <span class="a2-dias${d>10?' bad':''}">${d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando')}</span>
-        ${chipUbic}${nPart?`<span class="a2-chip">${nPart} ${nPart===1?'partida':'partidas'}</span>`:''}${chipEntrega}
-      </div>
-      ${linNota}${docs}${acciones}
-    </div>`;
-  };
-  const bloque=(titulo,pista,lista)=>lista.length
-    ? `<div class="a2-sec"><div class="a2-sech"><b>${titulo}</b><span>${pista}</span></div>${lista.map(tarjeta).join('')}</div>`
-    : '';
+  // ── Vista Lista ──
+  const visibles=_almOrdenar(items.filter(it=>it._estado===_almTab),_almTab);
+  if(!visibles.length){
+    const txt=_almTab==='entregado'?'Aún no hay pedidos entregados.':(_almTab==='listo'?'Ningún pedido esperando salida.':'No hay pedidos por armar. 🎉');
+    cont.innerHTML='<div id="alm-wrap" data-no-invert><div class="al-vacio">'+txt+(q?'<br><small>Con el texto que buscaste.</small>':'')+'</div></div>';
+    return;
+  }
   let cuerpo='';
-  if(_almTab==='porentregar'){
-    const porArmar=visibles.filter(it=>it._estado==='falta');
-    const listos=visibles.filter(it=>it._estado==='listo');
-    cuerpo=bloque('Falta armar','empieza por estos',porArmar)
-          +bloque('Ya armados, esperando salida','solo falta entregarlos',listos);
+  if(_almTab==='falta'){
+    // Lo atrasado va arriba y en sección propia: antes un pedido de 81 días se
+    // veía igual que uno de hoy y se quedaba hundido.
+    const viejos=visibles.filter(it=>_almDias(it.o)>30);
+    const resto=visibles.filter(it=>_almDias(it.o)<=30);
+    cuerpo=_almSeccion('Atrasados','llevan más de un mes esperando',viejos)
+          +_almSeccion('En tiempo','por orden de llegada',resto);
+  }else if(_almTab==='listo'){
+    cuerpo=_almSeccion('Listos para salir','solo falta cargarlos',visibles);
   }else{
-    cuerpo=visibles.map(tarjeta).join('');
+    cuerpo=_almSeccion('Entregados','lo más reciente primero',visibles);
   }
   cont.innerHTML='<div id="alm-wrap" data-no-invert>'+cuerpo+'</div>';
+}
+
+// Días esperando: sirve para que lo viejo no se hunda al fondo de la lista.
+function _almDias(o){
+  const s=o&&o.fecha;if(!s)return 0;
+  const d=new Date(s+'T00:00:00');if(isNaN(d))return 0;
+  return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+}
+// El que lleva MÁS tiempo esperando va primero. En 'Entregado' al revés.
+function _almOrdenar(lista,est){
+  const ts=o=>o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):'');
+  const dir=(est==='entregado')?-1:1;
+  return lista.slice().sort((a,b)=>{
+    const fa=ts(a.o),fb=ts(b.o);
+    if(fa!==fb)return (fa<fb?-1:1)*dir;
+    const na=String(a.o.num||''),nb=String(b.o.num||'');
+    return na<nb?-dir:(na>nb?dir:0);
+  });
+}
+function _almSeccion(titulo,pista,lista){
+  if(!lista.length)return '';
+  return '<div class="al-sec"><div class="al-sech"><b>'+titulo+'</b><span>'+pista+'</span><i>'+lista.length+'</i></div>'+
+    lista.map(_almFila).join('')+'</div>';
+}
+// Partidas de material del pedido. Mismo criterio que verListaSurtido: el
+// montacargas cuenta (hay que apartarlo), el resto de servicios no.
+function _almPartidas(o){
+  const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
+  const esMont=l=>/montacarga/i.test((l&&l.producto)||'');
+  const esServ=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!esMont(l);
+  const arts=[];
+  lineas.forEach((l,i)=>{if(!l||esServ(l))return;if(l.producto||l.sku)arts.push(Object.assign({},l,{_idx:i}));});
+  return arts;
+}
+// Existencia contra inventario. Solo opina cuando el SKU (o el nombre exacto)
+// empata: si no lo encuentra devuelve null y la fila se calla, en vez de
+// gritar "no hay" por un producto que simplemente no está catalogado.
+function _almStock(l){
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  if(!inv.length)return null;
+  let p=l.sku?inv.find(x=>x&&x.sku===l.sku):null;
+  if(!p&&l.producto)p=inv.find(x=>x&&(x.producto||'').trim().toUpperCase()===(''+l.producto).trim().toUpperCase());
+  if(!p||p.esServicio)return null;
+  const hay=Number(p.cantidad)||0,pide=Number(l.cantidad)||0;
+  return {hay:hay,pide:pide,falta:Math.max(0,pide-hay)};
+}
+function _almEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _almPrio(it){
+  if(it._estado==='entregado')return 'al-p0';
+  if(it._estado==='listo')return 'al-p1';
+  return _almDias(it.o)>30?'al-p3':(_almDias(it.o)>10?'al-p2':'');
+}
+// Una fila de pedido. Arriba solo lo que decide la acción; lo demás se
+// despliega al tocarla.
+function _almFila(it){
+  const o=it.o,f=it.f,esc=_almEsc;
+  const arts=_almPartidas(o);
+  const checks=(o.surtidoChecks&&typeof o.surtidoChecks==='object')?o.surtidoChecks:{};
+  const hechas=arts.filter(a=>checks[a._idx]).length;
+  const total=arts.length;
+  const pct=total?Math.round(hechas/total*100):0;
+  const d=_almDias(o);
+
+  // Chips: días, faltante de inventario, ubicación, chofer.
+  const chips=[];
+  if(it._estado==='entregado')chips.push('<span class="al-chip nf">Entregado</span>');
+  else chips.push('<span class="al-chip '+(d>30?'cr':(d>10?'wr':''))+'">'+(d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando'))+'</span>');
+  if(it._estado!=='entregado'){
+    const sinStock=arts.filter(l=>{const s=_almStock(l);return s&&s.falta>0;}).length;
+    if(sinStock)chips.push('<span class="al-chip cr">'+sinStock+(sinStock===1?' sin existencia':' sin existencia')+'</span>');
+  }
+  const ub=(o.ubicacion||'').trim();
+  const recoge=/recoge|recoger|paqueter/i.test(ub);
+  if(ub)chips.push('<span class="al-chip'+(recoge?' ok':'')+'">'+esc(ub.length>34?ub.slice(0,32)+'…':ub)+'</span>');
+  if(o.choferNombre)chips.push('<span class="al-chip ok">'+esc(o.choferNombre)+'</span>');
+  else if(it._estado==='listo')chips.push('<span class="al-chip wr">Sin chofer asignado</span>');
+
+  // Un solo botón principal, el que aplica en ese momento.
+  let bPri='';
+  if(it._estado==='falta')bPri='<button class="al-b go" onclick="event.stopPropagation();verListaSurtido(\''+esc(o.num)+'\')">Armar</button>';
+  else if(it._estado==='listo')bPri='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">Entregar</button>';
+  else bPri='<button class="al-b gh" onclick="event.stopPropagation();openModal('+o.id+')">Abrir pedido</button>';
+
+  let com=(o.comercial||'').trim(),fLarga='';
+  if(o.fecha){const p=o.fecha.split('-');if(p.length===3)fLarga=p[2]+'/'+p[1]+'/'+p[0];}
+  const ctx=(com||fLarga)?'<div class="al-ctx">'+esc(com)+(com&&fLarga?' · ':'')+esc(fLarga)+'</div>':'';
+  const abierta=_almAb[o.num]?' ab':'';
+
+  return '<div class="al-fila '+_almPrio(it)+abierta+'" id="alf-'+esc(o.num)+'">'+
+    '<div class="al-cab" role="button" tabindex="0" onclick="_almToggle(\''+esc(o.num)+'\')" '+
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_almToggle(\''+esc(o.num)+'\')}">'+
+      '<div class="al-fr"></div>'+
+      '<div class="al-cuerpo">'+
+        '<div class="al-id"><div class="al-folio">'+esc(o.num)+'</div>'+
+          '<div class="al-cli">'+esc(o.cliente||(f&&f.cliente)||'')+'</div>'+ctx+'</div>'+
+        (total?'<div class="al-prog"><div class="al-pt"><span>Juntadas</span><b>'+hechas+' de '+total+'</b></div>'+
+          '<div class="al-barra"><i style="width:'+pct+'%"></i></div></div>':'')+
+        '<div class="al-chips">'+chips.join('')+'</div>'+
+      '</div>'+
+      '<div class="al-acc">'+bPri+
+        '<svg class="al-fl" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>'+
+    '</div>'+
+    _almDetalle(it,arts,checks)+
+  '</div>';
+}
+// Detalle desplegable: material, papeles, quién entrega y la nota del pedido.
+function _almDetalle(it,arts,checks){
+  const o=it.o,f=it.f,esc=_almEsc;
+  const ri=f?facturas.indexOf(f):-1;
+  let parts='';
+  if(!arts.length){
+    parts='<div class="al-vacio" style="padding:18px 6px">Este pedido no tiene material capturado.</div>';
+  }else{
+    parts=arts.map(l=>{
+      const s=_almStock(l);
+      const aviso=(s&&s.falta>0)?'<span class="al-pf">'+(s.hay<=0?'No hay existencia en inventario':'Faltan '+s.falta+' pz en inventario')+'</span>':'';
+      return '<div class="al-part'+(checks[l._idx]?' hh':'')+'" onclick="_almCheck(event,\''+esc(o.num)+'\','+l._idx+')">'+
+        '<div class="al-mk"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>'+
+        '<div class="al-pi"><div class="al-pn">'+esc(l.producto||'')+'</div>'+
+          (l.sku?'<div class="al-ps">'+esc(l.sku)+'</div>':'')+aviso+'</div>'+
+        '<div class="al-pc">'+esc(l.cantidad||0)+' <span>pz</span></div>'+
+      '</div>';
+    }).join('');
+  }
+  // Papeles: lo que existe es botón; lo que falta se dice en gris, sin alarma.
+  const doc=(hay,txt,falta,fn)=>hay
+    ? '<button class="al-doc" onclick="event.stopPropagation();'+fn+'">'+txt+' <i>Ver</i></button>'
+    : '<div class="al-doc no">'+falta+'</div>';
+  const hayPO=f&&typeof _hayAdj==='function'&&_hayAdj(f.pdfPo);
+  const hayFac=f&&typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura));
+  const docs=
+    doc(!!(o.cotData||o.cotHTML),'Pedido <b>'+esc(o.num)+'</b>','Sin presupuesto capturado','verPedidoDesdeFactura(\''+esc(o.num)+'\')')+
+    doc(hayFac,'Factura'+((f&&f.factura)?' <b>'+esc(f.factura)+'</b>':''),'Sin factura todavía','verAdjuntoFact('+ri+',\''+((f&&_hayAdj(f.pdfFactNum))?'pdfFactNum':'pdfFactura')+'\')')+
+    doc(hayPO,'Orden de compra'+((f&&f.poNum)?' <b>'+esc(f.poNum)+'</b>':''),'Sin orden de compra','verAdjuntoFact('+ri+',\'pdfPo\')');
+
+  // Quién entrega: la misma lista central que usa el modal.
+  const lista=(typeof getInstaladoresLista==='function')?getInstaladoresLista().filter(x=>x.cel):[];
+  const opts=lista.map(p=>'<option value="'+esc(p.cel)+'" data-nombre="'+esc(p.nombre)+'"'+(p.cel===o.choferCel?' selected':'')+'>'+esc(p.nombre)+'</option>').join('');
+  const nt=(o.notas||'').trim();
+  const nota=(nt&&!/^Moneda:/i.test(nt))?'<div class="al-nota"><b>Nota:</b> '+esc(nt.length>300?nt.slice(0,298)+'…':nt)+'</div>':'';
+
+  let accs='';
+  if(it._estado==='falta')accs='<button class="al-b ok" onclick="event.stopPropagation();marcarArmadoListo(\''+esc(o.num)+'\')">Ya quedó armado</button>';
+  else if(it._estado==='listo')accs='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">Marcar como entregado</button>';
+  accs+='<button class="al-b gh" onclick="event.stopPropagation();imprimirTodoAlmacen(\''+esc(o.num)+'\')">Imprimir papeles</button>';
+  if((o.ubicacion||'').trim()&&!/recoge|recoger|paqueter/i.test(o.ubicacion))
+    accs+='<button class="al-b gh" onclick="verMapaInline(event,'+o.id+')">Ver mapa</button>';
+
+  return '<div class="al-det" onclick="event.stopPropagation()">'+
+    '<div class="al-dg">'+
+      '<div><h4>Material que hay que juntar</h4>'+parts+'</div>'+
+      '<div><h4>Papeles del pedido</h4>'+docs+
+        '<div class="al-campo"><label>Quién lo entrega</label>'+
+          '<select onchange="asignarChoferAlmacen(\''+esc(o.num)+'\',this)"><option value="">Sin asignar</option>'+opts+'</select></div>'+
+        nota+
+      '</div>'+
+    '</div>'+
+    '<div class="al-dacc">'+accs+'</div>'+
+  '</div>';
+}
+// Tarjeta compacta del tablero.
+function _almTarjeta(it){
+  const o=it.o,esc=_almEsc;
+  const arts=_almPartidas(o);
+  const checks=(o.surtidoChecks&&typeof o.surtidoChecks==='object')?o.surtidoChecks:{};
+  const hechas=arts.filter(a=>checks[a._idx]).length,total=arts.length;
+  return '<div class="al-tj '+_almPrio(it)+'" onclick="_almDesdeTablero(\''+esc(o.num)+'\')">'+
+    '<div class="f">'+esc(o.num)+'</div>'+
+    '<div class="c">'+esc(o.cliente||'')+'</div>'+
+    (total?'<div class="al-barra"><i style="width:'+Math.round(hechas/total*100)+'%"></i></div>':'')+
+    '<div class="m"><span>'+(total?hechas+' de '+total+' juntadas':'sin partidas')+'</span><span>'+_almDias(o)+' d</span></div>'+
+  '</div>';
+}
+// Abrir/cerrar el detalle sin repintar la lista: no se pierde el scroll.
+function _almToggle(num){
+  _almAb[num]=!_almAb[num];
+  const f=document.getElementById('alf-'+num);
+  if(f)f.classList.toggle('ab',!!_almAb[num]);
+}
+function _almDesdeTablero(num){
+  _almAb[num]=true;
+  setAlmVista('lista');
+  setTimeout(()=>{const e=document.getElementById('alf-'+num);if(e)e.scrollIntoView({block:'center'});},50);
+}
+// Palomear una partida desde la fila, sin abrir el modal. Mismo guardado
+// diferido que _toggleSurtidoCheck: no se pierde el avance ni pide botón.
+function _almCheck(ev,num,idx){
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  const o=orders.find(x=>x&&x.num===num);
+  if(!o)return;
+  if(!o.surtidoChecks||typeof o.surtidoChecks!=='object')o.surtidoChecks={};
+  o.surtidoChecks[idx]=!o.surtidoChecks[idx];
+  o.updated=Date.now();
+  renderAlmacen();
+  if(_surtSaveTimer)clearTimeout(_surtSaveTimer);
+  _surtSaveTimer=setTimeout(()=>{try{saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);}catch(e){}},1000);
 }
 function imprimirTodoAlmacen(num){
   // Abre los documentos disponibles para imprimir. El usuario imprime cada uno.
