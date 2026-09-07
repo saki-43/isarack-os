@@ -1115,6 +1115,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
                 <div style="font-size:11px;color:#999;margin-top:2px">Lista única de personal: de aquí salen los pedidos, las entregas y (pronto) las cuadrillas de Instalaciones.</div>
               </div>
               <div style="display:flex;gap:8px">
+                <button onclick="cfgUnificarNombres()" style="padding:8px 16px;background:#fff;color:#7A4E08;border:1px solid #D89B22;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px" title="Deja un solo registro por persona con el nombre bueno">🧹 Unificar nombres</button>
                 <button onclick="cfgImportarPersonalObras()" style="padding:8px 16px;background:#fff;color:#185FA5;border:1px solid #185FA5;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px" title="Trae el personal que hoy solo existe dentro del código de Instalaciones">⬇ Importar personal de obras</button>
                 <button onclick="cfgAgregarItem('instaladores')" style="padding:8px 16px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px">＋ Agregar</button>
               </div>
@@ -1447,7 +1448,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.04';
+const APP_VERSION='2026.09.07.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4644,16 +4645,51 @@ function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r)
 // Cuadrillas para el selector rápido (grupos como en la app de instalaciones)
 var INST_CUAD=[
   {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez']},
-  {nombre:'Personal de Brayan',miembros:['Brayan Alexis','Joel','Jose Alberto','Fermin','Delmar Velazquez','Brayan Martin','Miguel Angel Rios','Jhonatan']},
-  {nombre:'Personal de Samuel',miembros:['Samuel Alfredo Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']},
-  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar','Jose Alfredo','Adrián','Abel','Octavio']}
+  {nombre:'Personal de Brayan',miembros:['Brayan Alexis','Joel Soto','Jose Alberto','Fermin','Delmar Velazquez','Brayan Martin','Miguel Angel Rios','Jhonatan']},
+  {nombre:'Personal de Samuel',miembros:['Samuel Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']},
+  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar Ochoa','Jose Alfredo','Adrián','Abel','Octavio']}
 ];
+// ── Nombres con los que la MISMA persona quedó capturada en distintos lados ──
+// La llave es el nombre bueno; la lista son las formas viejas que hay que
+// reconocer: como se tecleó en obras pasadas, como estaba en el código, o el
+// apodo. Sin esto, al unificar los nombres las obras históricas dejarían de
+// empatar y la gente aparecería duplicada en "Otros (del historial)".
+// Decidido con Isaac el 7 sep 2026.
+const PERSONAL_ALIAS={
+  'Jesus Mendez':['JESUS','Jesus'],
+  'Joel Soto':['JOEL SOTO','Joel'],
+  'Oscar Ochoa':['Oscar','OSCAR'],
+  'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel'],
+  'Fermin':['FERMIN'],
+  'Miguel Angel Rios':['Miki','MIKI','Miguel Rios']
+};
+// "MIGUEL MORGA" -> "Miguel Morga". Solo toca los que vienen TODO en
+// mayúsculas: si alguien ya escribió bien el nombre, no se le mueve.
+function _tituloNombre(s){
+  const t=(''+(s==null?'':s)).trim();
+  if(!t||/[a-záéíóúñ]/.test(t))return t;
+  return t.toLowerCase().replace(/(^|[\s.'-])([a-záéíóúñ])/g,(m,a,b)=>a+b.toUpperCase());
+}
+// Nombre bueno de una persona, venga como venga escrita.
+function _personaCanonica(n){
+  const k=_cfgNormNombre(n);
+  if(!k)return n;
+  if(!_PERSONAL_ALIAS_IDX){
+    _PERSONAL_ALIAS_IDX={};
+    Object.keys(PERSONAL_ALIAS).forEach(bueno=>{
+      _PERSONAL_ALIAS_IDX[_cfgNormNombre(bueno)]=bueno;
+      PERSONAL_ALIAS[bueno].forEach(a=>{_PERSONAL_ALIAS_IDX[_cfgNormNombre(a)]=bueno;});
+    });
+  }
+  return _PERSONAL_ALIAS_IDX[k]||_tituloNombre(n);
+}
+var _PERSONAL_ALIAS_IDX=null;
 var INST_DC3=null; // {personaLower:{alt,mon}} desde documentos
 async function _instCargarDC3(){
   try{var r=await supabaseClient.from('documentos').select('categoria,persona').not('persona','is',null);var docs=(r&&r.data)||[];var st={};docs.forEach(function(d){var k=(''+(d.persona||'')).toLowerCase().trim();if(!k)return;st[k]=st[k]||{alt:false,mon:false};if(/alturas/i.test(d.categoria||''))st[k].alt=true;if(/montacargas/i.test(d.categoria||''))st[k].mon=true;});INST_DC3=st;}catch(e){INST_DC3={};}
 }
 function _ieAttr(s){return (''+(s==null?'':s)).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
-function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var i=arr.findIndex(function(x){return (''+x).toLowerCase()===(''+n).toLowerCase();});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
+function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var _k=function(v){return (typeof _personaCanonica==='function')?_cfgNormNombre(_personaCanonica(v)):(''+v).toLowerCase();};var i=arr.findIndex(function(x){return _k(x)===_k(n);});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
 function _instPersonaChip(n,on){
   var st=(INST_DC3&&INST_DC3[(''+n).toLowerCase()])||null;
   var bd=function(txt,ok){return '<span style="display:inline-block;min-width:15px;height:15px;line-height:15px;text-align:center;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px;background:'+(ok?'#e8f5e9':'#fdecea')+';color:'+(ok?'#2f7d32':'#c62828')+'">'+txt+'</span>';};
@@ -4661,15 +4697,18 @@ function _instPersonaChip(n,on){
   return '<button onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="border:1px solid '+(on?'#185FA5':'#ddd')+';background:'+(on?'#185FA5':'#fff')+';color:'+(on?'#fff':'#333')+';border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center">'+_ie(n)+badges+'</button>';
 }
 function _instPersonalHtml(){
-  var sel=INST_EDIT.instaladores||[];var selLow={};sel.forEach(function(n){selLow[(''+n).toLowerCase()]=1;});
-  var chips=sel.length?sel.map(function(n){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join(''):'<span style="font-size:12px;color:#c62828">Toca abajo a los que asistieron</span>';
+  // Se compara por nombre canónico: una obra vieja que trae "Joel" debe
+  // aparecer palomeada aunque el grupo ahora diga "Joel Soto".
+  var _cn=function(n){return (typeof _personaCanonica==='function')?_cfgNormNombre(_personaCanonica(n)):(''+n).toLowerCase();};
+  var sel=INST_EDIT.instaladores||[];var selLow={};sel.forEach(function(n){selLow[_cn(n)]=1;});
+  var chips=sel.length?sel.map(function(n){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(_personaCanonica(n))+' <span onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join(''):'<span style="font-size:12px;color:#c62828">Toca abajo a los que asistieron</span>';
   // v2026.09.07.04: los grupos salen de la lista central (Configuración + código),
   // ya no solo de INST_CUAD. Así, quien se da de alta en Configuración aparece aquí.
   var _base=(typeof getPersonalCuadrillas==='function')?getPersonalCuadrillas():INST_CUAD;
-  var cub={};_base.forEach(function(g){g.miembros.forEach(function(n){cub[(''+n).toLowerCase()]=1;});});
+  var cub={};_base.forEach(function(g){g.miembros.forEach(function(n){cub[_cn(n)]=1;});});
   var grupos=_base.slice();
-  var extra=_instRoster().filter(function(n){return !cub[(''+n).toLowerCase()];});
-  sel.forEach(function(n){var k=(''+n).toLowerCase();if(!cub[k]&&extra.map(function(x){return (''+x).toLowerCase();}).indexOf(k)<0)extra.push(n);});
+  var extra=_instRoster().filter(function(n){return !cub[_cn(n)];});
+  sel.forEach(function(n){var k=_cn(n);if(!cub[k]&&extra.map(_cn).indexOf(k)<0)extra.push(n);});
   if(extra.length)grupos=grupos.concat([{nombre:'Otros (del historial)',miembros:extra}]);
   var grid=grupos.map(function(g){return '<div style="margin-bottom:7px"><div style="font-size:11px;color:#888;font-weight:600;margin-bottom:4px">'+_ie(g.nombre)+'</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+g.miembros.map(function(n){return _instPersonaChip(n,!!selLow[(''+n).toLowerCase()]);}).join('')+'</div></div>';}).join('');
   return '<label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:5px">Personal que asistió ('+sel.length+')</label>'+
@@ -14492,10 +14531,11 @@ function getPersonalCuadrillas(){
   const norm=_cfgNormNombre;
   const vistos={},porCuad={};
   const meter=(grupo,nombre)=>{
-    const k=norm(nombre);
+    const bueno=(typeof _personaCanonica==='function')?_personaCanonica(nombre):nombre;
+    const k=norm(bueno);
     if(!k||vistos[k])return;
     vistos[k]=1;
-    (porCuad[grupo]=porCuad[grupo]||[]).push(nombre);
+    (porCuad[grupo]=porCuad[grupo]||[]).push(bueno);
   };
   // 1) Configuración manda: si el nombre está capturado, ese es el bueno.
   const cfgList=(typeof empresaCfg!=='undefined'&&Array.isArray(empresaCfg.instaladores))?empresaCfg.instaladores:[];
@@ -14513,6 +14553,64 @@ function getPersonalCuadrillas(){
 }
 function _cfgNormNombre(s){
   return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+}
+// ── Limpieza de la lista de personal (decisiones de Isaac, 7 sep 2026) ──
+// Deja un solo registro por persona con el nombre bueno, saca a quien ya no
+// trabaja y manda a Comerciales a quien no es instalador. Conserva el teléfono
+// del registro que lo tenga: sin teléfono nadie entra a la PWA.
+const _CFG_BAJAS=['BRAYITA'];                 // ya no trabaja aquí
+const _CFG_A_COMERCIAL=['MIGUEL MORGA'];      // es comercial, no instalador
+function cfgUnificarNombres(){
+  if(!empresaCfg.instaladores||!empresaCfg.instaladores.length)
+    return showToast('No hay instaladores capturados','#BA7517');
+  const norm=_cfgNormNombre;
+  const original=JSON.parse(JSON.stringify(empresaCfg.instaladores));
+  const bajas=[],aComercial=[],renombres=[],fusiones=[];
+  const quedan=[];const porNombre={};
+  original.forEach(pe=>{
+    if(!pe||!pe.nombre)return;
+    const k=norm(pe.nombre);
+    if(_CFG_BAJAS.some(x=>norm(x)===k)){bajas.push(pe.nombre);return;}
+    if(_CFG_A_COMERCIAL.some(x=>norm(x)===k)){aComercial.push(pe);return;}
+    const bueno=_personaCanonica(pe.nombre);
+    if(bueno!==pe.nombre)renombres.push(pe.nombre+'  →  '+bueno);
+    const bk=norm(bueno);
+    if(porNombre[bk]){
+      // Dos registros de la misma persona: se queda uno, gana el que traiga
+      // teléfono (sin él no puede entrar a la PWA).
+      const ya=porNombre[bk];
+      fusiones.push(pe.nombre+' + '+ya.nombre+'  →  '+bueno);
+      if(!ya.tel&&pe.tel)ya.tel=pe.tel;
+      if(!ya.cuadrilla&&pe.cuadrilla)ya.cuadrilla=pe.cuadrilla;
+      if(!ya.rol&&pe.rol)ya.rol=pe.rol;
+      if(!ya.salario&&pe.salario)ya.salario=pe.salario;
+      return;
+    }
+    const nuevo=Object.assign({},pe,{nombre:bueno});
+    porNombre[bk]=nuevo;quedan.push(nuevo);
+  });
+  const partes=[];
+  if(renombres.length)partes.push('RENOMBRAR ('+renombres.length+'):\n'+renombres.map(x=>'  · '+x).join('\n'));
+  if(fusiones.length)partes.push('FUSIONAR ('+fusiones.length+'):\n'+fusiones.map(x=>'  · '+x).join('\n'));
+  if(bajas.length)partes.push('DAR DE BAJA ('+bajas.length+'):\n'+bajas.map(x=>'  · '+x).join('\n'));
+  if(aComercial.length)partes.push('MOVER A COMERCIALES ('+aComercial.length+'):\n'+aComercial.map(x=>'  · '+x.nombre).join('\n'));
+  if(!partes.length)return showToast('La lista ya está unificada','#3B6D11');
+  if(!confirm('Se va a limpiar la lista de personal:\n\n'+partes.join('\n\n')+
+    '\n\nQuedan '+quedan.length+' personas (antes '+original.length+').\n\n'+
+    'Las obras viejas NO se tocan: siguen empatando por el mapa de alias.\n\n¿Aplicar?'))return;
+  empresaCfg.instaladores=quedan;
+  if(aComercial.length){
+    if(!empresaCfg.comerciales)empresaCfg.comerciales=[];
+    aComercial.forEach(pe=>{
+      if(empresaCfg.comerciales.some(c=>norm(c.nombre)===norm(pe.nombre)))return;
+      empresaCfg.comerciales.push({nombre:_personaCanonica(pe.nombre),tel:pe.tel||''});
+    });
+  }
+  guardarEmpresaConfig(empresaCfg);
+  cfgRenderTabla('instaladores');
+  cfgRenderTabla('comerciales');
+  if(typeof refrescarSelectInstalador==='function'){refrescarSelectInstalador();refrescarSelectChofer();}
+  showToast('✓ Lista unificada: '+quedan.length+' personas','#3B6D11');
 }
 // Sospecha de que dos nombres son la misma persona: uno empieza igual que el
 // otro ("Joel" / "JOEL SOTO") o comparten el primer nombre ("JESUS" / "Jesus
