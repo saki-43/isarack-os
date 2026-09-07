@@ -1347,7 +1347,7 @@ html.dark-mode #alm-wrap{--a2-card:#211E1B;--a2-bg:#171513;--a2-line:#332E29;--a
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.02.02';
+const APP_VERSION='2026.09.07.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3752,17 +3752,32 @@ async function _adjuntarPDFWebAlPedido(o){
   }catch(e){console.error('adjuntar PDF web',e);delete _bajandoPDFWeb[o.num];return false;}
 }
 function openHTMLViewer(html,title){const ex=document.getElementById('html-viewer-modal');if(ex)ex.remove();const m=document.createElement('div');m.id='html-viewer-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;flex-direction:column;align-items:center;padding:20px';
-m.innerHTML=`<div style="width:100%;max-width:1400px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
+m.innerHTML=`<div style="width:100%;max-width:1400px;height:100%;display:flex;flex-direction:column;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.35)"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30;flex-shrink:0;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:10px"><span style="font-weight:700;font-size:14px;color:#1a1a1a">📄 ${title||'Documento'}</span><div style="display:flex;align-items:center;gap:4px"><button onclick="htmlViewerZoom(-0.15)" title="Alejar" style="width:30px;height:28px;background:#eee;color:#333;border:1px solid #ccc;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;line-height:1">−</button><button id="hv-zoom" onclick="htmlViewerFit()" title="Ajustar al ancho" style="min-width:56px;height:28px;background:#eee;color:#333;border:1px solid #ccc;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">100%</button><button onclick="htmlViewerZoom(0.15)" title="Acercar" style="width:30px;height:28px;background:#eee;color:#333;border:1px solid #ccc;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;line-height:1">+</button></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="enviarPorCorreo()" style="padding:6px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Enviar correo</button><button onclick="descargarViewer()" style="padding:6px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ PDF</button><button onclick="printHTMLViewer()" style="padding:6px 14px;background:#555;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Imprimir</button><button onclick="_cerrarVisorYVolverBuscador()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div></div><div id="html-viewer-body" style="flex:1;overflow:auto;background:#e8e8e5;display:flex;justify-content:center;padding:20px"></div></div>`;
 document.body.appendChild(m);
 const container=document.getElementById('html-viewer-body');
-// v2026.09.02.02: modal ampliado a 1400px (mismo que openPDFData) y el iframe puede
-// escalar hasta 1.6x del ancho base para llenar mejor las pantallas grandes — antes
-// max scale=1 dejaba mucho espacio muerto a los lados en el modal ampliado.
-const DOC_W=800;const _avail=Math.max(280,(container.clientWidth||window.innerWidth)-40);const _scale=Math.min(1.6,Math.max(0.4,_avail/DOC_W));
-const _wrap=document.createElement('div');_wrap.style.cssText='flex-shrink:0;overflow:hidden;width:'+(DOC_W*_scale)+'px';
-const ifr=document.createElement('iframe');ifr.id='cot-render-frame';ifr.style.cssText='border:none;width:'+DOC_W+'px;min-height:1100px;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.15);border-radius:4px;transform:scale('+_scale+');transform-origin:top left';ifr.onload=function(){try{const d=ifr.contentDocument||ifr.contentWindow.document;const h=d.body.scrollHeight+40;ifr.style.height=h+'px';_wrap.style.height=(h*_scale)+'px';}catch(e){}};
+// v2026.09.07.01: el zoom inicial bajo de 1.6x a 1.25x (tope) y ademas se calcula al 90%
+// del ancho disponible — antes abria pegado al maximo y el presupuesto se veia enorme.
+// Nuevo: controles − / % / + en la barra, Ctrl+rueda y pellizco en movil (como openPDFData).
+const DOC_W=800;const _avail=Math.max(280,(container.clientWidth||window.innerWidth)-40);
+window._hvDocW=DOC_W;window._hvDocH=1100;
+window._hvFit=Math.min(1.25,Math.max(0.4,(_avail/DOC_W)*0.9));
+window._hvScale=window._hvFit;
+const _wrap=document.createElement('div');_wrap.id='html-viewer-wrap';_wrap.style.cssText='flex-shrink:0;overflow:hidden;width:'+(DOC_W*window._hvScale)+'px';
+const ifr=document.createElement('iframe');ifr.id='cot-render-frame';ifr.style.cssText='border:none;width:'+DOC_W+'px;min-height:1100px;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.15);border-radius:4px;transform:scale('+window._hvScale+');transform-origin:top left';ifr.onload=function(){try{const d=ifr.contentDocument||ifr.contentWindow.document;window._hvDocH=d.body.scrollHeight+40;_aplicarZoomHTMLViewer();}catch(e){}};
 _wrap.appendChild(ifr);container.innerHTML='';container.appendChild(_wrap);
+// Ctrl+rueda para zoom
+try{container.addEventListener('wheel',function(ev){if(ev.ctrlKey||ev.metaKey){ev.preventDefault();htmlViewerZoom(ev.deltaY<0?0.15:-0.15);}},{passive:false});}catch(e){}
+// Pinch-to-zoom en movil (dos dedos)
+try{let _d0=null,_s0=null;
+  container.addEventListener('touchstart',function(ev){if(ev.touches.length===2){_d0=Math.hypot(ev.touches[0].clientX-ev.touches[1].clientX,ev.touches[0].clientY-ev.touches[1].clientY);_s0=window._hvScale||1;}},{passive:true});
+  container.addEventListener('touchmove',function(ev){if(ev.touches.length===2&&_d0){ev.preventDefault();const d=Math.hypot(ev.touches[0].clientX-ev.touches[1].clientX,ev.touches[0].clientY-ev.touches[1].clientY);const n=Math.max(0.3,Math.min(3,_s0*(d/_d0)));if(Math.abs(n-(window._hvScale||1))>0.02){window._hvScale=n;_aplicarZoomHTMLViewer();}}},{passive:false});
+  container.addEventListener('touchend',function(ev){if(ev.touches.length<2){_d0=null;_s0=null;}},{passive:true});
+}catch(e){}
 const fdoc=ifr.contentDocument||ifr.contentWindow.document;fdoc.open();fdoc.write(html);fdoc.close();}
+// Aplica la escala actual al iframe del visor HTML y refresca la etiqueta de %.
+function _aplicarZoomHTMLViewer(){const ifr=document.getElementById('cot-render-frame');const wrap=document.getElementById('html-viewer-wrap');if(!ifr||!wrap)return;const s=window._hvScale||1;const h=window._hvDocH||1100;ifr.style.height=h+'px';ifr.style.transform='scale('+s+')';wrap.style.width=((window._hvDocW||800)*s)+'px';wrap.style.height=(h*s)+'px';const lbl=document.getElementById('hv-zoom');if(lbl)lbl.textContent=Math.round(s/(window._hvFit||1)*100)+'%';}
+function htmlViewerZoom(d){window._hvScale=Math.max(0.3,Math.min(3,(window._hvScale||1)+d));_aplicarZoomHTMLViewer();}
+function htmlViewerFit(){window._hvScale=window._hvFit||1;_aplicarZoomHTMLViewer();}
 function printHTMLViewer(){const ifr=document.getElementById('cot-render-frame');let content='';if(ifr){try{const d=ifr.contentDocument||ifr.contentWindow.document;const cot=d.getElementById('cot-print');content=cot?cot.outerHTML:d.body.innerHTML;}catch(e){}}if(!content){const body=document.getElementById('html-viewer-body');if(body)content=body.innerHTML;}if(content)printViaIframe(content);}
 function _esIOS(){return /iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
 function printViaIframe(content){
