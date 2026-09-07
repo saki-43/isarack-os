@@ -1447,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.03';
+const APP_VERSION='2026.09.07.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3370,12 +3370,16 @@ function inlineInstalador(e,id,curCel){
 
 // Lista CENTRAL de instaladores: FUENTE ÚNICA = Configuración → Instaladores (empresaCfg.instaladores).
 // Ya no hay lista quemada en el código. Los originales se migraron una sola vez con seedInstaladoresUnaVez().
-function getInstaladoresLista(){
+// rol: 'Instala' | 'Entrega' | vacío = todos.
+// Solo descarta a quien TIENE rol y no corresponde: a los que aún no tienen rol
+// capturado se les sigue viendo, para no vaciar los selects a media captura.
+function getInstaladoresLista(rol){
   const baseList=[{cel:'',nombre:'— Sin asignar —'}];
   try{
     const extras=(typeof empresaCfg!=='undefined'&&empresaCfg.instaladores)||[];
     extras.forEach(ins=>{
       if(!ins.nombre||!ins.tel)return;
+      if(rol&&ins.rol&&ins.rol!=='Ambos'&&ins.rol!==rol)return;
       const cel=String(ins.tel).replace(/\D/g,'');
       if(!cel)return;
       if(baseList.some(b=>b.cel===cel))return; // evitar duplicados por teléfono
@@ -3390,7 +3394,7 @@ function refrescarSelectInstalador(){
   const sel=document.getElementById('f-instalador');
   if(!sel)return;
   const valActual=sel.value;
-  const list=getInstaladoresLista();
+  const list=getInstaladoresLista('Instala');
   sel.innerHTML=list.map(ins=>`<option value="${ins.cel}" data-nombre="${ins.nombre.replace(/"/g,'&quot;')}">${ins.nombre}</option>`).join('');
   if(valActual)sel.value=valActual;
 }
@@ -3399,7 +3403,7 @@ function refrescarSelectChofer(){
   const sel=document.getElementById('f-chofer');
   if(!sel)return;
   const valActual=sel.value;
-  const list=getInstaladoresLista().filter(x=>x.cel);
+  const list=getInstaladoresLista('Entrega').filter(x=>x.cel);
   sel.innerHTML='<option value="">— Seleccionar —</option>'+list.map(ins=>`<option value="${ins.cel}" data-nombre="${ins.nombre.replace(/"/g,'&quot;')}">${ins.nombre}</option>`).join('');
   if(valActual)sel.value=valActual;
 }
@@ -4659,8 +4663,11 @@ function _instPersonaChip(n,on){
 function _instPersonalHtml(){
   var sel=INST_EDIT.instaladores||[];var selLow={};sel.forEach(function(n){selLow[(''+n).toLowerCase()]=1;});
   var chips=sel.length?sel.map(function(n){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join(''):'<span style="font-size:12px;color:#c62828">Toca abajo a los que asistieron</span>';
-  var cub={};INST_CUAD.forEach(function(g){g.miembros.forEach(function(n){cub[(''+n).toLowerCase()]=1;});});
-  var grupos=INST_CUAD.slice();
+  // v2026.09.07.04: los grupos salen de la lista central (Configuración + código),
+  // ya no solo de INST_CUAD. Así, quien se da de alta en Configuración aparece aquí.
+  var _base=(typeof getPersonalCuadrillas==='function')?getPersonalCuadrillas():INST_CUAD;
+  var cub={};_base.forEach(function(g){g.miembros.forEach(function(n){cub[(''+n).toLowerCase()]=1;});});
+  var grupos=_base.slice();
   var extra=_instRoster().filter(function(n){return !cub[(''+n).toLowerCase()];});
   sel.forEach(function(n){var k=(''+n).toLowerCase();if(!cub[k]&&extra.map(function(x){return (''+x).toLowerCase();}).indexOf(k)<0)extra.push(n);});
   if(extra.length)grupos=grupos.concat([{nombre:'Otros (del historial)',miembros:extra}]);
@@ -6883,7 +6890,7 @@ function _almDetalle(it,arts,checks){
     doc(hayPO,'Orden de compra'+((f&&f.poNum)?' <b>'+esc(f.poNum)+'</b>':''),'Sin orden de compra','verAdjuntoFact('+ri+',\'pdfPo\')');
 
   // Quién entrega: la misma lista central que usa el modal.
-  const lista=(typeof getInstaladoresLista==='function')?getInstaladoresLista().filter(x=>x.cel):[];
+  const lista=(typeof getInstaladoresLista==='function')?getInstaladoresLista('Entrega').filter(x=>x.cel):[];
   const opts=lista.map(p=>'<option value="'+esc(p.cel)+'" data-nombre="'+esc(p.nombre)+'"'+(p.cel===o.choferCel?' selected':'')+'>'+esc(p.nombre)+'</option>').join('');
   const nt=(o.notas||'').trim();
   const nota=(nt&&!/^Moneda:/i.test(nt))?'<div class="al-nota"><b>Nota:</b> '+esc(nt.length>300?nt.slice(0,298)+'…':nt)+'</div>':'';
@@ -14476,8 +14483,46 @@ function cfgAgregarItem(tipo){cfgAbrirEditor(tipo,-1);}
 // No pisa a nadie: solo agrega los que faltan, comparando por nombre normalizado
 // (sin acentos ni mayúsculas), y los deja SIN teléfono a propósito — hasta que se
 // les capture no aparecen en los selects de pedidos, así nada cambia de golpe.
+// Lista central de personal agrupada por cuadrilla. Une lo de Configuración
+// (empresa_config.instaladores, la lista que se edita a mano) con INST_CUAD (los
+// nombres que quedaron clavados en el código). Nadie desaparece: quien solo
+// existe en el código se sigue viendo hasta que se le capture en Configuración.
+// Es la única fuente para Instalaciones y para los selects de pedidos.
+function getPersonalCuadrillas(){
+  const norm=_cfgNormNombre;
+  const vistos={},porCuad={};
+  const meter=(grupo,nombre)=>{
+    const k=norm(nombre);
+    if(!k||vistos[k])return;
+    vistos[k]=1;
+    (porCuad[grupo]=porCuad[grupo]||[]).push(nombre);
+  };
+  // 1) Configuración manda: si el nombre está capturado, ese es el bueno.
+  const cfgList=(typeof empresaCfg!=='undefined'&&Array.isArray(empresaCfg.instaladores))?empresaCfg.instaladores:[];
+  cfgList.forEach(pe=>{if(pe&&pe.nombre)meter((''+(pe.cuadrilla||'')).trim()||'Sin cuadrilla',pe.nombre);});
+  // 2) Los que solo viven en el código, como respaldo.
+  const cuad=(typeof INST_CUAD!=='undefined'&&Array.isArray(INST_CUAD))?INST_CUAD:[];
+  cuad.forEach(g=>{
+    const nom=(''+(g.nombre||'')).replace(/^Personal de\s*/i,'').trim()||'Otros';
+    (g.miembros||[]).forEach(n=>meter(nom,n));
+  });
+  const orden=['Gilberto','Brayan','Samuel','Otros'];
+  const peso=k=>k==='Sin cuadrilla'?200:(orden.indexOf(k)<0?100:orden.indexOf(k));
+  return Object.keys(porCuad).sort((a,b)=>peso(a)-peso(b)||a.localeCompare(b))
+    .map(k=>({nombre:(orden.indexOf(k)>=0?'Personal de '+k:k),miembros:porCuad[k]}));
+}
 function _cfgNormNombre(s){
   return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+}
+// Sospecha de que dos nombres son la misma persona: uno empieza igual que el
+// otro ("Joel" / "JOEL SOTO") o comparten el primer nombre ("JESUS" / "Jesus
+// Mendez"). No decide solo: nada más lo marca para que Isaac revise.
+function _cfgParecido(a,b){
+  const A=_cfgNormNombre(a),B=_cfgNormNombre(b);
+  if(!A||!B)return false;
+  if(A===B)return true;
+  if(A.indexOf(B+' ')===0||B.indexOf(A+' ')===0)return true;
+  return A.split(' ')[0]===B.split(' ')[0];
 }
 function cfgImportarPersonalObras(){
   if(typeof INST_CUAD==='undefined'||!Array.isArray(INST_CUAD))
@@ -14485,7 +14530,7 @@ function cfgImportarPersonalObras(){
   if(!empresaCfg.instaladores)empresaCfg.instaladores=[];
   const yaHay={};
   empresaCfg.instaladores.forEach(x=>{yaHay[_cfgNormNombre(x.nombre)]=1;});
-  const porAgregar=[];let repetidos=0;
+  const porAgregar=[],sospechosos=[];let repetidos=0;
   INST_CUAD.forEach(g=>{
     const cuad=(g.nombre||'').replace(/^Personal de\s*/i,'').trim()||'Otros';
     (g.miembros||[]).forEach(n=>{
@@ -14493,20 +14538,43 @@ function cfgImportarPersonalObras(){
       const k=_cfgNormNombre(n);
       if(yaHay[k]){repetidos++;return;}
       yaHay[k]=1;
-      porAgregar.push({nombre:n,cuadrilla:cuad,rol:'Instala'});
+      const parecido=empresaCfg.instaladores.find(x=>_cfgParecido(x.nombre,n));
+      if(parecido)sospechosos.push({nombre:n,cuadrilla:cuad,rol:'Instala',_como:parecido.nombre});
+      else porAgregar.push({nombre:n,cuadrilla:cuad,rol:'Instala'});
     });
   });
-  if(!porAgregar.length)
+  if(!porAgregar.length&&!sospechosos.length)
     return showToast('Ya estaban todos ('+repetidos+' encontrados)','#BA7517');
-  if(!confirm('Se van a agregar '+porAgregar.length+' personas:\n\n'+
-      porAgregar.map(x=>'· '+x.nombre+' ('+x.cuadrilla+')').join('\n')+
+  // Los parecidos se preguntan aparte: "JOEL SOTO" y "Joel" casi siempre son la
+  // misma persona, y meter los dos es justo el problema que se quiere evitar.
+  // Uno por uno: en la lista real conviven casos opuestos ("Joel"/"JOEL SOTO" es
+  // la misma persona, "Brayan Romo"/"Brayan Alexis" no). Un solo botón para
+  // todos obliga a equivocarse en la mitad.
+  let sumar=porAgregar.slice();
+  if(sospechosos.length){
+    alert('⚠ '+sospechosos.length+' nombres se parecen a alguien que ya tienes.\n\n'+
+      'Te voy a preguntar uno por uno si son la MISMA persona o dos distintas.');
+    sospechosos.forEach((x,i)=>{
+      const distintas=confirm('('+(i+1)+' de '+sospechosos.length+')\n\n'+
+        'En el código:      "'+x.nombre+'"\n'+
+        'Ya lo tienes como: "'+x._como+'"\n\n'+
+        '¿Son personas DISTINTAS?\n\n'+
+        'ACEPTAR = sí, son dos personas → se agrega "'+x.nombre+'"\n'+
+        'CANCELAR = es la misma → no se agrega');
+      if(distintas)sumar.push({nombre:x.nombre,cuadrilla:x.cuadrilla,rol:x.rol});
+    });
+  }
+  if(!sumar.length)return showToast('No se agregó a nadie','#BA7517');
+  if(!confirm('Se van a agregar '+sumar.length+' personas:\n\n'+
+      sumar.map(x=>'· '+x.nombre+' ('+x.cuadrilla+')').join('\n')+
       '\n\n'+repetidos+' ya estaban y no se tocan.\n\n'+
       'Quedan SIN teléfono: hay que capturárselo para que aparezcan en los pedidos y puedan entrar a la PWA.\n\n¿Continuar?'))return;
-  porAgregar.forEach(x=>empresaCfg.instaladores.push(x));
+  const porAgregarFinal=sumar;
+  porAgregarFinal.forEach(x=>empresaCfg.instaladores.push(x));
   guardarEmpresaConfig(empresaCfg);
   cfgRenderTabla('instaladores');
   if(typeof refrescarSelectInstalador==='function'){refrescarSelectInstalador();refrescarSelectChofer();}
-  showToast('✓ '+porAgregar.length+' agregados — captúrales el teléfono','#3B6D11');
+  showToast('✓ '+porAgregarFinal.length+' agregados — captúrales el teléfono','#3B6D11');
 }
 function cfgEditarItem(tipo,i){cfgAbrirEditor(tipo,i);}
 function cfgEliminarItem(tipo,i){
