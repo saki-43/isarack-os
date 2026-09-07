@@ -1447,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.06';
+const APP_VERSION='2026.09.07.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4644,9 +4644,9 @@ function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r)
 // Cuadrillas para el selector rápido (grupos como en la app de instalaciones)
 var INST_CUAD=[
   {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez']},
-  {nombre:'Personal de Brayan',miembros:['Brayan Alexis','Joel Soto','Jose Alberto','Fermin','Delmar Velazquez','Brayan Martin','Miguel Angel Rios','Jhonatan']},
+  {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro']},
   {nombre:'Personal de Samuel',miembros:['Samuel Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']},
-  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar Ochoa','Jose Alfredo','Adrián','Abel','Octavio']}
+  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio']}
 ];
 // ── Nombres con los que la MISMA persona quedó capturada en distintos lados ──
 // La llave es el nombre bueno; la lista son las formas viejas que hay que
@@ -4654,13 +4654,33 @@ var INST_CUAD=[
 // apodo. Sin esto, al unificar los nombres las obras históricas dejarían de
 // empatar y la gente aparecería duplicada en "Otros (del historial)".
 // Decidido con Isaac el 7 sep 2026.
+// Nombres buenos tomados de la cedula del IMSS de agosto 2026 (nombre de pila +
+// apellido paterno). De ese documento solo salieron nombres: nada de NSS, CURP
+// ni salarios vive en el codigo.
 const PERSONAL_ALIAS={
+  'Jonathan Amaro':['Jhonatan','Jonathan','JHONATAN','Jonatan'],
+  'Fernando Fuentes':['FERNANDO','Fernando'],
+  'Bryan Martinez':['Brayan Alexis','BRAYAN ALEXIS','Bryan Alexis'],
+  'Abel Mazariegos':['Abel','ABEL'],
+  'Miguel Morga':['MIGUEL MORGA'],
+  'Oscar Ochoa':['Oscar','OSCAR','Oscar Francisco Ochoa'],
+  'Jose Alfredo Osuna':['Jose Alfredo','JOSE ALFREDO'],
+  'Miguel Rios':['Miguel Angel Rios','Miki','MIKI','MIGUEL ANGEL RIOS'],
+  'Isaac Romero':['ISAAC ROMERO'],
+  'Jonas Sañudo':['JONAS SAÑUDO','Jonas Sanudo'],
+  'Fermin Segovia':['FERMIN','Fermin'],
+  'Adrian Solorzano':['Adrián','Adrian','ADRIAN'],
+  'Joel Soto':['JOEL SOTO','Joel','JOEL'],
+  'Delmar Velazquez':['DELMAR VELAZQUEZ','Delmar'],
+  'Brayan Zamora':['Brayan Martin','BRAYAN MARTIN'],
+  // Pendientes de confirmar con Isaac (ver notas del 7 sep 2026):
+  //   · "JESUS": la cedula solo trae a Jesus Amadeo Muñoz Villasana, no a un
+  //     Jesus Mendez. Se deja como estaba hasta que Isaac lo confirme.
+  //   · "Jose Alberto": hay dos en nomina (Miranda Talavera y Pacheco Diaz).
+  //   · "Octavio" / "Luis Cornejo" vs Luis Octavio Jarquin Cruz.
+  //   · "Gilberto Rodriguez" no aparece en nomina (si hay un Gildardo Osuna).
   'Jesus Mendez':['JESUS','Jesus'],
-  'Joel Soto':['JOEL SOTO','Joel'],
-  'Oscar Ochoa':['Oscar','OSCAR'],
-  'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel'],
-  'Fermin':['FERMIN'],
-  'Miguel Angel Rios':['Miki','MIKI','Miguel Rios']
+  'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel']
 };
 // "MIGUEL MORGA" -> "Miguel Morga". Solo toca los que vienen TODO en
 // mayúsculas: si alguien ya escribió bien el nombre, no se le mueve.
