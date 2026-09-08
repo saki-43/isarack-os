@@ -1447,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.07.07';
+const APP_VERSION='2026.09.08.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4644,9 +4644,9 @@ function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r)
 // Cuadrillas para el selector rápido (grupos como en la app de instalaciones)
 var INST_CUAD=[
   {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez']},
-  {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro']},
+  {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto Miranda','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro']},
   {nombre:'Personal de Samuel',miembros:['Samuel Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']},
-  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio']}
+  {nombre:'Otros',miembros:['Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio Jarquin']}
 ];
 // ── Nombres con los que la MISMA persona quedó capturada en distintos lados ──
 // La llave es el nombre bueno; la lista son las formas viejas que hay que
@@ -4673,15 +4673,20 @@ const PERSONAL_ALIAS={
   'Joel Soto':['JOEL SOTO','Joel','JOEL'],
   'Delmar Velazquez':['DELMAR VELAZQUEZ','Delmar'],
   'Brayan Zamora':['Brayan Martin','BRAYAN MARTIN'],
-  // Pendientes de confirmar con Isaac (ver notas del 7 sep 2026):
-  //   · "JESUS": la cedula solo trae a Jesus Amadeo Muñoz Villasana, no a un
-  //     Jesus Mendez. Se deja como estaba hasta que Isaac lo confirme.
-  //   · "Jose Alberto": hay dos en nomina (Miranda Talavera y Pacheco Diaz).
-  //   · "Octavio" / "Luis Cornejo" vs Luis Octavio Jarquin Cruz.
-  //   · "Gilberto Rodriguez" no aparece en nomina (si hay un Gildardo Osuna).
+  'Jose Alberto Miranda':['Jose Alberto','JOSE ALBERTO'],
+  'Octavio Jarquin':['Octavio','OCTAVIO','Luis Octavio','LUIS OCTAVIO'],
+  // ── Externos (no están en la nómina del IMSS) ──
+  // Isaac confirmó el 7 sep 2026 que estos trabajan por fuera, así que su
+  // nombre bueno es el que se usa en obra, no hay documento del que sacarlo.
   'Jesus Mendez':['JESUS','Jesus'],
   'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel']
 };
+// Externos confirmados (además de los dos de arriba): Gilberto Rodriguez,
+// Israel Mendez, Alexis Guadalupe, Daniel Herrera, Brayan Romo, Juan Hernandez,
+// Victor Manuel Medina y Ezequiel Alberto Chigo. Van con el nombre de obra.
+// El resto de la nómina (Adriana Castañeda, Gerardo Solis, Gildardo Osuna,
+// Jose Alberto Pacheco, Daniel Osuna) es de ventas, almacén u otras áreas: no
+// se dan de alta como personal de cuadrilla.
 // "MIGUEL MORGA" -> "Miguel Morga". Solo toca los que vienen TODO en
 // mayúsculas: si alguien ya escribió bien el nombre, no se le mueve.
 function _tituloNombre(s){
