@@ -1447,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.08.04';
+const APP_VERSION='2026.09.08.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3315,7 +3315,12 @@ function inlineFecha(e,id,cur){e.stopPropagation();openPop(e.currentTarget,`<div
 function abrirWA(fid){const n=(document.getElementById(fid).value||'').replace(/\D/g,'');if(!n)return alert('Ingresa número');window.open(`https://wa.me/52${n}`,'_blank');}
 function verMapa(){const d=document.getElementById('f-ubicacion').value.trim();if(!d)return alert('Ingresa dirección');const m=document.getElementById('map-preview');m.style.display='block';m.innerHTML=`<iframe width="100%" height="200" style="border:none" src="https://maps.google.com/maps?q=${encodeURIComponent(d)}&output=embed&z=15"></iframe>`;}
 function verMapaInline(e,id){e.stopPropagation();const o=orders.find(x=>x.id==id);if(!o||!o.ubicacion)return showToast('Sin ubicación','#BA7517');const m=document.createElement('div');m.id='mapa-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem';m.innerHTML=`<div style="background:#fff;border-radius:14px;overflow:hidden;width:100%;max-width:680px"><div style="display:flex;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:2px solid #D85A30"><span style="color:#1a1a1a;font-size:14px;font-weight:600">🗺 ${o.ubicacion}</span><button onclick="document.getElementById('mapa-modal').remove()" style="padding:5px 12px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">✕</button></div><iframe src="https://maps.google.com/maps?q=${encodeURIComponent(o.ubicacion)}&output=embed&z=15" width="100%" height="420" style="border:none;display:block"></iframe></div>`;m.onclick=e=>{if(e.target===m)m.remove()};document.body.appendChild(m);}
-function inlineSave(id,field,val){const i=orders.findIndex(o=>o.id===id);if(i<0)return;const _prevVal=orders[i][field];orders[i][field]=val;if(field==='comercial'){if(!orders[i]._ts)orders[i]._ts={};orders[i]._ts.comercial=new Date().toISOString();}try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}if(_esEnt&&!_wasEnt){descontarAlEntregar(orders[i]);}}catch(e){}saveOrders();closePop();
+function inlineSave(id,field,val){const i=orders.findIndex(o=>o.id===id);if(i<0)return;
+if(field==='estatus'&&val==='Completado'&&orders[i].estatus!=='Completado'){
+  const f=_faltaParaCompletar(orders[i]);
+  if(f.bloqueo){showToast('⚠ No se puede completar: falta '+f.bloqueo,'#A32D2D');return;}
+  if(f.aviso&&!confirm(orders[i].num+' no tiene '+f.aviso+'.\n\n¿Aun así lo marcas como Completado?'))return;
+}const _prevVal=orders[i][field];orders[i][field]=val;if(field==='comercial'){if(!orders[i]._ts)orders[i]._ts={};orders[i]._ts.comercial=new Date().toISOString();}try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}if(_esEnt&&!_wasEnt){descontarAlEntregar(orders[i]);}}catch(e){}saveOrders();closePop();
 // Comercial editado en Seguimiento → propagar a la venta (Comisiones lee de ahí)
 try{if(field==='comercial'){
   const _num=orders[i].num;
@@ -3419,10 +3424,21 @@ function inlineUbicacion(e,id,cur){
   setTimeout(()=>{const i=document.getElementById('pop-ubi');if(i){i.focus();i.select();}},50);
 }
 function notificarPorId(id){const o=orders.find(x=>x.id==id);if(!o||!o.instaladorCel)return showToast('Asigna instalador primero','#BA7517');const cel=o.instaladorCel,nom=o.instaladorNombre||'Instalador';const ct=o.contactoNombre?(o.contactoNombre+(o.whatsapp?' — '+o.whatsapp:'')):(o.whatsapp||'Sin contacto');let msg=`🔧 *ISARACK — Pedido Asignado*\nHola *${nom}*, se te asigna:\n📋 *N° Pedido:* ${o.num}\n👤 *Cliente:* ${o.cliente}\n📍 *Ubicación:* ${o.ubicacion||'Sin ubicación'}\n📞 *Contacto:* ${ct}`;window.open(`https://wa.me/52${cel}?text=${encodeURIComponent(msg)}`,'_blank');showToast(`✓ Enviado a ${nom}`,'#3B6D11');}
-function setSeg(g,b){document.querySelectorAll('#'+g+' .seg-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-// Cambiar de C/REPSE a Solo Entrega (o al revés) cambia qué firma cierra el
-// pedido, así que el candado del botón Sí se recalcula al vuelo.
-if(g==='seg-repse'&&typeof actualizarUIFirma==='function')actualizarUIFirma();}
+function setSeg(g,b){
+  // Poner una obra en Completado exige la evidencia del instalador.
+  if(g==='seg-estatus'&&(b.dataset.val||b.textContent||'').trim()==='Completado'){
+    const _bR=document.querySelector('#seg-repse .seg-btn.active');
+    const _o={repse:_bR?(_bR.dataset.val||_bR.textContent||''):'',
+              pdfsRecepcion:(typeof pdfRecepcion!=='undefined'?pdfRecepcion:[])||[],
+              firmaEntrega:(typeof firmaEntregaOrder!=='undefined'?firmaEntregaOrder:[])||[]};
+    const f=_faltaParaCompletar(_o,(typeof fotosTerminOrder!=='undefined'?fotosTerminOrder:[])||[]);
+    if(f.bloqueo){showToast('⚠ No se puede completar: falta '+f.bloqueo,'#A32D2D');return;}
+    if(f.aviso&&!confirm('Este pedido no tiene '+f.aviso+'.\n\n¿Aun así lo marcas como Completado?'))return;
+  }
+  document.querySelectorAll('#'+g+' .seg-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  // Cambiar de C/REPSE a Solo Entrega (o al revés) cambia qué firma cierra el
+  // pedido, así que el candado del botón Sí se recalcula al vuelo.
+  if(g==='seg-repse'&&typeof actualizarUIFirma==='function')actualizarUIFirma();}
 // Cierre administrativo sin firma: para casos donde el pedido ya se entregó (cliente
 // recogió en bodega, entrega ya hecha días atrás sin captura, etc.). Solo admin.
 // Marca el pedido como entregado y lo saca de "Por entregar", sin dejar rastro
@@ -3478,6 +3494,22 @@ function validarYSetEntregado(b){
 // distinguir — la app llama a los dos "Entrega_folio_fecha.pdf". Solo el tipo.
 function _esFirmaDeEntrega(f){
   return !!(f&&(''+(f.tipo||'')).toLowerCase()==='entrega');
+}
+// Una obra se concluye (verde) cuando el INSTALADOR terminó lo suyo, no cuando
+// pasó el de la entrega de material. Dos niveles, a propósito:
+//   · bloqueo: sin la firma del cliente por la instalación no se cierra. Es lo
+//     que ampara legalmente el trabajo, no se negocia.
+//   · aviso: sin fotos de terminación pregunta y deja seguir. Si el instalador
+//     olvidó subirlas, oficina no se queda con el pedido atorado.
+// Isaac, 8 sep 2026. Para volverlo estricto: pasar el aviso a bloqueo.
+function _faltaParaCompletar(o,fotosTermin){
+  const fotos=Array.isArray(fotosTermin)?fotosTermin:((o&&o.fotosTerminacion)||[]);
+  if(_esSoloEntrega(o&&o.repse))
+    return {bloqueo:_tieneFirmaCierre(o)?'':'la firma de quien recibió el material',aviso:''};
+  return {
+    bloqueo:_tieneFirmaCierre(o)?'':'la firma del cliente por la instalación',
+    aviso:fotos.length?'':'las fotos de terminación del instalador'
+  };
 }
 // Qué firma cierra un pedido depende de qué tipo sea:
 //   · Solo Entrega  -> se cierra con la firma de quien recibió el MATERIAL.
