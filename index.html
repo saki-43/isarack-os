@@ -1339,9 +1339,6 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
         </div>
       </div>
 
-      </div>
-      <!-- ═══════ /COLUMNA DERECHA ═══════ -->
-
       <!-- ═══════ CUADRILLA DE LA OBRA ═══════ -->
       <div id="cuadrilla-box" style="background:linear-gradient(135deg,#F4F8FD,#EAF1FB);border:1.5px solid #cfe0f5;border-radius:10px;padding:14px;margin-top:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px">
@@ -1351,6 +1348,9 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
         <div style="font-size:10px;color:#7a92ad;margin-bottom:9px">Quiénes van a instalar. Se edita en Instalaciones y es la misma para las dos pantallas.</div>
         <div id="cuadrilla-chips"></div>
       </div>
+      </div>
+      <!-- ═══════ /COLUMNA DERECHA ═══════ -->
+
     </div>
     
     <!-- Footer fijo con botones -->
@@ -1456,7 +1456,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.08.06';
+const APP_VERSION='2026.09.08.08';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -14506,7 +14506,11 @@ function seedInstaladoresUnaVez(){
   }catch(e){console.warn('seedInstaladoresUnaVez:',e);}
 }
 seedInstaladoresUnaVez();
-try{unificarPersonalAuto();}catch(e){console.warn('unificarPersonalAuto:',e);}
+// unificarPersonalAuto() NO se llama aquí: sus constantes (_CFG_BAJAS,
+// _CFG_A_COMERCIAL) se declaran más abajo con const y todavía no existen en
+// este punto. Llamarla aquí tronaba con "Cannot access before initialization"
+// y el try/catch se lo tragaba: la limpieza de nombres nunca corrió (8 sep 2026).
+// La llamada quedó justo después de su definición.
 
 // Aplicar identidad al DOM (header, colores, etc.)
 function aplicarIdentidadEmpresa(){
@@ -14788,6 +14792,8 @@ function unificarPersonalAuto(){
   }
   if(typeof refrescarSelectInstalador==='function'){refrescarSelectInstalador();refrescarSelectChofer();}
 }
+// Ahora sí: todo lo que necesita ya está declarado arriba de esta línea.
+try{unificarPersonalAuto();}catch(e){console.warn('unificarPersonalAuto:',e);}
 // Sospecha de que dos nombres son la misma persona: uno empieza igual que el
 // otro ("Joel" / "JOEL SOTO") o comparten el primer nombre ("JESUS" / "Jesus
 // Mendez"). No decide solo: nada más lo marca para que Isaac revise.
