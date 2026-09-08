@@ -1447,7 +1447,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.08.02';
+const APP_VERSION='2026.09.08.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3466,6 +3466,22 @@ function validarYSetEntregado(b){
   document.getElementById('alerta-firma-requerida').style.display='none';
   setSeg('seg-entregado',b);
 }
+// La app de Entrega/Recepcion sube TODOS sus PDF a pdfsRecepcion, pero cada uno
+// viene etiquetado: tipo 'entrega' (firma de quien recibio el material) o
+// 'instalacion' (firma del cliente al recibir la obra). ISA-OS ignoraba la
+// etiqueta y los pintaba todos en la caja de instalacion: la caja se veia
+// "Firmada", desaparecia el boton de subir y el instalador ya no podia recoger
+// su firma. Aqui se separan. Ojo: el NOMBRE del archivo no sirve para
+// distinguir — la app llama a los dos "Entrega_folio_fecha.pdf". Solo el tipo.
+function _esFirmaDeEntrega(f){
+  return !!(f&&(''+(f.tipo||'')).toLowerCase()==='entrega');
+}
+// Los que sí son firma de instalación (los de siempre, más los sin etiqueta:
+// los que se suben a mano desde aquí no traen tipo y son de instalación).
+function _pdfsDeInstalacion(){
+  return (typeof pdfRecepcion!=='undefined'&&Array.isArray(pdfRecepcion))
+    ? pdfRecepcion.filter(f=>!_esFirmaDeEntrega(f)) : [];
+}
 function actualizarUIFirma(){
   // Actualiza la UI de la zona FIRMA DEL CLIENTE según si hay o no PDF
   const box=document.getElementById('firma-cliente-box');
@@ -3473,11 +3489,15 @@ function actualizarUIFirma(){
   const pill=document.getElementById('firma-estado-pill');
   const alerta=document.getElementById('alerta-firma-requerida');
   if(!box)return;
-  const tienePdf=pdfRecepcion&&pdfRecepcion.length>0;
-  // Botón Sí de Entregado: candado visual si no hay PDF
+  const tienePdf=_pdfsDeInstalacion().length>0;
+  // El candado del botón Sí se queda como estaba: cuenta CUALQUIER firma
+  // (instalación o entrega). Un pedido de Solo Entrega se cierra con la firma
+  // de entrega y no debe quedar bloqueado.
+  const tieneAlgunaFirma=(pdfRecepcion&&pdfRecepcion.length>0)||
+    (typeof firmaEntregaOrder!=='undefined'&&firmaEntregaOrder&&firmaEntregaOrder.length>0);
   const btnSi=document.querySelector('#seg-entregado .seg-btn[data-val="Si"]');
   if(btnSi){
-    if(tienePdf){
+    if(tieneAlgunaFirma){
       btnSi.style.opacity='';btnSi.style.cursor='';btnSi.title='';
       btnSi.innerHTML='Sí';
     }else{
@@ -3507,7 +3527,7 @@ function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectC
 const usrEdit=getCurrentUser();
 const selComEd=document.getElementById('f-comercial');
 if(usrEdit&&usrEdit.rol==='comercial'){selComEd.disabled=true;selComEd.style.background='#f0f0ee';selComEd.style.cursor='not-allowed';selComEd.title='Solo el admin puede cambiar el comercial';}else{selComEd.disabled=false;selComEd.style.background='';selComEd.style.cursor='';selComEd.title='';}
-document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';{const _n=document.getElementById('f-notas');if(_n)_n.value=o.notas||'';}document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);{const _u=(typeof getCurrentUser==='function')?getCurrentUser():null;const _bcsf=document.getElementById('btn-cerrar-sin-firma');if(_bcsf)_bcsf.style.display=(_u&&_u.rol==='admin')?'block':'none';}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
+document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';{const _n=document.getElementById('f-notas');if(_n)_n.value=o.notas||'';}document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);{const _u=(typeof getCurrentUser==='function')?getCurrentUser():null;const _bcsf=document.getElementById('btn-cerrar-sin-firma');if(_bcsf)_bcsf.style.display=(_u&&_u.rol==='admin')?'block':'none';}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');renderChipsFirmaEntrega();}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
 // SNAPSHOT DEL MODAL: foto silenciosa de los campos críticos al abrir.
 // Sirve para detectar qué tocó el usuario realmente: si un campo estaba vacío al abrir
 // y sigue vacío al guardar, el usuario NO lo tocó → no debe sobreescribir lo que tenga la nube.
@@ -3711,7 +3731,11 @@ function handlePDF(input,tipo){
   r.readAsDataURL(file);
   input.value='';
 }
-function renderChips(t){const l=t==='presupuesto'?pdfPresupuesto:pdfRecepcion;document.getElementById('chips-'+t).innerHTML=l.map((f,i)=>`<span class="pdf-chip" onclick="viewChipPDF('${t}',${i})">📄 ${f.name||f.nombre||'Documento'} <span onclick="event.stopPropagation();removeChip('${t}',${i})" style="color:#c62828;margin-left:4px;font-weight:700">✕</span></span>`).join('');if(t==='recepcion')actualizarUIFirma();}
+function renderChips(t){const l=t==='presupuesto'?pdfPresupuesto:pdfRecepcion;
+// En 'recepcion' se ocultan las firmas de ENTREGA: van en su propia caja. Se
+// conserva el índice real del arreglo para que ver y borrar sigan apuntando bien.
+const items=(l||[]).map((f,i)=>({f,i})).filter(x=>!(t==='recepcion'&&_esFirmaDeEntrega(x.f)));
+document.getElementById('chips-'+t).innerHTML=items.map(({f,i})=>`<span class="pdf-chip" onclick="viewChipPDF('${t}',${i})">📄 ${f.name||f.nombre||'Documento'} <span onclick="event.stopPropagation();removeChip('${t}',${i})" style="color:#c62828;margin-left:4px;font-weight:700">✕</span></span>`).join('');if(t==='recepcion'){renderChipsFirmaEntrega();actualizarUIFirma();}}
 // Visor modal para archivos guardados en Supabase Storage (tienen url, no base64).
 // Muestra PDF o imagen en un iframe con botones Cerrar e Imprimir, sin abrir pestaña suelta.
 function cerrarVisorOverlay(btn){
@@ -10806,12 +10830,29 @@ function renderChipsFirmaEntrega(){
   const cont=document.getElementById('chips-firmaentrega');if(!cont)return;
   const pill=document.getElementById('firma-entrega-pill');
   const vacia=document.getElementById('firma-entrega-vacia');
-  if(!firmaEntregaOrder||!firmaEntregaOrder.length){cont.innerHTML='';if(pill){pill.textContent='⏳ Pendiente';pill.style.color='#B8431C';}if(vacia)vacia.style.display='block';return;}
+  // Dos orígenes para la MISMA cosa: lo que se sube a mano aquí (firmaEntrega)
+  // y lo que manda la app de Entrega marcado tipo:'entrega' dentro de
+  // pdfsRecepcion. Se muestran juntos; los de la app no se pueden borrar desde
+  // aquí porque viven en el arreglo del otro lado.
+  const propias=(firmaEntregaOrder||[]).map(f=>({f,deLaApp:false}));
+  const deApp=((typeof pdfRecepcion!=='undefined'&&Array.isArray(pdfRecepcion))?pdfRecepcion:[])
+    .filter(_esFirmaDeEntrega).map(f=>({f,deLaApp:true}));
+  const todas=propias.concat(deApp);
+  if(!todas.length){cont.innerHTML='';if(pill){pill.textContent='⏳ Pendiente';pill.style.color='#B8431C';pill.style.borderColor='';}if(vacia)vacia.style.display='block';return;}
   if(pill){pill.textContent='✓ Firmado';pill.style.color='#3B6D11';pill.style.borderColor='#b5e0a0';}
   if(vacia)vacia.style.display='none';
-  const f=firmaEntregaOrder[0];
-  const esImg=f.tipo&&f.tipo.startsWith('image/');
-  cont.innerHTML='<div style="display:flex;align-items:center;gap:8px;background:#f0fcea;border:1px solid #b5e0a0;border-radius:7px;padding:7px 10px"><span style="font-size:18px">'+(esImg?'🖼':'📄')+'</span><span style="flex:1;font-size:11px;color:#3B6D11;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(f.name||'firma')+'</span><button onclick="window.open(\''+f.url+'\',\'_blank\')" style="font-size:10px;background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:4px 9px;cursor:pointer;font-weight:600">Ver</button><button onclick="eliminarFirmaEntrega()" style="font-size:10px;background:#fff;color:#c62828;border:1px solid #e0b5b5;border-radius:8px;padding:4px 9px;cursor:pointer">✕</button></div>';
+  cont.innerHTML=todas.map(({f,deLaApp})=>{
+    const esImg=f.tipo&&(''+f.tipo).startsWith('image/');
+    const url=f.url||f.data||'';
+    const nom=f.name||f.nombre||'firma';
+    const marca=deLaApp?'<span style="font-size:9px;background:#E6F1FB;color:#185FA5;border-radius:6px;padding:1px 6px;font-weight:700;white-space:nowrap">app entrega</span>':'';
+    const btnBorrar=deLaApp?'':'<button onclick="eliminarFirmaEntrega()" style="font-size:10px;background:#fff;color:#c62828;border:1px solid #e0b5b5;border-radius:8px;padding:4px 9px;cursor:pointer">✕</button>';
+    return '<div style="display:flex;align-items:center;gap:8px;background:#f0fcea;border:1px solid #b5e0a0;border-radius:7px;padding:7px 10px;margin-bottom:5px">'+
+      '<span style="font-size:18px">'+(esImg?'🖼':'📄')+'</span>'+
+      '<span style="flex:1;font-size:11px;color:#3B6D11;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+nom+'</span>'+marca+
+      '<button onclick="window.open(\''+url+'\',\'_blank\')" style="font-size:10px;background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:4px 9px;cursor:pointer;font-weight:600">Ver</button>'+
+      btnBorrar+'</div>';
+  }).join('');
 }
 async function eliminarFirmaEntrega(){
   if(!firmaEntregaOrder.length)return;
