@@ -99,16 +99,20 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
 6. **Facturas pagadas sin monto capturado** cuando existe pdfAnticipo/pdfFiniquito/pdfComplemento o pagosExtra — el comprobante ES el rastro del cobro. La regla no es "hay número", es "hay comprobante O hay número".
 7. **`updated_at` reciente en `orders`** — no evidencia de escritura reciente. El loop `cloudSyncTodosLosPedidos` reescribe la tabla completa de un jalón. Usa `payload.updated` para saber la fecha real.
 8. **12 SKUs SEL/PIC (diagonales D/H) con precio $4** — asignado en auditoría de julio 2026, no es error.
-9. **PWA Instaladores: 7 usuarios con clave FIJA hardcodeada** (NO últimos 4 del teléfono):
-   - Brayan Alexis: `1234`
+9. **PWA Instaladores: 7 usuarios con clave FIJA hardcodeada** (NO últimos 4 del teléfono).
+   `PWA_CODIGOS_FIJOS` va indexado por **teléfono**, no por nombre — por eso
+   renombrar a alguien NO le tumba el acceso.
+   - Bryan Martinez (antes "Brayan Alexis"): `1234`
    - Jonas Sañudo: `5678`
    - Gilberto Rodriguez: `2323`
    - Oscar Ochoa: `2271`
    - Israel Mendez: `7052`
    - Isaac Romero: `2110`
-   - Samuel A. Gomez: `5232`
+   - Samuel Gomez (antes "Samuel A. Gomez"): `5232`
    Los usuarios "extras" que se agregan desde Configuración sí usan últimos-4.
    **La tabla vive duplicada en ISA-OS y en la PWA** — si se cambia un código hay que cambiarlo en los dos.
+   ⚠ Desde v2026.09.08.01 ISA-OS renombró al personal a *nombre + apellido*; **la PWA
+   todavía muestra los nombres viejos**. Hay que aplicarle el mismo cambio.
 
 ---
 
@@ -127,6 +131,10 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
 - **Visores de documentos** (v2026.09.01.08+ / v2026.09.02.01+): TODO ISA-OS abre presupuestos con el visor HTML (`openHTMLViewer`). En `viewPDF` y `verPresupuestoVenta` la prioridad es `cotData` → `cotHTML` → PDF web (fallback). Los RW/GW/PW ya no priorizan el PDF web del configurador. Para PDFs externos (PO, CSF, factura escaneada) `openPDFData` ahora renderiza **todas las páginas apiladas verticalmente** (una debajo de otra) — sin flechas de página. Fit inicial al ancho del scroll, modal max-width 1400px. Descarga e impresión siguen usando `_pdfRawBytes` (bytes originales), no dependen de los canvases. IDs de canvas: `pdf-cv` (primera página) y `pdf-cv-2`, `pdf-cv-3`... para las siguientes.
 
 ---
+
+- **Nombres del personal: hay UN nombre bueno por persona** (`PERSONAL_ALIAS` + `_personaCanonica()`, v2026.09.08.01). Formato *nombre de pila + apellido paterno*, sacado de la cédula del IMSS de ago-2026. Las obras (`instalaciones_activas.instaladores`) guardan el nombre como **texto**, así que renombrar sin alias parte a la persona en dos: sale en su cuadrilla Y otra vez en "Otros (del historial)". **Si agregas o corriges un nombre, mete también sus formas viejas en `PERSONAL_ALIAS`.** `unificarPersonalAuto()` corre en cada arranque, es idempotente (si no hay cambios no escribe a la nube) y la parte destructiva —bajas y pases a Comerciales— va con bandera en localStorage.
+- **Personal externo** (no está en nómina, va con su nombre de obra): Jesus Mendez, Samuel Gomez, Gilberto Rodriguez, Israel Mendez, Alexis Guadalupe, Daniel Herrera, Brayan Romo, Juan Hernandez, Victor Manuel Medina, Ezequiel Alberto Chigo.
+- **Configuración → 🔧 Instaladores es la única lista de personal.** De ahí salen los pedidos, las entregas y las cuadrillas de Instalaciones (`getPersonalCuadrillas()`). `INST_CUAD` quedó solo como respaldo para los nombres que aún no se capturan. El campo **Rol** (Instala/Entrega/Ambos) filtra cada select; a quien no tiene rol capturado NO se le esconde.
 
 ## 9. Dónde vive cada módulo (referencias rápidas)
 
