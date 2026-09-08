@@ -1198,7 +1198,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <!-- Comercial + Instalador -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Comercial <span id="auto-com" class="auto-label" style="display:none">auto ✓</span></label><select id="f-comercial" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option>Adrian Solorzano</option><option>Ing. Miguel Morga</option><option>Ing. Gil Osuna</option><option>Isaac Romero</option><option>Jesus Pelayo</option><option>Lic. Daniel Osuna R.</option><option>Ninguno</option></select></div>
-        <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Instalador asignado</label><select id="f-instalador" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
+        <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Líder de cuadrilla</label><select id="f-instalador" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
         <div><label style="font-size:10px;color:#666;font-weight:600;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">🚛 Quién entrega</label><select id="f-chofer" style="width:100%;padding:7px 10px;border:1px solid #E5E5E0;border-radius:6px;font-size:12px;background:#fff"><option value="">— Seleccionar —</option><option value="6123090644" data-nombre="Brayan Alexis">Brayan Alexis</option><option value="6563549469" data-nombre="Jonas Sañudo">Jonas Sañudo</option><option value="6642323708" data-nombre="Gilberto Rodriguez">Gilberto Rodriguez</option><option value="6642271617" data-nombre="Oscar Ochoa">Oscar Ochoa</option><option value="6646705293" data-nombre="Israel Mendez">Israel Mendez</option><option value="6644211088" data-nombre="Isaac Romero">Isaac Romero</option><option value="6635223207" data-nombre="Samuel A. Gomez">Samuel A. Gomez</option></select></div>
       </div>
       
@@ -1342,6 +1342,15 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       </div>
       <!-- ═══════ /COLUMNA DERECHA ═══════ -->
 
+      <!-- ═══════ CUADRILLA DE LA OBRA ═══════ -->
+      <div id="cuadrilla-box" style="background:linear-gradient(135deg,#F4F8FD,#EAF1FB);border:1.5px solid #cfe0f5;border-radius:10px;padding:14px;margin-top:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px">
+          <div style="font-size:10px;color:#185FA5;font-weight:700;letter-spacing:1px">👷 CUADRILLA DE LA OBRA</div>
+          <button type="button" id="btn-cuadrilla" onclick="abrirCuadrillaDesdePedido()" style="background:#185FA5;color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:11px;font-weight:600;cursor:pointer">Asignar cuadrilla</button>
+        </div>
+        <div style="font-size:10px;color:#7a92ad;margin-bottom:9px">Quiénes van a instalar. Se edita en Instalaciones y es la misma para las dos pantallas.</div>
+        <div id="cuadrilla-chips"></div>
+      </div>
     </div>
     
     <!-- Footer fijo con botones -->
@@ -1447,7 +1456,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.08.05';
+const APP_VERSION='2026.09.08.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3575,13 +3584,63 @@ function setSegActive(g,v){document.querySelectorAll('#'+g+' .seg-btn').forEach(
 function setMultiActive(g,v){document.querySelectorAll('#'+g+' .seg-btn').forEach(b=>b.classList.toggle('active',(v||[]).includes(b.dataset.val)));}
 function markAuto(f,b){const el=document.getElementById(f);if(el)el.classList.add('auto-filled');const bl=document.getElementById(b);if(bl)bl.style.display='inline';}
 function _marcarBorradoModal(p){try{if(!Array.isArray(window._borradosModal))window._borradosModal=[];var k=p&&(p.path||p.url||p.name);if(k)window._borradosModal.push(k);}catch(e){}}
-function resetModal(){window._borradosModal=[];pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];fotosSurtidoOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega','chips-surtido'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const _sbx=document.getElementById('surtido-box');if(_sbx)_sbx.style.display='none';const _sm=document.getElementById('surtido-meta');if(_sm){_sm.style.display='none';_sm.innerHTML='';}const _sv=document.getElementById('surtido-vacia');if(_sv)_sv.style.display='block';const _sp=document.getElementById('surtido-pill');if(_sp){_sp.textContent='⏳ Sin surtir';_sp.style.color='#854F0B';}const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
+// ── Cuadrilla de la obra dentro del pedido ──
+// La cuadrilla vive en instalaciones_activas (la misma tabla que usa la pestaña
+// Instalaciones), NO en el pedido. Aquí solo se MUESTRA: editar abre el editor
+// de Instalaciones, que ya trae la protección contra el bug que borró
+// cuadrillas al guardar con la caché desactualizada. Un segundo camino de
+// escritura reviviría justo ese bug.
+let _cuadrillaFolio=null;
+async function renderCuadrillaPedido(folio){
+  _cuadrillaFolio=folio||null;
+  const cont=document.getElementById('cuadrilla-chips');
+  if(!cont)return;
+  if(!folio){cont.innerHTML='<div style="font-size:11px;color:#9aabbd">Guarda el pedido con su número para poder asignar cuadrilla.</div>';return;}
+  let r=(typeof INST!=='undefined'&&INST.rows)?INST.rows.find(x=>x&&x.folio===folio):null;
+  if(!r){
+    cont.innerHTML='<div style="font-size:11px;color:#9aabbd">Buscando…</div>';
+    try{
+      const res=await supabaseClient.from('instalaciones_activas').select('*').eq('folio',folio).maybeSingle();
+      r=(res&&res.data)||null;
+      // Se guarda en la caché para que Instalaciones no lo vuelva a pedir.
+      if(r&&typeof INST!=='undefined'&&Array.isArray(INST.rows)&&!INST.rows.some(x=>x&&x.id===r.id))INST.rows.push(r);
+    }catch(e){console.warn('cuadrilla del pedido:',e);}
+  }
+  if(_cuadrillaFolio!==folio)return;   // se cambió de pedido mientras buscaba
+  const m=(r&&Array.isArray(r.instaladores))?r.instaladores:[];
+  if(!m.length){
+    cont.innerHTML='<div style="font-size:11px;color:#A32D2D">Sin cuadrilla asignada — toca “Asignar cuadrilla”.</div>';
+    return;
+  }
+  const lider=(r&&r.lider)||'';
+  const esc=(typeof _almEsc==='function')?_almEsc:(x=>''+(x==null?'':x));
+  const canon=(typeof _personaCanonica==='function')?_personaCanonica:(x=>x);
+  cont.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:5px">'+m.map(n=>{
+    const bueno=canon(n),esL=lider&&(''+lider).toLowerCase()===(''+n).toLowerCase();
+    return '<span style="background:'+(esL?'#185FA5':'#fff')+';color:'+(esL?'#fff':'#185FA5')+';border:1px solid #cfe0f5;border-radius:14px;padding:3px 10px;font-size:11.5px;font-weight:600">'+
+      (esL?'★ ':'')+esc(bueno)+'</span>';
+  }).join('')+'</div>'+
+  (r&&r.estatus?'<div style="font-size:10px;color:#7a92ad;margin-top:6px">Obra: '+esc(r.estatus)+'</div>':'');
+}
+// Abre el editor de cuadrilla de Instalaciones para este folio y, al cerrarlo,
+// refresca los chips sin tener que reabrir el pedido.
+function abrirCuadrillaDesdePedido(){
+  const folio=(document.getElementById('f-num')||{}).value;
+  if(!folio||!folio.trim()){showToast('El pedido necesita número','#BA7517');return;}
+  if(typeof _instObra!=='function'){showToast('Abre la pestaña Instalaciones primero','#BA7517');return;}
+  _instObra(folio.trim());
+  const esperar=setInterval(()=>{
+    if(!document.getElementById('inst-modal')){clearInterval(esperar);renderCuadrillaPedido(folio.trim());}
+  },600);
+  setTimeout(()=>clearInterval(esperar),300000);
+}
+function resetModal(){window._borradosModal=[];_cuadrillaFolio=null;{const _cc=document.getElementById('cuadrilla-chips');if(_cc)_cc.innerHTML='';}pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];fotosSurtidoOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega','chips-surtido'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const _sbx=document.getElementById('surtido-box');if(_sbx)_sbx.style.display='none';const _sm=document.getElementById('surtido-meta');if(_sm){_sm.style.display='none';_sm.innerHTML='';}const _sv=document.getElementById('surtido-vacia');if(_sv)_sv.style.display='block';const _sp=document.getElementById('surtido-pill');if(_sp){_sp.textContent='⏳ Sin surtir';_sp.style.color='#854F0B';}const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
 function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectChofer();if(id!=null){editId=id;const o=orders.find(x=>x.id===id);document.getElementById('modal-title').textContent='Modificar pedido';document.getElementById('f-num').value=o.num||'';document.getElementById('f-fecha').value=o.fecha||'';document.getElementById('f-cliente').value=o.cliente||'';document.getElementById('f-comercial').value=o.comercial||'';
 // LOCK comercial field if user is comercial
 const usrEdit=getCurrentUser();
 const selComEd=document.getElementById('f-comercial');
 if(usrEdit&&usrEdit.rol==='comercial'){selComEd.disabled=true;selComEd.style.background='#f0f0ee';selComEd.style.cursor='not-allowed';selComEd.title='Solo el admin puede cambiar el comercial';}else{selComEd.disabled=false;selComEd.style.background='';selComEd.style.cursor='';selComEd.title='';}
-document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';{const _n=document.getElementById('f-notas');if(_n)_n.value=o.notas||'';}document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);{const _u=(typeof getCurrentUser==='function')?getCurrentUser():null;const _bcsf=document.getElementById('btn-cerrar-sin-firma');if(_bcsf)_bcsf.style.display=(_u&&_u.rol==='admin')?'block':'none';}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');renderChipsFirmaEntrega();}if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
+document.getElementById('f-ubicacion').value=o.ubicacion||'';document.getElementById('f-contacto-nombre').value=o.contactoNombre||'';document.getElementById('f-whatsapp').value=o.whatsapp||'';document.getElementById('f-entrega').value=o.entrega||'';{const _n=document.getElementById('f-notas');if(_n)_n.value=o.notas||'';}document.getElementById('f-instalador').value=o.instaladorCel||'';const _chf=document.getElementById('f-chofer');if(_chf)_chf.value=o.choferCel||'';const m=document.getElementById('map-preview');if(m){m.style.display='none';m.innerHTML='';}setSegActive('seg-repse',o.repse||'C/ REPSE');{const _bc=document.getElementById('seg-btn-cancelado');if(_bc)_bc.style.display=(o.estatus==='Cancelado')?'':'none';}setSegActive('seg-estatus',o.estatus||'Pendiente');setSegActive('seg-armado',o.armado||'Pendiente');setSegActive('seg-instalacion',o.instalacion||'Pendiente');setSegActive('seg-entregado',o.entregado||'No');setMultiActive('seg-sistemas',o.sistemas||[]);{const _u=(typeof getCurrentUser==='function')?getCurrentUser():null;const _bcsf=document.getElementById('btn-cerrar-sin-firma');if(_bcsf)_bcsf.style.display=(_u&&_u.rol==='admin')?'block':'none';}if(o.pdfsPresupuesto&&o.pdfsPresupuesto.length){pdfPresupuesto=o.pdfsPresupuesto;renderChips('presupuesto');}if(o.pdfsRecepcion&&o.pdfsRecepcion.length){pdfRecepcion=o.pdfsRecepcion;renderChips('recepcion');renderChipsFirmaEntrega();}renderCuadrillaPedido(o.num||'');if(o.planos&&o.planos.length){planosOrder=o.planos.slice();renderChipsPlanos();}if(o.fotosAvance&&o.fotosAvance.length){fotosAvanceOrder=o.fotosAvance.slice();renderChipsAvance();}if(o.fotosTerminacion&&o.fotosTerminacion.length){fotosTerminOrder=o.fotosTerminacion.slice();renderChipsTermin();}if(o.fotosEntrega&&o.fotosEntrega.length){fotosEntregaOrder=o.fotosEntrega.slice();renderChipsFotoEntrega();}if(o.firmaEntrega&&o.firmaEntrega.length){firmaEntregaOrder=o.firmaEntrega.slice();renderChipsFirmaEntrega();}if(o.fotosSurtido&&o.fotosSurtido.length){fotosSurtidoOrder=o.fotosSurtido.slice();renderChipsSurtido(o);}else if(o.surtido==='Si'){renderChipsSurtido(o);}currentOrderId=o.id;
 // SNAPSHOT DEL MODAL: foto silenciosa de los campos críticos al abrir.
 // Sirve para detectar qué tocó el usuario realmente: si un campo estaba vacío al abrir
 // y sigue vacío al guardar, el usuario NO lo tocó → no debe sobreescribir lo que tenga la nube.
