@@ -92,7 +92,7 @@ cloudSyncFactura(facturas[idx]);   // ← esta línea no se olvida
 Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier auditoría:
 
 1. **Ventas históricas** — ventas con `tipo='Venta'` y stage `'Pedido de venta / Confirmada'` que **no tienen pedido en `orders`**. Son ventas reales anteriores a que el sistema exigiera pedido. Ejemplos: Panasonic (S07179, S07180), Hunter (S07139, S07141, S07181), Encore, etc. La cotización de estas se toma directo de `ventas.lineas` (ver `verPedidoDesdeFactura`).
-2. **Pedidos completados sin venta** — S07069, S07082, S07084. Los subió Daniel como históricos.
+2. **Pedidos completados sin venta** — S07082, S07084. Los subió Daniel como históricos. (S07069 CRATEX se eliminó el 9 sep 2026 a petición de Isaac: iba en $0, sin cotización y sin documentos, y ensuciaba el "Por cobrar". Respaldo en `papelera`; folio e id en la lista negra `pedidos_eliminados` y en `facturas_excluidas`.)
 3. **Facturas en $0** — algunas históricas quedan así. Normal.
 4. **Facturas pagadas sin fecha de pago** — se quedan así.
 5. **Contactos con nombre duplicado** — clientes recurrentes. No deduplicar automáticamente.
