@@ -1456,7 +1456,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.08.08';
+const APP_VERSION='2026.09.09.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6439,17 +6439,45 @@ function _complementoRow(ri,f){
       acc=(tienePdf?'<button onclick="verAdjuntoFact('+ri+',\'pdfComplemento\')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">Ver PDF</button>':'')+(tieneXml?'<button onclick="descargarXmlComplemento('+ri+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">⬇ XML</button>':'')+'<span style="font-size:11px;color:#999;background:#f4f3ed;border:1px solid #e0ded4;border-radius:5px;padding:3px 8px">🔒 Sin permiso</span>';
     }else{
       // PDF
+      // Con ✕ para quitarlo: si se sube por error (o el pedido resulta no llevar
+      // factura) no habia forma de sacarlo. Usa eliminarAdjuntoFact, que ya
+      // guarda y sincroniza a la nube.
       acc+=tienePdf
-        ?'<button onclick="verAdjuntoFact('+ri+',\'pdfComplemento\')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">Ver PDF</button>'
+        ?'<button onclick="verAdjuntoFact('+ri+',\'pdfComplemento\')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">Ver PDF</button>'+
+         '<button onclick="quitarComplemento('+ri+',\'pdf\')" title="Quitar el PDF del complemento" style="font-size:11px;color:#c62828;background:#fff;border:1px solid #e8c4c4;border-radius:8px;padding:3px 7px;cursor:pointer">✕</button>'
         :'<button onclick="adjuntarCampoFact('+ri+',\'complemento\')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:3px 8px;cursor:pointer;font-weight:600">📎 PDF</button>';
       // XML
       acc+=tieneXml
-        ?'<button onclick="descargarXmlComplemento('+ri+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">⬇ XML</button><button onclick="adjuntarXmlComplemento('+ri+')" style="font-size:11px;color:#888;background:#fff;border:1px solid #ddd;border-radius:8px;padding:3px 8px;cursor:pointer">↻</button>'
+        ?'<button onclick="descargarXmlComplemento('+ri+')" style="font-size:11px;color:#185FA5;background:#fff;border:1px solid #c5d8ea;border-radius:8px;padding:3px 8px;cursor:pointer">⬇ XML</button><button onclick="adjuntarXmlComplemento('+ri+')" style="font-size:11px;color:#888;background:#fff;border:1px solid #ddd;border-radius:8px;padding:3px 8px;cursor:pointer" title="Reemplazar">↻</button>'+
+         '<button onclick="quitarComplemento('+ri+',\'xml\')" title="Quitar el XML del complemento" style="font-size:11px;color:#c62828;background:#fff;border:1px solid #e8c4c4;border-radius:8px;padding:3px 7px;cursor:pointer">✕</button>'
         :'<button onclick="adjuntarXmlComplemento('+ri+')" style="font-size:11px;color:#D85A30;background:#fff;border:1px solid #D85A30;border-radius:8px;padding:3px 8px;cursor:pointer;font-weight:600">📎 XML</button>';
       if(!tienePdf&&!tieneXml)acc+='<button onclick="toggleNoAplicaFact('+ri+',\'complemento\')" style="font-size:11px;color:#888;background:#f7f9fb;border:1px solid #d5dde6;border-radius:8px;padding:3px 8px;cursor:pointer">N/A</button>';
     }
   }
   return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #ececdf"><span style="font-size:14px;color:#222;font-weight:500">🧾 Complemento de pago</span><span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+estado+acc+'</span></div>';
+}
+// Quita el complemento de pago de una factura. Se puede borrar el PDF, el XML
+// o los dos: un complemento subido por error dejaba la factura contradiciendose
+// (pedido marcado "no requiere factura" con complemento cargado) y no habia
+// manera de sacarlo desde la pantalla. Solo quien puede editar facturas.
+function quitarComplemento(i,que){
+  const f=facturas[i];if(!f)return;
+  if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){
+    showToast('🔒 Solo Adrián Solórzano puede tocar el complemento','#BA7517');return;
+  }
+  const hayPdf=_hayAdj(f.pdfComplemento),hayXml=_hayAdj(f.xmlComplemento);
+  const soloPdf=que==='pdf',soloXml=que==='xml';
+  const qué=soloPdf?'el PDF':(soloXml?'el XML':'el PDF y el XML');
+  if(!confirm('¿Quitar '+qué+' del complemento de pago?\n\nPedido '+(f.pedido||'')+' — '+(f.cliente||'')+
+              '\n\nSe borra del pedido; el archivo original no se toca.'))return;
+  if(!soloXml&&hayPdf)f.pdfComplemento=null;
+  if(!soloPdf&&hayXml)f.xmlComplemento=null;
+  if(!f._ts)f._ts={};
+  f._ts.complemento=new Date().toISOString();
+  guardarFacturasLS();
+  if(typeof cloudSyncFactura==='function')cloudSyncFactura(f);
+  renderFacturas();
+  showToast('✓ Complemento quitado','#c62828');
 }
 function adjuntarXmlComplemento(i){
   if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){showToast('🔒 Solo Adrián Solórzano puede subir el complemento','#BA7517');return;}
