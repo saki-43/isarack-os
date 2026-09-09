@@ -1456,7 +1456,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.09.01';
+const APP_VERSION='2026.09.09.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3027,12 +3027,24 @@ async function renderDashboard(){
   
   // ── Ventas mensuales (últimos 12 meses) ──
   const ventasMes={};
-  ventasDetalle.forEach(v=>{const mes=v.fecha.slice(0,7);if(!ventasMes[mes])ventasMes[mes]={total:0,pedidos:new Set()};ventasMes[mes].total+=v.total;ventasMes[mes].pedidos.add(v.pedido);});
-  const meses12=Object.keys(ventasMes).sort().slice(-12);
+  const _hoy=new Date();
+  const _mesHoy=_hoy.getFullYear()+'-'+String(_hoy.getMonth()+1).padStart(2,'0');
+  // Ignora meses futuros: una fecha mal tecleada no debe ensuciar la grafica
+  ventasDetalle.forEach(v=>{const mes=(v.fecha||'').slice(0,7);if(!mes||mes>_mesHoy)return;if(!ventasMes[mes])ventasMes[mes]={total:0,pedidos:new Set()};ventasMes[mes].total+=v.total;ventasMes[mes].pedidos.add(v.pedido);});
+  // Serie de calendario: 12 meses corridos hasta el actual, sin saltarse los meses en cero
+  const _mesesConDatos=Object.keys(ventasMes).sort();
+  const meses12=[];
+  if(_mesesConDatos.length){
+    const _serie=[];
+    let _y=_hoy.getFullYear(),_m=_hoy.getMonth()+1;
+    for(let i=0;i<12;i++){_serie.unshift(_y+'-'+String(_m).padStart(2,'0'));_m--;if(_m===0){_m=12;_y--;}}
+    const _primero=_mesesConDatos[0];
+    _serie.forEach(m=>{if(m>=_primero)meses12.push(m);});
+  }
   const nombresMes=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const labelsMeses=meses12.map(m=>{const [y,mm]=m.split('-');return nombresMes[parseInt(mm)-1]+' '+y.slice(2);});
-  const datosMeses=meses12.map(m=>ventasMes[m].total);
-  const datosPedidosMes=meses12.map(m=>ventasMes[m].pedidos.size);
+  const labelsMeses=meses12.map(m=>{const [y,mm]=m.split('-');return nombresMes[parseInt(mm)-1]+' '+y.slice(2)+(m===_mesHoy?'*':'');});
+  const datosMeses=meses12.map(m=>ventasMes[m]?ventasMes[m].total:0);
+  const datosPedidosMes=meses12.map(m=>ventasMes[m]?ventasMes[m].pedidos.size:0);
   
   // ── Top 10 productos (respeta el mes seleccionado) ──
   if(typeof window.dashProdMetrica==='undefined')window.dashProdMetrica='piezas';
@@ -3088,7 +3100,7 @@ async function renderDashboard(){
 
 <!-- Charts Row 1 -->
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
-  <div style="background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid #eee"><h3 style="margin:0 0 14px 0;font-size:15px;color:#333">📈 Ventas mensuales (últimos 12 meses)</h3><div style="height:260px"><canvas id="chart-ventas-mes"></canvas></div></div>
+  <div style="background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid #eee"><h3 style="margin:0 0 14px 0;font-size:15px;color:#333">📈 Ventas mensuales (últimos 12 meses)</h3><div style="margin:-8px 0 10px 0;font-size:11px;color:#888">* mes en curso (parcial)</div><div style="height:260px"><canvas id="chart-ventas-mes"></canvas></div></div>
   <div style="background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid #eee"><h3 style="margin:0 0 14px 0;font-size:15px;color:#333">🧾 Estatus de pedidos</h3><div style="height:260px"><canvas id="chart-estatus"></canvas></div></div>
 </div>
 
@@ -3124,8 +3136,8 @@ ${stockBajo>0||sinStock>0?`<div style="background:#fff8f5;border-left:4px solid 
   if(typeof Chart!=='undefined'&&meses12.length>0){
     new Chart(document.getElementById('chart-ventas-mes'),{
       type:'line',
-      data:{labels:labelsMeses,datasets:[{label:'Ventas $',data:datosMeses,borderColor:'#3B6D11',backgroundColor:'rgba(59,109,17,.1)',tension:.3,fill:true,yAxisID:'y'},{label:'Pedidos',data:datosPedidosMes,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,.1)',tension:.3,yAxisID:'y1'}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{position:'left',ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1}}}}
+      data:{labels:labelsMeses,datasets:[{label:'Ventas $',data:datosMeses,borderColor:'#3B6D11',backgroundColor:'rgba(59,109,17,.1)',tension:0,fill:true,pointRadius:3,yAxisID:'y'},{label:'Pedidos',data:datosPedidosMes,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,.1)',tension:0,pointRadius:3,yAxisID:'y1'}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},tooltip:{callbacks:{title:it=>{const l=it[0].label;return l.endsWith('*')?l.slice(0,-1)+' (mes en curso)':l;},label:ctx=>ctx.datasetIndex===0?'Ventas: $'+Math.round(ctx.parsed.y).toLocaleString():'Pedidos: '+ctx.parsed.y}}},scales:{y:{position:'left',beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K'}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{precision:0}}}}
     });
   }
   
