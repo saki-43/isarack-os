@@ -1456,7 +1456,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.09.02';
+const APP_VERSION='2026.09.09.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3341,7 +3341,17 @@ if(field==='estatus'&&val==='Completado'&&orders[i].estatus!=='Completado'){
   const f=_faltaParaCompletar(orders[i]);
   if(f.bloqueo){showToast('⚠ No se puede completar: falta '+f.bloqueo,'#A32D2D');return;}
   if(f.aviso&&!confirm(orders[i].num+' no tiene '+f.aviso+'.\n\n¿Aun así lo marcas como Completado?'))return;
-}const _prevVal=orders[i][field];orders[i][field]=val;if(field==='comercial'){if(!orders[i]._ts)orders[i]._ts={};orders[i]._ts.comercial=new Date().toISOString();}try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}if(_esEnt&&!_wasEnt){descontarAlEntregar(orders[i]);}}catch(e){}saveOrders();closePop();
+}const _prevVal=orders[i][field];orders[i][field]=val;
+// La columna Fecha de Seguimiento se pinta con _tsVentaOrden (tsVenta -> id), NO con o.fecha.
+// Si al corregir la fecha solo tocamos o.fecha, la correccion no se ve en la tabla ni reordena.
+// Movemos tambien el sello de tiempo, conservando la hora original (el "minutero" de la venta).
+if(field==='fecha'&&val&&/^\d{4}-\d{2}-\d{2}$/.test(val)){try{
+  const _tvPrev=_tsVentaOrden(orders[i]);
+  const _nd=new Date(val+'T12:00:00');
+  if(_tvPrev){const _d0=new Date(_tvPrev);_nd.setHours(_d0.getHours(),_d0.getMinutes(),_d0.getSeconds(),0);}
+  if(!isNaN(_nd.getTime())){orders[i].tsVenta=_nd.getTime();orders[i].fechaVenta=val;}
+}catch(_e){console.warn('ajustar tsVenta al corregir fecha:',_e);}}
+if(field==='comercial'){if(!orders[i]._ts)orders[i]._ts={};orders[i]._ts.comercial=new Date().toISOString();}try{var _esEnt=((field==='entregado'&&val==='Si')||(field==='estatus'&&val==='Completado'));var _wasEnt=((field==='entregado'&&_prevVal==='Si')||(field==='estatus'&&_prevVal==='Completado'));if(_esEnt&&!_wasEnt&&!orders[i].fechaEntregado){orders[i].fechaEntregado=(typeof _hoyISO==='function'?_hoyISO():new Date().toISOString().slice(0,10));}else if(field==='estatus'&&val!=='Completado'&&orders[i].entregado!=='Si'){orders[i].fechaEntregado='';}if(_esEnt&&!_wasEnt){descontarAlEntregar(orders[i]);}}catch(e){}saveOrders();closePop();
 // Comercial editado en Seguimiento → propagar a la venta (Comisiones lee de ahí)
 try{if(field==='comercial'){
   const _num=orders[i].num;
