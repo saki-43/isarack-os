@@ -1355,6 +1355,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
     
     <!-- Footer fijo con botones -->
     <div style="padding:12px 22px;border-top:1px solid #E5E5E0;display:flex;gap:8px;background:#fff;border-radius:0 0 14px 14px">
+      <button id="btn-eliminar-pedido" onclick="eliminarPedidoActual()" style="display:none;flex:0 0 auto;padding:10px 14px;background:#fff;border:1px solid #E24B4A;color:#C0392B;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" title="Eliminar este pedido (solo admin)">🗑 Eliminar</button>
       <button class="btn-cancel" onclick="closeModal()" style="flex:1;padding:10px;background:#fff;border:1px solid #E5E5E0;color:#666;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancelar</button>
       <button class="btn-guardar" onclick="saveOrder()" style="flex:2;padding:10px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💾 Guardar pedido</button>
     </div>
@@ -1456,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.09.03';
+const APP_VERSION='2026.09.09.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3656,8 +3657,8 @@ function abrirCuadrillaDesdePedido(){
   },600);
   setTimeout(()=>clearInterval(esperar),300000);
 }
-function resetModal(){window._borradosModal=[];_cuadrillaFolio=null;{const _cc=document.getElementById('cuadrilla-chips');if(_cc)_cc.innerHTML='';}pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];fotosSurtidoOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega','chips-surtido'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const _sbx=document.getElementById('surtido-box');if(_sbx)_sbx.style.display='none';const _sm=document.getElementById('surtido-meta');if(_sm){_sm.style.display='none';_sm.innerHTML='';}const _sv=document.getElementById('surtido-vacia');if(_sv)_sv.style.display='block';const _sp=document.getElementById('surtido-pill');if(_sp){_sp.textContent='⏳ Sin surtir';_sp.style.color='#854F0B';}const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
-function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectChofer();if(id!=null){editId=id;const o=orders.find(x=>x.id===id);document.getElementById('modal-title').textContent='Modificar pedido';document.getElementById('f-num').value=o.num||'';document.getElementById('f-fecha').value=o.fecha||'';document.getElementById('f-cliente').value=o.cliente||'';document.getElementById('f-comercial').value=o.comercial||'';
+function resetModal(){window._borradosModal=[];{const _be=document.getElementById("btn-eliminar-pedido");if(_be)_be.style.display="none";}_cuadrillaFolio=null;{const _cc=document.getElementById('cuadrilla-chips');if(_cc)_cc.innerHTML='';}pdfPresupuesto=[];pdfRecepcion=[];planosOrder=[];fotosAvanceOrder=[];fotosTerminOrder=[];fotosEntregaOrder=[];firmaEntregaOrder=[];fotosSurtidoOrder=[];currentOrderId=null;['chips-presupuesto','chips-recepcion','chips-planos','chips-avance','chips-termin','chips-fotoentrega','chips-firmaentrega','chips-surtido'].forEach(x=>{const e=document.getElementById(x);if(e)e.innerHTML='';});const _chf=document.getElementById('f-chofer');if(_chf)_chf.value='';const _fep=document.getElementById('firma-entrega-pill');if(_fep){_fep.textContent='⏳ Pendiente';_fep.style.color='#B8431C';}const _fev=document.getElementById('firma-entrega-vacia');if(_fev)_fev.style.display='block';const _sbx=document.getElementById('surtido-box');if(_sbx)_sbx.style.display='none';const _sm=document.getElementById('surtido-meta');if(_sm){_sm.style.display='none';_sm.innerHTML='';}const _sv=document.getElementById('surtido-vacia');if(_sv)_sv.style.display='block';const _sp=document.getElementById('surtido-pill');if(_sp){_sp.textContent='⏳ Sin surtir';_sp.style.color='#854F0B';}const ps=document.getElementById('pdf-status');if(ps)ps.style.display='none';const pls=document.getElementById('planos-status');if(pls)pls.style.display='none';const avs=document.getElementById('avance-status');if(avs)avs.style.display='none';const ters=document.getElementById('termin-status');if(ters)ters.style.display='none';['auto-num','auto-cli','auto-com','auto-fecha'].forEach(x=>{const e=document.getElementById(x);if(e)e.style.display='none';});const s=document.getElementById('f-instalador');if(s){s.style.border='';s.style.boxShadow='';}const al=document.getElementById('alerta-firma-requerida');if(al)al.style.display='none';actualizarUIFirma();}
+function openModal(id){resetModal();refrescarSelectInstalador();refrescarSelectChofer();if(id!=null){editId=id;const o=orders.find(x=>x.id===id);document.getElementById('modal-title').textContent='Modificar pedido';{const _be=document.getElementById("btn-eliminar-pedido");if(_be&&typeof getCurrentUser==='function'&&getCurrentUser()&&getCurrentUser().rol==='admin')_be.style.display='';}document.getElementById('f-num').value=o.num||'';document.getElementById('f-fecha').value=o.fecha||'';document.getElementById('f-cliente').value=o.cliente||'';document.getElementById('f-comercial').value=o.comercial||'';
 // LOCK comercial field if user is comercial
 const usrEdit=getCurrentUser();
 const selComEd=document.getElementById('f-comercial');
@@ -5838,6 +5839,18 @@ let msg='✓ Pedido eliminado';
 if(restaurados>0)msg+=' · '+restaurados+' producto(s) restaurados';
 if(noEncontrados.length){msg+=' · '+noEncontrados.length+' no encontrados';console.warn('Productos no encontrados en inventario:',noEncontrados);}
 showToast(msg,restaurados>0?'#3B6D11':'#c62828');}
+// v2026.09.09.04 — Boton "Eliminar pedido" del modal. deleteOrder ya existia completa
+// (confirma, regresa el material al inventario, mete folio e id a la lista negra para que
+// no resucite en el siguiente sync y borra de Supabase, donde el trigger zz_papelera deja
+// respaldo) pero se habia quedado SIN BOTON: era codigo muerto. Solo admin.
+function eliminarPedidoActual(){
+  const u=(typeof getCurrentUser==='function')?getCurrentUser():null;
+  if(!u||u.rol!=='admin'){if(typeof showToast==='function')showToast('Solo admin puede eliminar pedidos','#BA7517');return;}
+  if(editId==null)return;
+  const id=editId,antes=orders.length;
+  deleteOrder(id);
+  if(orders.length<antes)closeModal();  // si le dio Cancelar al confirm, el modal se queda
+}
 function render(){renderStats();renderTable();document.getElementById('date-str').textContent=new Date().toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).toUpperCase();}
 // ── AUTO-CREAR FACTURAS PARA PEDIDOS SIN FACTURA (silencioso) ──
 var facturasExcluidas=[];
