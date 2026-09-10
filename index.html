@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.10.01';
+const APP_VERSION='2026.09.10.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6959,6 +6959,8 @@ function renderAlmacen(){
   // Ventas históricas se excluyen: por definición ya se entregaron antes.
   let items=orders.filter(o=>{
     if(!o||o.archivadoCotizacion||!_pedidoVendido(o.num))return false;
+    // Un pedido cancelado no es trabajo para el almacén: no hay que juntarle nada.
+    if(String(o.estatus||'').trim()==='Cancelado')return false;
     const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===o.num):null;
     if(v&&v._historica)return false;
     return true;
@@ -11488,19 +11490,55 @@ async function cloudFetchAll(tabla){
   if(!supabaseClient)return null;
   if(cloudStatus!=='online')return null;
   // PAGINADO: Supabase corta cada consulta en 1000 filas (max_rows del servidor),
-  // aunque se pida limit(10000). Bajamos en bloques de 1000 hasta agotar la tabla.
+  // aunque se pida limit(10000). Bajamos en bloques hasta agotar la tabla.
+  // v2026.09.10.02 — OJO con 'facturas_ligeras': no trae el base64, pero el servidor SÍ
+  // lo lee para armar cada cascarón (~2.6 s por los 199 renglones, contra un límite de
+  // 3 s del rol anon). Partirla en páginas NO ayuda: con OFFSET el servidor recalcula
+  // también las filas que va a tirar, así que la página 3 tarda MÁS (4 s medidos) que
+  // la tabla completa. Se deja de un solo jalón y se reintenta si truena.
   try{
-    const todo=[];let desde=0;const PAGINA=(tabla==='facturas')?10:1000;
-    for(let i=0;i<100;i++){ // tope de seguridad: cubre tablas grandes con páginas chicas
-      const {data,error}=await supabaseClient.from(tabla).select('*').order('id',{ascending:true}).range(desde,desde+PAGINA-1);
-      if(error){console.warn('cloudFetchAll error '+tabla+':',error);return todo.length?todo:null;}
+    const todo=[];let desde=0;
+    const PAGINA=(tabla==='facturas')?10:1000;
+    for(let i=0;i<400;i++){ // tope de seguridad: cubre tablas grandes con páginas chicas
+      let data=null,error=null;
+      // Un timeout suelto no debe dejar la copia local congelada: se reintenta.
+      for(let intento=0;intento<3;intento++){
+        const r=await supabaseClient.from(tabla).select('*').order('id',{ascending:true}).range(desde,desde+PAGINA-1);
+        data=r.data;error=r.error;
+        if(!error)break;
+        await new Promise(res=>setTimeout(res,400*(intento+1)));
+      }
+      if(error){
+        // NUNCA devolver una lista PARCIAL: quien llama reemplaza el arreglo completo,
+        // así que una página perdida borraría registros buenos de la copia local.
+        console.warn('cloudFetchAll error '+tabla+':',error);
+        _avisarBajadaFallida(tabla,(error&&error.message)||'error');
+        return null;
+      }
       if(!data||!data.length)break;
       todo.push(...data);
       if(data.length<PAGINA)break;
       desde+=PAGINA;
     }
     return todo;
-  }catch(e){console.warn('cloudFetchAll excepción '+tabla+':',e);return null;}
+  }catch(e){
+    console.warn('cloudFetchAll excepción '+tabla+':',e);
+    _avisarBajadaFallida(tabla,'excepción: '+((e&&e.message)||e));
+    return null;
+  }
+}
+// Antes una bajada fallida se tragaba en silencio: la app seguía diciendo "Sincronizado"
+// y el equipo se quedaba con la copia vieja — por eso a Isaac le faltaba una factura que
+// Adrián sí había subido. Ahora queda anotado en Diagnóstico y avisa (máx. 1 vez cada 5 min).
+var _ultAvisoBajada={};
+function _avisarBajadaFallida(tabla,motivo){
+  try{
+    if(typeof _registrarFalloSync==='function')_registrarFalloSync('bajar',tabla,'',motivo,false);
+    const ahora=Date.now();
+    if(_ultAvisoBajada[tabla]&&(ahora-_ultAvisoBajada[tabla])<300000)return;
+    _ultAvisoBajada[tabla]=ahora;
+    if(typeof showToast==='function')showToast('⚠ No se pudo refrescar '+tabla+' — puedes estar viendo datos viejos','#BA7517');
+  }catch(_e){}
 }
 
 // Convierte un registro de Supabase (snake_case) al formato local (camelCase)
