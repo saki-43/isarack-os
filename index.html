@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.09.04';
+const APP_VERSION='2026.09.10.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6966,9 +6966,19 @@ function renderAlmacen(){
   if(q)items=items.filter(({o,f})=>(o.num||'').toLowerCase().includes(q)||(o.cliente||'').toLowerCase().includes(q)||(f&&(f.cliente||'').toLowerCase().includes(q)));
 
   // Clasificar por lo que el ALMACÉN puede hacer, no por papeleo.
+  // v2026.09.10.01 — El almacén solo debe ver lo que TODAVÍA tiene que juntar. Antes se
+  // guiaba nada más por el palomeo de 'armado', así que pedidos ya completados, ya
+  // instalados o ya entregados seguían saliendo en "Falta armar" nomás porque nadie
+  // regresó a palomear. Regla de Isaac: si la instalación ya se hizo o el pedido ya se
+  // completó, el material salió hace rato; y si va En proceso, es que ya se surtió.
   const clasificar=({o})=>{
-    const entregado=(o.entregado==='Si'||o.entregado==='Sí')||(o.pdfsRecepcion&&o.pdfsRecepcion.length>0);
-    if(entregado)return 'entregado';
+    const est=String(o.estatus||'').trim();
+    const yaSalio=(o.entregado==='Si'||o.entregado==='Sí')
+      ||(o.pdfsRecepcion&&o.pdfsRecepcion.length>0)
+      ||o.instalacion==='Listo'
+      ||est==='Completado';
+    if(yaSalio)return 'entregado';
+    if(est==='En proceso')return 'listo';
     return (o.armado==='Listo')?'listo':'falta';
   };
   items.forEach(it=>{it._estado=clasificar(it);});
