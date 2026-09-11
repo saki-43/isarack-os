@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.11.03';
+const APP_VERSION='2026.09.11.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5116,7 +5116,13 @@ function _instPkgRow(d){
 function _instPkgModal(){
   var ex=document.getElementById('inst-pkg-modal');if(ex)ex.remove();
   var p=INST_PKG;
-  var byP={};p.personal.forEach(function(d){(byP[d.persona]=byP[d.persona]||[]).push(d);});
+  // Se agrupa y se titula con el nombre canonico: el documento puede estar guardado
+  // como "Fermin" y en el paquete que ve el cliente debe leerse "Fermin Segovia".
+  // Dos documentos del mismo señor con nombres distintos caen en el mismo grupo.
+  var byP={};p.personal.forEach(function(d){
+    var k=(typeof _personaCanonica==='function')?_personaCanonica(d.persona):d.persona;
+    (byP[k]=byP[k]||[]).push(d);
+  });
   var pkeys=Object.keys(byP).sort();
   var faltanHtml=p.faltan.length?'<div style="background:#fff3cd;border-left:3px solid #BA7517;padding:8px 10px;font-size:12px;color:#7a5306;margin-bottom:10px">⚠ Sin DC-3 en el sistema: <b>'+p.faltan.map(_ie).join(', ')+'</b></div>':'';
   var personalHtml=pkeys.length?pkeys.map(function(k){return '<div style="margin-bottom:6px"><div style="font-size:12px;font-weight:600;color:#185FA5">'+_ie(k)+'</div>'+byP[k].map(_instPkgRow).join('')+'</div>';}).join(''):'<div style="font-size:12px;color:#999">La cuadrilla no tiene documentos personales cargados.</div>';
