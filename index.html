@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.11.02';
+const APP_VERSION='2026.09.11.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4870,12 +4870,12 @@ function _personaCanonica(n){
 var _PERSONAL_ALIAS_IDX=null;
 var INST_DC3=null; // {personaLower:{alt,mon}} desde documentos
 async function _instCargarDC3(){
-  try{var r=await supabaseClient.from('documentos').select('categoria,persona').not('persona','is',null);var docs=(r&&r.data)||[];var st={};docs.forEach(function(d){var k=(''+(d.persona||'')).toLowerCase().trim();if(!k)return;st[k]=st[k]||{alt:false,mon:false};if(/alturas/i.test(d.categoria||''))st[k].alt=true;if(/montacargas/i.test(d.categoria||''))st[k].mon=true;});INST_DC3=st;}catch(e){INST_DC3={};}
+  try{var r=await supabaseClient.from('documentos').select('categoria,persona').not('persona','is',null);var docs=(r&&r.data)||[];var st={};docs.forEach(function(d){var k=_docPersonaKey(d.persona);if(!k)return;st[k]=st[k]||{alt:false,mon:false};if(/alturas/i.test(d.categoria||''))st[k].alt=true;if(/montacargas/i.test(d.categoria||''))st[k].mon=true;});INST_DC3=st;}catch(e){INST_DC3={};}
 }
 function _ieAttr(s){return (''+(s==null?'':s)).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 function _instTogglePersona(n){var arr=INST_EDIT.instaladores;var _k=function(v){return (typeof _personaCanonica==='function')?_cfgNormNombre(_personaCanonica(v)):(''+v).toLowerCase();};var i=arr.findIndex(function(x){return _k(x)===_k(n);});if(i>=0)arr.splice(i,1);else arr.push(n);_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
 function _instPersonaChip(n,on){
-  var st=(INST_DC3&&INST_DC3[(''+n).toLowerCase()])||null;
+  var st=(INST_DC3&&INST_DC3[_docPersonaKey(n)])||null;
   var bd=function(txt,ok){return '<span style="display:inline-block;min-width:15px;height:15px;line-height:15px;text-align:center;border-radius:3px;font-size:9px;font-weight:700;margin-left:3px;background:'+(ok?'#e8f5e9':'#fdecea')+';color:'+(ok?'#2f7d32':'#c62828')+'">'+txt+'</span>';};
   var badges=st?(bd('A',st.alt)+bd('M',st.mon)):'';
   return '<button onclick="_instTogglePersona(\''+_ieAttr(n)+'\')" style="border:1px solid '+(on?'#185FA5':'#ddd')+';background:'+(on?'#185FA5':'#fff')+';color:'+(on?'#fff':'#333')+';border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center">'+_ie(n)+badges+'</button>';
@@ -5084,6 +5084,16 @@ function _izU32(n){return new Uint8Array([n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24
 function _izBytes(dataUrl){const i=(''+dataUrl).indexOf(',');const bin=atob((''+dataUrl).slice(i+1));const u=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)u[j]=bin.charCodeAt(j);return u;}
 function _izMakeZip(files){const enc=new TextEncoder();const chunks=[],central=[];let offset=0;files.forEach(f=>{const nb=enc.encode(f.name);const crc=_izCrc32(f.bytes);const sz=f.bytes.length;const local=_izCat([_izU32(0x04034b50),_izU16(20),_izU16(0x0800),_izU16(0),_izU16(0),_izU16(0),_izU32(crc),_izU32(sz),_izU32(sz),_izU16(nb.length),_izU16(0),nb,f.bytes]);chunks.push(local);central.push(_izCat([_izU32(0x02014b50),_izU16(20),_izU16(20),_izU16(0x0800),_izU16(0),_izU16(0),_izU16(0),_izU32(crc),_izU32(sz),_izU32(sz),_izU16(nb.length),_izU16(0),_izU16(0),_izU16(0),_izU16(0),_izU32(0),_izU32(offset),nb]));offset+=local.length;});const cb=_izCat(central);const end=_izCat([_izU32(0x06054b50),_izU16(0),_izU16(0),_izU16(files.length),_izU16(files.length),_izU32(cb.length),_izU32(offset),_izU16(0)]);return new Blob([_izCat(chunks),cb,end],{type:'application/zip'});}
 
+// Clave para cruzar una persona con la tabla `documentos`. El DC-3 puede estar
+// guardado con el nombre viejo ("Fermin") mientras la cuadrilla ya usa el canonico
+// ("Fermin Segovia"), y entonces decia "Sin DC-3" teniendolo. Se compara por nombre
+// canonico, igual que _instTogglePersona y _instPersonalHtml.
+function _docPersonaKey(n){
+  if(typeof _personaCanonica === 'function' && typeof _cfgNormNombre === 'function'){
+    return _cfgNormNombre(_personaCanonica(n));
+  }
+  return (''+(n==null?'':n)).toLowerCase().trim();
+}
 var INST_PKG=null;
 async function _instPaquete(){
   var crew=(INST_EDIT&&Array.isArray(INST_EDIT.instaladores))?INST_EDIT.instaladores.slice():[];
@@ -5091,11 +5101,11 @@ async function _instPaquete(){
   var res;try{res=await supabaseClient.from('documentos').select('id,categoria,nombre,persona').order('categoria',{ascending:true});}catch(e){res=null;}
   var docs=(res&&res.data)||[];
   var low=function(s){return (''+(s||'')).toLowerCase().trim();};
-  var crewLow=crew.map(low);
+  var crewLow=crew.map(_docPersonaKey);
   var empresa=docs.filter(function(d){return !d.persona;});
-  var personal=docs.filter(function(d){return d.persona&&crewLow.indexOf(low(d.persona))>=0;});
-  var tieneDC3={};docs.forEach(function(d){if(d.persona&&/dc-?3/i.test(d.categoria||''))tieneDC3[low(d.persona)]=1;});
-  var faltan=crew.filter(function(n){return !tieneDC3[low(n)];});
+  var personal=docs.filter(function(d){return d.persona&&crewLow.indexOf(_docPersonaKey(d.persona))>=0;});
+  var tieneDC3={};docs.forEach(function(d){if(d.persona&&/dc-?3/i.test(d.categoria||''))tieneDC3[_docPersonaKey(d.persona)]=1;});
+  var faltan=crew.filter(function(n){return !tieneDC3[_docPersonaKey(n)];});
   INST_PKG={folio:(INST_EDIT&&INST_EDIT.folio)||'',obra:(INST_EDIT&&(INST_EDIT.obra||INST_EDIT.folio))||'obra',empresa:empresa,personal:personal,faltan:faltan,sel:{}};
   empresa.concat(personal).forEach(function(d){INST_PKG.sel[d.id]=true;});
   _instPkgModal();
