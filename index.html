@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.11.01';
+const APP_VERSION='2026.09.11.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8596,6 +8596,17 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
   return resultado;
 }
 // Helper: detect if a sale line is a MARCO and extract size+color
+// BOM de un marco por su alto. Primero la tabla; si el alto no esta pero es de la
+// serie estandar (multiplo de 24" desde 144"), se arma con la misma regla que siguen
+// los 12 altos de la tabla, verificada uno por uno: D = alto/24 - 1, H = 3, pie = 2,
+// y el poste es del alto del marco, de una pieza.
+// Asi entra el 384" y cualquier alto estandar que se de de alta despues, sin tocar codigo.
+function _bomDeAlto(alto){
+  if(MARCO_BOM[alto]) return MARCO_BOM[alto];
+  const n = Number(alto);
+  if(!n || n < 144 || n % 24 !== 0) return null;
+  return {posteSize:String(n), postePartes:1, diagonalD:(n/24)-1, diagonalH:3, pie:2};
+}
 // Arma el resultado de detectarMarco una vez que ya se sabe el alto.
 function _marcoConAlto(txt, size){
   let color=null;
@@ -8604,7 +8615,7 @@ function _marcoConAlto(txt, size){
   for(const f of MARCO_FONDOS){
     if(txt.match(new RegExp('X\\s*'+f+'\\b'))||txt.includes('X '+f+'"')||txt.includes('X'+f+'"')){fondo=f;break;}
   }
-  return {size:size,color:color,fondo:fondo,bom:MARCO_BOM[size]};
+  return {size:size,color:color,fondo:fondo,bom:_bomDeAlto(size)};
 }
 function detectarMarco(producto){
   const txt=(producto||'').toUpperCase();
@@ -8617,9 +8628,11 @@ function detectarMarco(producto){
   let size=null;
   const mAlto = txt.match(/MARCO\s*(\d{2,3})\s*(?:"|''|IN|X|\s)/);
   if(mAlto){
-    // Si el alto real no esta en la tabla de BOM (174", 180"...), NO se adivina otro:
-    // mas vale descontar el marco tal cual que descontar las piezas equivocadas.
-    return MARCO_BOM[mAlto[1]] ? _marcoConAlto(txt, mAlto[1]) : null;
+    const bomAlto = _bomDeAlto(mAlto[1]);
+    // Si el alto real no sale ni de la tabla ni de la regla (174", 180" y demas
+    // medidas de marco USADO), NO se adivina otro: mas vale descontar el marco tal
+    // cual que descontar las piezas equivocadas.
+    return bomAlto ? _marcoConAlto(txt, mAlto[1]) : null;
   }
   const sizes=Object.keys(MARCO_BOM).sort((a,b)=>b.length-a.length);
   for(const s of sizes){
