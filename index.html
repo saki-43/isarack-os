@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.11.04';
+const APP_VERSION='2026.09.14.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5757,8 +5757,7 @@ if(isNew){const yaExiste=facturas.some(f=>f.pedido===num);if(!yaExiste){
   }
   // PRIORITY 2: cotData.lineas
   if(!monto&&o.cotData&&o.cotData.lineas&&o.cotData.lineas.length){
-    let sub=0,iva=0;o.cotData.lineas.forEach(l=>{if(l.tipo)return;const cant=parseFloat(l.cantidad)||0;const precio=parseFloat(l.precio)||0;const desc=parseFloat(l.descuento)||0;const taxR=parseFloat(l.impuesto)||0;const base=cant*precio*(1-desc/100);sub+=base;iva+=base*taxR/100;});
-    monto=sub+iva;
+    monto=_montoFacturaSinIVA(o); // v2026.09.14.01: SIN IVA (antes guardaba sub+iva)
     if(!lineasParaDescontar)lineasParaDescontar=o.cotData.lineas;
   }
   // PRIORITY 3: regex desc/notas
@@ -5908,6 +5907,36 @@ function sincronizarMontoFacturaConVenta(v){
   if(typeof cloudSyncFactura==='function')cloudSyncFactura(f);
   return true;
 }
+// ── MONTO DE FACTURA: SIEMPRE SIN IVA (v2026.09.14.01) ──
+// Habia CUATRO rutas que creaban facturas y no se ponian de acuerdo: tres guardaban
+// el total CON IVA (cot.total / sub+iva) y una guardaba el subtotal. Resultado: dos
+// ventas identicas salian con montos distintos en Facturacion — S07424 $2,741.04
+// contra S07446 $2,538.00, ambas de la misma cotizacion (detectado 14 sep 2026).
+// Criterio unico: el monto de la factura es el SUBTOTAL, SIN IVA. Asi coincide con
+// la venta y con la base de comision (comBaseSinIVA). El IVA se calcula al mostrar.
+// OJO: NO confies en venta.total ni en cotData.total — en la base vienen mezclados
+// (252 ventas guardan subtotal y 152 guardan total con IVA). Suma siempre las lineas.
+function _montoFacturaSinIVA(src){
+  if(!src)return 0;
+  const lin=(src.lineas&&src.lineas.length)?src.lineas
+           :(src.cotData&&src.cotData.lineas&&src.cotData.lineas.length)?src.cotData.lineas:null;
+  if(lin){
+    let sub=0;
+    lin.forEach(l=>{
+      if(!l)return;
+      const cant=parseFloat(l.cantidad)||0;
+      const prec=parseFloat(l.precio)||0;
+      // Notas/secciones sin importe no suman; si traen cantidad y precio si cuentan
+      // (mismo criterio que comBaseSinIVA — bug historico S07164, ago 2026).
+      if(l.tipo&&!(cant>0&&prec>0))return;
+      sub+=cant*prec*(1-(parseFloat(l.descuento)||0)/100);
+    });
+    if(sub>0)return sub;
+  }
+  // Sin lineas no hay forma de saber si el total trae IVA: se respeta tal cual y no
+  // se inventa una division entre 1.08 que podria bajar un monto que ya era correcto.
+  return Number(src.total)||Number(src.monto)||0;
+}
 function autoCrearFacturasFaltantes(){
   let creadas=0;
   if(!orders||!orders.length||!Array.isArray(facturas))return 0;
@@ -5939,21 +5968,9 @@ function autoCrearFacturasFaltantes(){
       return;
     }
     // Calcular monto desde cotData si existe
-    let monto=0;
-    if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length){
-      let sub=0,iva=0;
-      o.cotData.lineas.forEach(l=>{
-        if(l.tipo)return;
-        const cant=parseFloat(l.cantidad)||0;
-        const precio=parseFloat(l.precio)||0;
-        const desc=parseFloat(l.descuento)||0;
-        const taxR=parseFloat(l.impuesto)||0;
-        const base=cant*precio*(1-desc/100);
-        sub+=base;
-        iva+=base*taxR/100;
-      });
-      monto=sub+iva;
-    }
+    // v2026.09.14.01: SIN IVA (antes guardaba sub+iva y por eso las facturas
+    // creadas al abrir la pestana salian 8% mas altas que las de la otra ruta).
+    let monto=_montoFacturaSinIVA(o);
     const _csfCli=_obtenerCSFDelContacto(o.cliente);
     const nuevaFactura={
       pedido:o.num,
@@ -12708,7 +12725,7 @@ function cambiarTipoVenta(ri,nuevoTipo){
     }
     // Crear factura asociada si no existe
     if(!facturas.some(f=>f.pedido===v.num)){
-      const _factCTV={pedido:v.num,fecha:v.fecha,cliente:v.cliente,ejecutivo:_normalizaEjecutivo(v.comercial)||'—',monto:v.total||0,anticipo:0,finiquito:0,rfc:v.rfc||'',cfdi:'',factura:'',poNum:'',pagado:false};
+      const _factCTV={pedido:v.num,fecha:v.fecha,cliente:v.cliente,ejecutivo:_normalizaEjecutivo(v.comercial)||'—',monto:_montoFacturaSinIVA(v),anticipo:0,finiquito:0,rfc:v.rfc||'',cfdi:'',factura:'',poNum:'',pagado:false};
       facturas.push(_factCTV);
       guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(_factCTV);if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();
     }
@@ -14175,7 +14192,7 @@ async function confirmarComoVenta(){
   integrarPedidoReutilizando(newOrder);saveOrders();
   try{if(typeof crearNotificacion==='function'){crearNotificacion('rol:almacen','📦 Nuevo pedido '+num,(cli||'')+(dir?' — '+dir:''),num);crearNotificacion('rol:admin','📦 Nuevo pedido '+num,cli||'',num);}}catch(e){}
   // ── 2. Crear factura en Facturación ──
-  const newFact={pedido:num,fecha,cliente:cli,ejecutivo:_normalizaEjecutivo((comercial&&String(comercial).trim()))||'—',monto:cot.total,anticipo:0,finiquito:0,rfc:rfc,cfdi:'',factura:'',poNum:'',pagado:false};
+  const newFact={pedido:num,fecha,cliente:cli,ejecutivo:_normalizaEjecutivo((comercial&&String(comercial).trim()))||'—',monto:(Number(cot.sub)||0),anticipo:0,finiquito:0,rfc:rfc,cfdi:'',factura:'',poNum:'',pagado:false};
   facturas.push(newFact);guardarFacturasLS();
   if(typeof cloudSyncFactura==='function')cloudSyncFactura(newFact);
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(newOrder);
