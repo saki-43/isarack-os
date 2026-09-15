@@ -1457,7 +1457,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.14.01';
+const APP_VERSION='2026.09.14.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -7826,14 +7826,20 @@ function gondolaComponenteNombre(comp,alt,ancho){
 // Postes 2"X2" solo VERDE
 // Diagonales D varían según medida del marco (igual que Selectivo)
 // Fondos disponibles: 18", 24", 36" — cada fondo usa diagonal de su propio tamaño
+// La CLAVE es la medida real del marco tal como esta dado de alta en inventario.
+// 'posteSize' es el poste del que sale, que puede medir 1" menos: esa pulgada es el
+// pie (confirmado por Isaac, 15 sep 2026). Por eso 73 -> poste 72 y 128 -> poste 254/2.
+// Antes las claves decian 72 y 127 y por eso Ventas ofrecia marcos de 72" y 127" que
+// no existen, mientras los reales de 73" y 128" nunca se podian cotizar.
 const MARCO_BOM_PICKING={
   '42':{posteSize:'84',postePartes:2,diagonalD:1,diagonalH:1,pie:2},  // marco chico: sale del 84 partido a la mitad
-  '72':{posteSize:'72',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 6'
+  '73':{posteSize:'72',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 6' — poste 72" + 1" de pie
   '84':{posteSize:'84',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 7'
   '96':{posteSize:'96',postePartes:1,diagonalD:3,diagonalH:3,pie:2},  // 8'
-  '108':{posteSize:'254',postePartes:2,diagonalD:4,diagonalH:3,pie:2},
-  '120':{posteSize:'254',postePartes:2,diagonalD:4,diagonalH:3,pie:2},
-  '127':{posteSize:'254',postePartes:2,diagonalD:4,diagonalH:3,pie:2},
+  // 108 y 156 quedan SIN BOM a proposito: no se sabe de que poste salen, asi que
+  // se ofrecen con su precio real pero en 0 disponibles hasta que Isaac pase el dato.
+  '120':{posteSize:'120',postePartes:1,diagonalD:4,diagonalH:3,pie:2},  // poste propio PIC-0091
+  '128':{posteSize:'254',postePartes:2,diagonalD:4,diagonalH:3,pie:2},  // poste 254" partido + 1" de pie
   '144':{posteSize:'144',postePartes:1,diagonalD:5,diagonalH:3,pie:2},
   '168':{posteSize:'168',postePartes:1,diagonalD:6,diagonalH:3,pie:2},
   '192':{posteSize:'192',postePartes:1,diagonalD:7,diagonalH:3,pie:2},
@@ -7842,6 +7848,52 @@ const MARCO_BOM_PICKING={
 };
 const MARCO_PICKING_COLORES=['VERDE'];
 const MARCO_PICKING_FONDOS=['18','24','36'];
+// ── MARCOS PICKING REALES (v2026.09.14.02) ──
+// Ventas y el panel de Marcos armaban su lista con el producto cartesiano
+// MARCO_BOM_PICKING x MARCO_PICKING_FONDOS, sin preguntarle al inventario. De 36
+// combinaciones ofrecidas solo 18 existian: salian marcos fantasma como 42"x36" o
+// 216"x18", y el buscador de precio caia a un fallback que ignoraba el fondo, asi
+// que a esos fantasmas les pegaba el precio de OTRO marco — 42"x18" se cotizaba en
+// $112 (el precio del 144"X42") cuando el marco de 42" real cuesta $20.
+// Al mismo tiempo 16 marcos que SI existen (63", 73", 128", 140", 156", 96"x12",
+// 96"x42", 144"x42", 168"x42") nunca se podian cotizar.
+// Ahora la lista sale del inventario: lo que existe se ofrece, con SU precio, y
+// nada mas. MARCO_PICKING_FONDOS se queda solo para las diagonales y el alta masiva.
+function _marcosPickingReales(){
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  const out=[];const vistos={};
+  inv.forEach(p=>{
+    if(!p||!p.producto)return;
+    // Solo "MARCO PICKING <alto>"X<fondo>"" exacto: el anclaje final deja fuera
+    // USADO, y EXTENCION MARCO PICKING no entra porque no empieza con MARCO PICKING.
+    const m=/^\s*MARCO\s+PICKING\s+(\d+)\s*["']?\s*X\s*(\d+)\s*["']?\s*$/i.exec(String(p.producto).trim());
+    if(!m)return;
+    const k=m[1]+'x'+m[2];
+    if(vistos[k])return;        // si hay SKU duplicado se respeta el primero
+    vistos[k]=1;
+    out.push({size:m[1],fondo:m[2],sku:p.sku||'',precio:Number(p.precio)||0,producto:p.producto});
+  });
+  out.sort((a,b)=>(Number(a.size)-Number(b.size))||(Number(a.fondo)-Number(b.fondo)));
+  return out;
+}
+// Disponibilidad de un marco picking segun su BOM. Sin BOM devuelve 0 (no revienta).
+function _dispMarcoPicking(size,fondo){
+  const bom=MARCO_BOM_PICKING[size];
+  if(!bom)return{cant:0,marco:null,detalles:[],sinBom:true};
+  const marco={size:String(size),color:'VERDE',fondo:String(fondo),bom,sistema:'PICKING'};
+  const piezas=calcularPiezasMarcoPicking(marco,1);
+  let min=Infinity,falta=false;const detalles=[];
+  piezas.forEach(pz=>{
+    const comp=(typeof encontrarComponente==='function')?encontrarComponente(pz.descBuscar,'VERDE'):null;
+    if(comp){
+      const posibles=Math.floor((comp.cantidad||0)/pz.cant);
+      if(posibles<min)min=posibles;
+      detalles.push({n:comp.producto,cant:pz.cant,stock:comp.cantidad,posibles,nota:pz.nota||''});
+    }else{falta=true;detalles.push({n:pz.desc,cant:pz.cant,stock:0,posibles:0,faltante:true,nota:pz.nota||''});}
+  });
+  if(falta||min===Infinity)min=0;
+  return{cant:min,marco,detalles,sinBom:false};
+}
 
 // ══ PANEL BOM ══
 // Panel grande BEIGE 75 3/4" × 8" → se corta para hacer paneles chicos.
@@ -8471,21 +8523,29 @@ function asegurarPanelesBeige(){
 function detectarMarcoPicking(producto){
   const txt=(producto||'').toUpperCase();
   if(!txt.includes('MARCO')||!txt.includes('PICKING'))return null;
-  let size=null;
-  const sizes=Object.keys(MARCO_BOM_PICKING).sort((a,b)=>b.length-a.length);
-  for(const s of sizes){
-    if(txt.match(new RegExp('\\b'+s+'\\b'))||txt.includes(s+'"')){size=s;break;}
+  // v2026.09.14.02: alto y fondo se leen del NOMBRE, no de listas fijas.
+  // El fondo se buscaba solo entre 18/24/36 y, si no era ninguno, caia al default
+  // '36'. Como si hay marcos de fondo 12" (96"X12") y 42" (96/144/168 X42"), esos
+  // descontaban diagonales de 36" al venderse: material equivocado del almacen.
+  const md=/(\d+)\s*["']?\s*X\s*(\d+)/.exec(txt);
+  let size=null,fondo=null;
+  if(md){size=md[1];fondo=md[2];}
+  else{
+    // Nombre sin "altoXfondo": se cae a la busqueda por alto conocido, fondo 36.
+    const sizes=Object.keys(MARCO_BOM_PICKING).sort((a,b)=>b.length-a.length);
+    for(const s of sizes){
+      if(txt.match(new RegExp('\\b'+s+'\\b'))||txt.includes(s+'"')){size=s;break;}
+    }
+    fondo='36';
   }
   if(!size)return null;
-  // Detect fondo (18/24/36)
-  let fondo='36'; // default
-  for(const f of MARCO_PICKING_FONDOS){
-    if(txt.match(new RegExp('X\\s*'+f+'\\b'))||txt.includes('X '+f+'"')||txt.includes('X'+f+'"')){fondo=f;break;}
-  }
+  // bom puede venir undefined (alto sin BOM capturado): el llamador lo trata como
+  // 0 disponibles; calcularPiezasMarcoPicking ya devuelve [] en vez de reventar.
   return {size,color:'VERDE',fondo,bom:MARCO_BOM_PICKING[size],sistema:'PICKING'};
 }
 function calcularPiezasMarcoPicking(marco,cantidadMarcos){
-  const bom=marco.bom;
+  const bom=marco&&marco.bom;
+  if(!bom)return[];   // marco sin BOM capturado: 0 piezas, 0 disponibles, sin reventar
   const fondo=marco.fondo||'36';
   const postesPorMarco=bom.postePartes===2?1:2;
   const cantPostes=postesPorMarco*cantidadMarcos;
@@ -9376,21 +9436,16 @@ function abrirPanelMarcos(fondoSel){
   let rows='';
   if(isPicking){
     // Generate rows for PICKING marcos with selected fondo
-    const sizesP=Object.keys(MARCO_BOM_PICKING);
-    const buscarPrecioP=(size,fondo)=>{const norm=s=>(s||'').toUpperCase().replace(/["'`]/g,'').replace(/\s+/g,' ').trim();let m=inventario.find(p=>{const pn=norm(p.producto);return pn.includes('MARCO')&&pn.includes('PICKING')&&pn.includes(size)&&pn.includes(fondo)&&p.precio>0;});if(!m)m=inventario.find(p=>{const pn=norm(p.producto);return pn.includes('MARCO')&&pn.includes('PICKING')&&pn.includes(size)&&p.precio>0;});return m?m.precio:0;};
-    sizesP.forEach(size=>{
-      const marcoP={size,color:'VERDE',fondo:fondoPickingActivo,bom:MARCO_BOM_PICKING[size],sistema:'PICKING'};
-      const piezas=calcularPiezasMarcoPicking(marcoP,1);
-      let minMarcos=Infinity;let detallesPiezas=[];let algunFaltante=false;
-      piezas.forEach(p=>{
-        const comp=encontrarComponente(p.descBuscar,'VERDE');
-        if(comp){const posibles=Math.floor((comp.cantidad||0)/p.cant);if(posibles<minMarcos)minMarcos=posibles;detallesPiezas.push({n:comp.producto,cant:p.cant,stock:comp.cantidad,posibles,nota:p.nota||''});}
-        else{algunFaltante=true;detallesPiezas.push({n:p.desc,cant:p.cant,stock:0,posibles:0,faltante:true,nota:p.nota||''});}
-      });
-      if(algunFaltante)minMarcos=0;
-      const precio=buscarPrecioP(size,fondoPickingActivo);
+    const realesP=_marcosPickingReales().filter(r=>r.fondo===String(fondoPickingActivo));
+    // buscarPrecioP se elimino: mismo fallback que pegaba el precio de otro marco.
+    realesP.forEach(r=>{
+      const size=r.size;
+      const d=_dispMarcoPicking(size,fondoPickingActivo);
+      const minMarcos=d.cant;
+      const detallesPiezas=d.sinBom?[{n:'Sin BOM capturado — no se sabe de que poste sale',cant:0,stock:0,posibles:0,faltante:true,nota:''}]:d.detalles;
+      const precio=r.precio;
       const stockColor=minMarcos===0?'#c62828':minMarcos<5?'#BA7517':'#3B6D11';
-      rows+=`<tr><td style="padding:10px 12px;border-bottom:1px solid #eee"><span style="display:inline-block;width:10px;height:10px;background:#3B6D11;border-radius:50%;margin-right:6px"></span><strong>MARCO PICKING ${size}" X ${fondoPickingActivo}" VERDE</strong>${MARCO_BOM_PICKING[size].postePartes===2?' <span style="font-size:10px;color:#888">(de poste '+MARCO_BOM_PICKING[size].posteSize+'" partido)</span>':''}</td><td style="padding:10px 12px;text-align:right;border-bottom:1px solid #eee;font-weight:600;color:${precio?'#3B6D11':'#ccc'};font-size:13px">${precio?'$ '+precio.toFixed(2):'—'}</td><td style="padding:10px 12px;text-align:center;border-bottom:1px solid #eee"><span style="font-size:18px;font-weight:700;color:${stockColor}">${minMarcos===Infinity?'—':minMarcos}</span></td><td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:10px;color:#666">${detallesPiezas.map(d=>d.faltante?`<span style="color:#c62828">⚠ ${d.n}: NO existe</span>`:`${d.n}: ${d.stock}÷${d.cant}=${d.posibles}${d.nota?' '+d.nota:''}`).join('<br>')}</td></tr>`;
+      rows+=`<tr><td style="padding:10px 12px;border-bottom:1px solid #eee"><span style="display:inline-block;width:10px;height:10px;background:#3B6D11;border-radius:50%;margin-right:6px"></span><strong>MARCO PICKING ${size}" X ${fondoPickingActivo}" VERDE</strong>${(MARCO_BOM_PICKING[size]&&MARCO_BOM_PICKING[size].postePartes===2)?' <span style="font-size:10px;color:#888">(de poste '+MARCO_BOM_PICKING[size].posteSize+'" partido)</span>':''}</td><td style="padding:10px 12px;text-align:right;border-bottom:1px solid #eee;font-weight:600;color:${precio?'#3B6D11':'#ccc'};font-size:13px">${precio?'$ '+precio.toFixed(2):'—'}</td><td style="padding:10px 12px;text-align:center;border-bottom:1px solid #eee"><span style="font-size:18px;font-weight:700;color:${stockColor}">${minMarcos===Infinity?'—':minMarcos}</span></td><td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:10px;color:#666">${detallesPiezas.map(d=>d.faltante?`<span style="color:#c62828">⚠ ${d.n}: NO existe</span>`:`${d.n}: ${d.stock}÷${d.cant}=${d.posibles}${d.nota?' '+d.nota:''}`).join('<br>')}</td></tr>`;
     });
   }else{
     sizes.forEach(size=>{
@@ -13695,39 +13750,14 @@ function obtenerMarcosVirtuales(fondoFiltro){
     });
   });
   // PICKING virtuales — solo VERDE, en 3 fondos (18, 24, 36)
-  const sizesPicking=Object.keys(MARCO_BOM_PICKING);
-  const buscarPrecioPicking=(size,fondo)=>{
-    const norm=s=>(s||'').toUpperCase().replace(/["'`]/g,'').replace(/\s+/g,' ').trim();
-    const sizeRegex=new RegExp('(^|[^0-9])'+size+'($|[^0-9])');
-    const fondoRegex=new RegExp('(^|[^0-9])'+fondo+'($|[^0-9])');
-    // Match exacto: solo MARCO PICKING (no SELECTIVO), tamaño y fondo exactos
-    let match=inventario.find(p=>{
-      const pn=norm(p.producto);
-      if(!pn.startsWith('MARCO PICKING'))return false;
-      if(pn.includes('USADO')||pn.includes('EXTENCION'))return false;
-      return sizeRegex.test(pn)&&fondoRegex.test(pn)&&p.precio>0;
-    });
-    // Fallback: solo PICKING + tamaño exacto
-    if(!match)match=inventario.find(p=>{
-      const pn=norm(p.producto);
-      if(!pn.startsWith('MARCO PICKING'))return false;
-      if(pn.includes('USADO')||pn.includes('EXTENCION'))return false;
-      return sizeRegex.test(pn)&&p.precio>0;
-    });
-    return match?match.precio:0;
-  };
-  const fondosPickingToUse=fondoFiltro?(MARCO_PICKING_FONDOS.includes(fondoFiltro)?[fondoFiltro]:[]):MARCO_PICKING_FONDOS;
-  sizesPicking.forEach(size=>{
-    fondosPickingToUse.forEach(fondoP=>{
-      const marcoP={size,color:'VERDE',fondo:fondoP,bom:MARCO_BOM_PICKING[size],sistema:'PICKING'};
-      const piezas=calcularPiezasMarcoPicking(marcoP,1);
-      let minMarcos=Infinity;let algunFaltante=false;
-      piezas.forEach(p=>{const comp=encontrarComponente(p.descBuscar,'VERDE');if(comp){const posibles=Math.floor((comp.cantidad||0)/p.cant);if(posibles<minMarcos)minMarcos=posibles;}else{algunFaltante=true;}});
-      if(algunFaltante)minMarcos=0;
-      if(minMarcos===Infinity)minMarcos=0;
-      const precio=buscarPrecioPicking(size,fondoP);
-      marcosVirt.push({producto:'MARCO PICKING '+size+'" X '+fondoP+'" VERDE',sku:'MARCO-PICK-'+size+'-'+fondoP+'-VER',sistema:'PICKING',precio,cantidad:minMarcos,medida:size+'"x'+fondoP+'"',esVirtual:true,esPicking:true,marco:marcoP});
-    });
+  // buscarPrecioPicking se elimino: su fallback ignoraba el fondo y pegaba el
+  // precio de otro marco. Ahora el precio viene del SKU real (_marcosPickingReales).
+  // v2026.09.14.02: la lista sale del INVENTARIO, no del cartesiano alturas x fondos.
+  // Asi no se ofrecen marcos que no existen y el precio es el del SKU exacto.
+  _marcosPickingReales().forEach(r=>{
+    if(fondoFiltro&&r.fondo!==fondoFiltro)return;
+    const d=_dispMarcoPicking(r.size,r.fondo);
+    marcosVirt.push({producto:'MARCO PICKING '+r.size+'" X '+r.fondo+'" VERDE',sku:'MARCO-PICK-'+r.size+'-'+r.fondo+'-VER',sistema:'PICKING',precio:r.precio,cantidad:d.cant,medida:r.size+'"x'+r.fondo+'"',esVirtual:true,esPicking:true,marco:d.marco,skuReal:r.sku,sinBom:d.sinBom});
   });
   return marcosVirt;
 }
