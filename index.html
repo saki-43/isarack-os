@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.17.02';
+const APP_VERSION='2026.09.17.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -14727,7 +14727,9 @@ let empresaCfg=cargarEmpresaConfig();
 const PWA_CODIGOS_FIJOS={
   '6123090644':'1234', // Brayan Alexis
   '6563549469':'5678', // Jonas Sanudo
-  '6642323708':'2323', // Gilberto Rodriguez
+  // Gilberto Rodriguez (6642323708) salio de esta tabla el 17-sep-2026: su codigo
+  // paso de '2323' a '3708', que ya son los ultimos 4, asi que codigoPWA() lo calcula
+  // solo y en Configuracion deja de salir marcado como 'fijo'.
   '6642271617':'2271', // Oscar Ochoa
   '6646705293':'7052', // Israel Mendez
   '6644211088':'2110', // Isaac Romero

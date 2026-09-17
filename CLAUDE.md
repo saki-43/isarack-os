@@ -99,17 +99,26 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
 6. **Facturas pagadas sin monto capturado** cuando existe pdfAnticipo/pdfFiniquito/pdfComplemento o pagosExtra — el comprobante ES el rastro del cobro. La regla no es "hay número", es "hay comprobante O hay número".
 7. **`updated_at` reciente en `orders`** — no evidencia de escritura reciente. El loop `cloudSyncTodosLosPedidos` reescribe la tabla completa de un jalón. Usa `payload.updated` para saber la fecha real.
 8. **12 SKUs SEL/PIC (diagonales D/H) con precio $4** — asignado en auditoría de julio 2026, no es error.
-9. **PWA Instaladores: 7 usuarios con clave FIJA hardcodeada** (NO últimos 4 del teléfono).
+9. **PWA Instaladores: 6 usuarios con clave FIJA hardcodeada** (NO últimos 4 del teléfono).
    `PWA_CODIGOS_FIJOS` va indexado por **teléfono**, no por nombre — por eso
    renombrar a alguien NO le tumba el acceso.
    - Bryan Martinez (antes "Brayan Alexis"): `1234`
    - Jonas Sañudo: `5678`
-   - Gilberto Rodriguez: `2323`
+   - ~~Gilberto Rodriguez: `2323`~~ → **pasó a `3708`** (últimos 4) el 17 sep 2026 a
+     petición de Isaac. Ya NO está en `PWA_CODIGOS_FIJOS`: su código lo calcula
+     `codigoPWA()` solo y en Configuración ya no sale con la etiqueta "fijo".
+     El `2323` eran los dígitos de en medio del teléfono (664-**2323**-708), no los
+     últimos 4 — al parecer un error de captura de hace tiempo.
    - Oscar Ochoa: `2271`
    - Israel Mendez: `7052`
    - Isaac Romero: `2110`
    - Samuel Gomez (antes "Samuel A. Gomez"): `5232`
    Los usuarios "extras" que se agregan desde Configuración sí usan últimos-4.
+   Hay además un usuario especial **Almacén**: teléfono `0000000000`, clave `2026`,
+   `esAlmacen:true` — ve TODOS los pedidos en modo entrega (sin instalación). Vive
+   solo en `INSTALADORES_BASE` de la PWA; el espejo de ISA-OS no lo tiene, así que
+   `codigoPWA('0000000000')` devolvería `0000`. No importa hoy porque ese usuario no
+   se captura en Configuración, pero si algún día se lista, hay que agregarlo.
    **La tabla vive duplicada en ISA-OS y en la PWA** — si se cambia un código hay que cambiarlo en los dos.
    ⚠ Desde v2026.09.08.01 ISA-OS renombró al personal a *nombre + apellido*; **la PWA
    todavía muestra los nombres viejos**. Hay que aplicarle el mismo cambio.
