@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.17.01';
+const APP_VERSION='2026.09.17.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -7395,13 +7395,39 @@ function _facturaEsHistorica(f){
   if(f._historica===true)return true;
   try{const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===f.pedido):null;return !!(v&&v._historica===true);}catch(e){return false;}
 }
+// "No requiere factura": la forma de pago (efectivo/transferencia) solo se captura
+// desde ese dialogo, asi que su presencia prueba que la venta se marco como tal.
+function _tieneFormaPagoNF(f){return !!(f&&f.formaPagoNF&&String(f.formaPagoNF).trim());}
+// Repara las facturas que quedaron a medias: con forma de pago capturada pero sin las
+// tres banderas. Es idempotente — si no hay nada que reparar no escribe a la nube.
+function _repararNoRequiereFactura(){
+  if(typeof facturas==='undefined'||!Array.isArray(facturas))return 0;
+  let n=0;
+  facturas.forEach(f=>{
+    if(!f||!_tieneFormaPagoNF(f))return;
+    if(f.poNum_na&&f.factura_na&&f.rfc_na)return;
+    f.poNum_na=true;f.factura_na=true;f.rfc_na=true;
+    const _now=new Date().toISOString();
+    if(!f._ts)f._ts={};f._ts.poNum_na=_now;f._ts.factura_na=_now;f._ts.rfc_na=_now;
+    if(typeof cloudSyncFactura==='function')cloudSyncFactura(f);
+    n++;
+  });
+  if(n>0){guardarFacturasLS();console.log('[no-requiere-factura] reparadas '+n);}
+  return n;
+}
 function _estadoFacturacion(f){
   if(!f)return 'incompleto';
   // NOTA: las HISTÓRICAS ya NO son verde automático aquí. Ese criterio aplica solo en
   // COMISIONES (entregado, línea ~12241 usa v._historica directo). En Facturación rige
   // la regla normal: verde=PDF factura, amarillo=PO+CSF+CFDI.
   if(_hayAdj(f.pdfFactNum))return 'facturado'; // PDF de factura cargado → VERDE
-  if(f.factura_na)return 'facturado'; // marcado "no requiere factura" → resuelto (VERDE), no exige CFDI
+  // v2026.09.17.02: formaPagoNF cuenta igual que factura_na. Solo se captura al elegir
+  // "No requiere factura", asi que si esta, alguien SI marco esta venta. Las banderas
+  // pasan por _mergeCampo (fusion por _ts) y se pueden perder en un sync, pero
+  // forma_pago_nf se sube sin fusion — por eso quedaban facturas con la forma de pago
+  // guardada y las banderas en false, y volvian a salir como pendientes de facturar
+  // (S07245 ARELI y S07326 KURIYAMA, las dos en efectivo, jul 2026).
+  if(f.factura_na||_tieneFormaPagoNF(f))return 'facturado';
   const poOk=f.poNum_na||_hayAdj(f.pdfPo);
   const csfOk=f.rfc_na||_hayAdj(f.pdfRfc);
   const cfdiOk=f.cfdi&&String(f.cfdi).trim()!=='';
@@ -10554,6 +10580,12 @@ async function cloudSyncFactura(f){
   _fpay.complemento_na=_mergeCampo('complemento_na',!!f.complemento_na,!!(_nube&&_nube.complemento_na));
   _fpay.ts=_tsOut;
   _fpay.forma_pago_nf=f.formaPagoNF||(_nube&&_nube.forma_pago_nf)||null;
+  // v2026.09.17.02: si hay forma de pago, la venta esta marcada "no requiere factura".
+  // forma_pago_nf no pasa por _mergeCampo y las banderas si, asi que un sync podia
+  // subir una sin las otras y dejar el registro incoherente. Aqui viajan juntas.
+  if(_fpay.forma_pago_nf&&String(_fpay.forma_pago_nf).trim()){
+    _fpay.po_na=true;_fpay.factura_na=true;_fpay.rfc_na=true;
+  }
   _fpay.fecha_pago=f.fechaPago||(_nube&&_nube.fecha_pago)||null;
   // Montos de pago: no degradar a 0 si la nube ya tenía un monto mayor.
   _fpay.anticipo=Math.max(Number(f.anticipo)||0,(_nube&&Number(_nube.anticipo))||0);
@@ -11922,6 +11954,7 @@ async function bajarCambiosDeNube(){
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
     if(typeof _autoRepararTsVentaMasivo==='function')_autoRepararTsVentaMasivo();
+    if(typeof _repararNoRequiereFactura==='function')_repararNoRequiereFactura();
     if(typeof _rescatarOrdersAtoradasPorPK==='function')_rescatarOrdersAtoradasPorPK();
     if(typeof renderInventario==='function')renderInventario();
     if(typeof renderContactos==='function')renderContactos();
@@ -12005,6 +12038,7 @@ async function bajarTodoDeNube(silencioso){
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
     if(typeof _autoRepararTsVentaMasivo==='function')_autoRepararTsVentaMasivo();
+    if(typeof _repararNoRequiereFactura==='function')_repararNoRequiereFactura();
     if(typeof _rescatarOrdersAtoradasPorPK==='function')_rescatarOrdersAtoradasPorPK();
     // Refrescar UI
     if(typeof renderInventario==='function')renderInventario();
