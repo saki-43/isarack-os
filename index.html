@@ -637,6 +637,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <div class="card">
         <div class="card-hdr" style="flex-wrap:wrap;gap:6px">
           <button class="festado active" data-estado="todas" onclick="setFiltroEstado('todas')" style="padding:6px 16px;background:#fff;border:1px solid #D85A30;color:#D85A30;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer">Todas <span id="cnt-todas" style="opacity:0.7">0</span></button>
+          <button class="festado" data-estado="sinfacturar" onclick="setFiltroEstado('sinfacturar')" style="padding:6px 16px;background:#fff;border:1px solid #ddd;color:#666;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer">Sin facturar <span id="cnt-sinfacturar" style="opacity:0.7">0</span></button>
           <button class="festado" data-estado="porcobrar" onclick="setFiltroEstado('porcobrar')" style="padding:6px 16px;background:#fff;border:1px solid #ddd;color:#666;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer">Por cobrar <span id="cnt-porcobrar" style="opacity:0.7">0</span></button>
           <button class="festado" data-estado="parcial" onclick="setFiltroEstado('parcial')" style="padding:6px 16px;background:#fff;border:1px solid #ddd;color:#666;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer">Parcial <span id="cnt-parcial" style="opacity:0.7">0</span></button>
           <button class="festado" data-estado="cobrado" onclick="setFiltroEstado('cobrado')" style="padding:6px 16px;background:#fff;border:1px solid #ddd;color:#666;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer">Cobrado <span id="cnt-cobrado" style="opacity:0.7">0</span></button>
@@ -1457,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.14.02';
+const APP_VERSION='2026.09.17.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6145,7 +6146,8 @@ function setFiltroEstado(estado){
     const activo=b.dataset.estado===filtroEstado;
     if(activo){
       // Color del chip según el estado seleccionado
-      const colores={todas:{bg:'#fff',bd:'#D85A30',c:'#D85A30'},porcobrar:{bg:'#FCEBEB',bd:'#F09595',c:'#791F1F'},parcial:{bg:'#FAEEDA',bd:'#EF9F27',c:'#633806'},cobrado:{bg:'#EAF3DE',bd:'#97C459',c:'#27500A'}};
+      // sinfacturar usa el mismo amarillo que ya marca "listo para facturar" en la lista
+      const colores={todas:{bg:'#fff',bd:'#D85A30',c:'#D85A30'},sinfacturar:{bg:'#FFF59D',bd:'#FBC02D',c:'#6B5200'},porcobrar:{bg:'#FCEBEB',bd:'#F09595',c:'#791F1F'},parcial:{bg:'#FAEEDA',bd:'#EF9F27',c:'#633806'},cobrado:{bg:'#EAF3DE',bd:'#97C459',c:'#27500A'}};
       const cl=colores[filtroEstado]||colores.todas;
       b.style.background=cl.bg;b.style.borderColor=cl.bd;b.style.color=cl.c;b.style.fontWeight='600';b.classList.add('active');
     }else{
@@ -7438,10 +7440,14 @@ function renderFacturas(){
     return 'porcobrar';
   };
   // Conteos por estado (para los chips, sobre TODAS las facturas filtradas por ejecutivo+búsqueda)
-  let cnt={todas:fl.length,porcobrar:0,parcial:0,cobrado:0};
+  let cnt={todas:fl.length,sinfacturar:0,porcobrar:0,parcial:0,cobrado:0};
   let kpi={porcobrar:{m:0,n:0},parcial:{m:0,n:0},cobrado:{m:0,n:0}};
   fl.forEach(f=>{
     const e=_estadoFact(f);
+    // "Sin facturar" se cuenta ANTES del corte de abajo: es un estado de FACTURACION,
+    // no de cobro, asi que no depende de si la factura ya se cobro o no. Las marcadas
+    // factura_na quedan fuera solas: _estadoFacturacion las da por 'facturado'.
+    if(_estadoFacturacion(f)!=='facturado')cnt.sinfacturar++;
     // factura_na (no requiere factura): no se persigue cobro → fuera del conteo "Por cobrar"
     if(e==='porcobrar'&&f.factura_na)return;
     cnt[e]=(cnt[e]||0)+1;
@@ -7451,9 +7457,13 @@ function renderFacturas(){
   });
   // Aplicar filtro por estado (después de calcular contadores)
   if(typeof filtroEstado==='undefined')window.filtroEstado='todas';
-  if(filtroEstado&&filtroEstado!=='todas')fl=fl.filter(f=>filtroEstado==='porcobrar'?(_estadoFact(f)==='porcobrar'&&!f.factura_na):_estadoFact(f)===filtroEstado);
+  if(filtroEstado&&filtroEstado!=='todas')fl=fl.filter(f=>
+    filtroEstado==='sinfacturar'?_estadoFacturacion(f)!=='facturado':
+    filtroEstado==='porcobrar'?(_estadoFact(f)==='porcobrar'&&!f.factura_na):
+    _estadoFact(f)===filtroEstado);
   // Actualizar chips de estado
   document.getElementById('cnt-todas').textContent=cnt.todas;
+  const _elSF=document.getElementById('cnt-sinfacturar');if(_elSF)_elSF.textContent=cnt.sinfacturar;
   document.getElementById('cnt-porcobrar').textContent=cnt.porcobrar;
   document.getElementById('cnt-parcial').textContent=cnt.parcial;
   document.getElementById('cnt-cobrado').textContent=cnt.cobrado;
@@ -7469,10 +7479,19 @@ function renderFacturas(){
   _set('kpi-pendcobro',money(pc));_set('kpi-anticipos',money(ta));_set('kpi-finiquitos',money(tfi));_set('kpi-pagadas',pg);
   document.getElementById('fact-count').textContent=fl.length+' registros'+(q||(filtroEstado&&filtroEstado!=='todas')?' (filtrado)':'');
   const tb=document.getElementById('tbody-fact');
-  if(!fl.length){tb.innerHTML='<tr><td colspan="14" class="empty-row">'+(q?'Sin resultados para "'+q+'"':(filtroEstado&&filtroEstado!=='todas'?'Sin facturas en este estado':'Sin facturas'))+'</td></tr>';return;}
-// Ordenar fl por estado: por cobrar → parcial → cobrado, y dentro de cada grupo por fecha desc
+  if(!fl.length){tb.innerHTML='<tr><td colspan="14" class="empty-row">'+(q?'Sin resultados para "'+q+'"':(filtroEstado&&filtroEstado!=='todas'?'Sin facturas en este estado':'Sin facturas'))+'</td></tr>';renderFacturasPanel(fl);return;}
+// Ordenar fl por estado: por cobrar → parcial → cobrado, y dentro de cada grupo por fecha desc.
+// En el filtro "Sin facturar" manda otro criterio: primero las que YA se pueden facturar
+// (tienen PO + CSF + CFDI y solo falta subir el PDF), despues las que aun deben documentos.
+// Ahi el estado de cobro no ordena nada: todas estan sin facturar.
 const _ordenEst={porcobrar:0,parcial:1,cobrado:2};
+const _ordenFact={porfacturar:0,incompleto:1,facturado:2};
 fl.sort((a,b)=>{
+  if(filtroEstado==='sinfacturar'){
+    const fa=_ordenFact[_estadoFacturacion(a)],fb=_ordenFact[_estadoFacturacion(b)];
+    if(fa!==fb)return fa-fb;
+    return (b.fecha||'').localeCompare(a.fecha||'');
+  }
   const ea=_estadoFact(a),eb=_estadoFact(b);
   if(ea!==eb)return _ordenEst[ea]-_ordenEst[eb];
   return (b.fecha||'').localeCompare(a.fecha||'');
