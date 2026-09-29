@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.29.01';
+const APP_VERSION='2026.09.29.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -1622,10 +1622,15 @@ function getPestanasDeUsuario(u){
   if(u.rol==='admin')return PESTANAS_CTRL.map(t=>t.id); // admin siempre ve todo
   const mapa=getPermisosPestanasMapa();
   const k=(u.username||'').toLowerCase();
-  if(mapa[k]&&Array.isArray(mapa[k]))return mapa[k];
+  if(mapa[k]&&Array.isArray(mapa[k])){
+    // Gil (y quien _comVeTodos reconozca) siempre conserva Comisiones aunque su fila guardada no la traiga
+    if(typeof _comVeTodos==='function'&&_comVeTodos(u)&&!mapa[k].includes('comisiones'))return mapa[k].concat('comisiones');
+    return mapa[k];
+  }
   const base=pestanasDefaultPorRol(u.rol).slice(); // sin config explícita → default por rol
   // Daniel/Miguel/Adrian: comisiones por default (conserva el comportamiento previo al merge de tablas)
   if(u.rol==='comercial'&&typeof comNombreMatch==='function'&&comNombreMatch(u.nombreComercial||u.nombre)&&!base.includes('comisiones'))base.push('comisiones');
+  if(typeof _comVeTodos==='function'&&_comVeTodos(u)&&!base.includes('comisiones'))base.push('comisiones');
   return base;
 }
 function guardarPermisosPestanasMapa(mapa){
@@ -14818,7 +14823,9 @@ function actualizarVisibilidadConfig(){
   }
   const navCom=document.getElementById('nav-comisiones');
   if(navCom){
-    navCom.style.display=(u&&typeof getPestanasDeUsuario==='function'&&getPestanasDeUsuario(u).includes('comisiones'))?'inline-block':'none';
+    // Misma regla que aplicarPermisos (esUsuarioComisiones); antes esta usaba la tabla de
+    // permisos y podía esconder la pestaña que la otra acababa de mostrar.
+    navCom.style.display=(u&&typeof esUsuarioComisiones==='function'&&esUsuarioComisiones(u))?'inline-block':'none';
   }
 }
 // Cambiar entre sub-pestañas dentro de Config
@@ -16019,9 +16026,19 @@ function comNombreMatch(nombre){
   if(!n)return null;
   return COM_COMERCIALES.find(c=>n.includes(c)||c.includes(n))||null;
 }
-function esUsuarioComisiones(u){
+// v2026.09.29.02: quién ve y edita las comisiones de TODOS los comerciales.
+// Gil (Gildardo Osuna, CEO) está dado de alta como 'comercial' y los usuarios viven solo en
+// localStorage de cada equipo, así que cambiarle el rol desde el panel no le llega. Por eso
+// se reconoce aquí por usuario/nombre, sin tocar su rol (como comercial sigue pudiendo vender).
+function _comVeTodos(u){
   if(!u)return false;
   if(u.rol==='admin'||u.rol==='ceo')return true;
+  if(String(u.username||'').toLowerCase()==='gil')return true;
+  return /\bgil(dardo)?\s+osuna\b/i.test(String(u.nombre||''));
+}
+function esUsuarioComisiones(u){
+  if(!u)return false;
+  if(_comVeTodos(u))return true;
   return !!comNombreMatch(u.nombre);
 }
 function comPctFromDesc(d){d=parseFloat(d)||0;if(d<0.1)return 2.20;if(d<=3)return 1.90;if(d<=6)return 1.60;return 1.30;}
@@ -16129,7 +16146,7 @@ function comEfeToggleCell(num,on,can){
 function comToggleEfectivo(num){
   const u=getCurrentUser();
   const v=ventas.find(x=>x&&x.num===num);if(!v)return;
-  const esAdmin=u&&(u.rol==='admin'||u.rol==='ceo');
+  const esAdmin=_comVeTodos(u);
   const puede=esAdmin||(typeof comNombreMatch==='function'&&u&&comNombreMatch(u.nombre)===comNombreMatch(v.comercial));
   if(!puede){showToast('Solo el admin o el comercial dueño puede marcar efectivo','#BA7517');return;}
   const d=comGetData(v);
@@ -16169,7 +16186,7 @@ function comSetOrden(col){if(comOrdenCol===col){comOrdenDir=(comOrdenDir==='asc'
 function comSetEstado(e){comFiltroEstado=e;renderComisiones();}
 function comVentasUniverso(){
   const u=getCurrentUser();
-  const esAdmin=!u||u.rol==='admin'||u.rol==='ceo';
+  const esAdmin=!u||_comVeTodos(u);
   const mi=esAdmin?null:comNombreMatch(u&&u.nombre);
   return ventas.filter(v=>{
     if((v.tipo||'Cotización')!=='Venta')return false;
@@ -16223,7 +16240,7 @@ function renderComisiones(){
   const cont=document.getElementById('com-content');if(!cont)return;
   const u=getCurrentUser();
   if(!esUsuarioComisiones(u)){cont.innerHTML='<div style="padding:40px;text-align:center;color:#888">Sin acceso a Comisiones</div>';return;}
-  const esAdmin=u&&(u.rol==='admin'||u.rol==='ceo');
+  const esAdmin=_comVeTodos(u);
   const hoy=comBimHoy();
   if(comFiltroBim===null)comFiltroBim=hoy;
   /* opciones de bimestre: desde la venta más vieja del universo hasta hoy */
@@ -16472,7 +16489,7 @@ function comExportarExcel(){
 }
 /* ── Reporte imprimible de comisiones A PAGAR (por comercial, solo liberadas) ── */
 function comReporteImprimir(){
-  const _u=getCurrentUser();const _esAdmin=_u&&(_u.rol==='admin'||_u.rol==='ceo');
+  const _u=getCurrentUser();const _esAdmin=_comVeTodos(_u);
   const comSel=comFiltroComercial||(_esAdmin?'':(_u&&_u.nombre)||'');
   if(!comSel){showToast('⚠ Selecciona un comercial arriba para el reporte','#BA7517');return;}
   // LIB (factura cobrada 100%) y SIN efectivo: el efectivo se liquida aparte, no va en este reporte.
