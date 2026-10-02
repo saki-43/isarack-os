@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.09.29.02';
+const APP_VERSION='2026.10.02.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -11785,6 +11785,9 @@ function nubeToLocalVenta(r){
     planos:r.planos||[],
     planosEstado:r.planos_estado||null,
     _historica:r.historica===true,
+    // Hora en que la venta entro a la nube. La tabla ventas NO tiene columna para
+    // tsVenta, asi que es el unico rastro de "cuando se metio" que ven los demas equipos.
+    _creadoNube:Date.parse(r.created_at||'')||0,
   };
 }
 function nubeToLocalFactura(r){
@@ -11915,7 +11918,7 @@ async function bajarCambiosDeNube(){
     const ct=await cloudFetchAll('contactos');
     if(ct){contactos=ct.map(nubeToLocalContacto);guardarLS(CT_KEY,contactos);}
     const vt=await cloudFetchAll('ventas');
-    if(vt){ventas=_mergeConGracia('ventas',vt.map(nubeToLocalVenta),ventas,'num');guardarLS(VTA_KEY,ventas);}
+    if(vt){ventas=_conservarTsVenta(_mergeConGracia('ventas',vt.map(nubeToLocalVenta),ventas,'num'),ventas);guardarLS(VTA_KEY,ventas);}
     const ft=await cloudFetchAll('facturas_ligeras');   // vista sin base64: los PDFs bajan on-demand al dar Ver
     if(ft){try{ft.forEach(r=>{if(r&&r.pedido)_factNubeTs[r.pedido]=r.updated_at||'';});guardarLS('isarack_fact_nube_ts',_factNubeTs);}catch(_e){}facturas=_mergeConGracia('facturas',ft.map(nubeToLocalFactura),facturas,'pedido');guardarFacturasLS();}
     const br=await cloudFetchAll('bom_rules');
@@ -11967,6 +11970,7 @@ async function bajarCambiosDeNube(){
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
     if(typeof _autoRepararTsVentaMasivo==='function')_autoRepararTsVentaMasivo();
+    if(typeof _autoRepararTsDesdeAlta==='function')_autoRepararTsDesdeAlta();
     if(typeof _repararNoRequiereFactura==='function')_repararNoRequiereFactura();
     if(typeof _rescatarOrdersAtoradasPorPK==='function')_rescatarOrdersAtoradasPorPK();
     if(typeof renderInventario==='function')renderInventario();
@@ -12010,7 +12014,7 @@ async function bajarTodoDeNube(silencioso){
     // Ventas
     const vt=await cloudFetchAll('ventas');
     if(vt){
-      ventas=vt.map(nubeToLocalVenta);
+      ventas=_conservarTsVenta(vt.map(nubeToLocalVenta),ventas);
       guardarLS(VTA_KEY,ventas);
     }
     // Facturas
@@ -12051,6 +12055,7 @@ async function bajarTodoDeNube(silencioso){
     if(typeof repararPedidosSinVenta==='function')repararPedidosSinVenta();
     if(typeof repararPedidosDeCotizacion==='function')repararPedidosDeCotizacion();
     if(typeof _autoRepararTsVentaMasivo==='function')_autoRepararTsVentaMasivo();
+    if(typeof _autoRepararTsDesdeAlta==='function')_autoRepararTsDesdeAlta();
     if(typeof _repararNoRequiereFactura==='function')_repararNoRequiereFactura();
     if(typeof _rescatarOrdersAtoradasPorPK==='function')_rescatarOrdersAtoradasPorPK();
     // Refrescar UI
@@ -12252,6 +12257,56 @@ async function toggleNotifPanel(){
 function _isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _hoyISO(){return _isoLocal(new Date());}
 function _tsVentaOrden(o){if(!o)return 0;var a=Number(o.tsVenta);if(a)return a;var b=Number(o.id);if(b)return b;if(o.fechaVenta){var p=Date.parse(o.fechaVenta+'T12:00:00');if(p)return p;}if(o.fecha){var q=Date.parse(o.fecha+'T12:00:00');if(q)return q;}return 0;}
+// ── HORA EN QUE LA VENTA ENTRO A VENTAS (v2026.10.02.01) ──
+// S07488 CUBRETEX: cotizacion fechada 15/05 pero capturada/confirmada el 29/09. El
+// pedido salio en Seguimiento el 15/05 a las 12:00 porque v.tsVenta (la hora real)
+// NO se sube a Supabase —no hay columna— y el equipo que armo el pedido cayo al
+// "mediodia de la fecha". Ahora, si la venta no trae tsVenta pero entro a la nube
+// DESPUES de su fecha, se usa la hora en que entro (created_at). Las altas masivas
+// (3+ ventas en el mismo minuto: importaciones) se ignoran y siguen con su fecha.
+function _altaMasivaVenta(alta){
+  if(!alta||typeof ventas==='undefined'||!Array.isArray(ventas))return false;
+  const m=Math.floor(alta/60000);let n=0;
+  for(const x of ventas){if(x&&x._creadoNube&&Math.floor(x._creadoNube/60000)===m){n++;if(n>=3)return true;}}
+  return false;
+}
+function _tsAltaVenta(v){
+  const ts=Number(v&&v.tsVenta);if(ts)return ts;
+  const alta=Number(v&&v._creadoNube)||0;
+  const fin=Date.parse(((v&&v.fecha)||'')+'T23:59:59');
+  if(alta&&fin&&alta>fin&&!(v&&v._historica)&&!_altaMasivaVenta(alta))return alta;
+  return 0;
+}
+// Al bajar ventas de la nube se pierde tsVenta (no hay columna): se conserva la local.
+function _conservarTsVenta(nuevas,viejas){
+  try{
+    const mp={};(viejas||[]).forEach(function(x){if(x&&x.num&&x.tsVenta)mp[x.num]=x.tsVenta;});
+    (nuevas||[]).forEach(function(x){if(x&&x.num&&!x.tsVenta&&mp[x.num])x.tsVenta=mp[x.num];});
+  }catch(e){}
+  return nuevas;
+}
+// Pedidos ya creados con la hora falsa ("mediodia de la fecha de la cotizacion")
+// que si tienen hora real de alta: se corrige la hora mostrada. NO se toca el id
+// (es la PK en Supabase).
+function _autoRepararTsDesdeAlta(){
+  if(!Array.isArray(orders)||typeof ventas==='undefined'||!Array.isArray(ventas))return 0;
+  let n=0;
+  orders.forEach(function(o){
+    if(!o||!o.num)return;
+    const fv=o.fechaVenta||o.fecha||'';
+    const mediodia=Date.parse(fv+'T12:00:00');
+    if(!mediodia||Number(o.tsVenta)!==mediodia)return;   // solo la firma del respaldo
+    const v=ventas.find(function(x){return x&&x.num===o.num;});
+    if(!v||Number(v.tsVenta))return;
+    const alta=_tsAltaVenta(v);
+    if(!alta||alta<=mediodia)return;
+    o.tsVenta=alta;o.fechaVenta=_isoLocal(new Date(alta));o.updated=Date.now();
+    if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+    n++;
+  });
+  if(n){saveOrders();console.warn('[ISA-OS] Hora de pedido corregida a la hora en que entro la venta:',n);}
+  return n;
+}
 // Genera un id UNICO derivado de la venta. Prioriza v.tsVenta (hora real "minutero" de
 // cuando se confirmo la venta); si no hay, usa fecha+hash del folio para preservar
 // unicidad y evitar colision de PK cuando varias ventas comparten la misma fecha.
@@ -12823,7 +12878,7 @@ function cambiarTipoVenta(ri,nuevoTipo){
       const cotData={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
       // v2026.09.01.03: setear tsVenta ("minutero" real) tambien en la venta para que reparadores lo respeten
       const _tsN=Date.now();if(!v.tsVenta){v.tsVenta=_tsN;}
-      orderRef={id:_tsN,tsVenta:v.tsVenta||_tsN,fechaVenta:v.fecha||new Date().toISOString().slice(0,10),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:_tsN};
+      orderRef={id:_tsN,tsVenta:v.tsVenta||_tsN,fechaVenta:_isoLocal(new Date(v.tsVenta||_tsN)),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:_tsN};
       try{if(typeof generarCotHTML==='function'){const _c=generarCotHTML(cotData);orderRef.cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}}catch(e){}
       integrarPedidoReutilizando(orderRef);
       // Ya no se saca de la lista negra: la lápida tiene hora y este pedido es más nuevo, pasa solo.
@@ -12902,9 +12957,9 @@ async function reconciliarInventarioMasivo(){
       if(!orderRef){
         const cotData={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
         const _fV=v.fecha||new Date().toISOString().slice(0,10);
-        const _tsV=(Number(v.tsVenta)||Date.parse((v.fecha||'')+'T12:00:00'))||Date.now();
+        const _tsV=(_tsAltaVenta(v)||Date.parse((v.fecha||'')+'T12:00:00'))||Date.now();
         const _idU=_idPedidoDesdeVenta(v);
-        orderRef={id:_idU,fechaVenta:_fV,tsVenta:_tsV,num:v.num,fecha:_fV,cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:Date.now()};
+        orderRef={id:_idU,fechaVenta:_isoLocal(new Date(_tsV)),tsVenta:_tsV,num:v.num,fecha:_fV,cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:Date.now()};
         if(typeof integrarPedidoReutilizando==='function')integrarPedidoReutilizando(orderRef);else orders.unshift(orderRef);
       }else{orderRef.cotData=orderRef.cotData||{};orderRef.cotData.lineas=v.lineas||[];}
       const r=descontarInventarioPedido(orderRef,v.lineas);
@@ -14053,7 +14108,7 @@ try{
         const _cd={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
         // v2026.09.01.03: setear tsVenta en la venta para preservar el minutero real
         const _tsN=Date.now();if(!v.tsVenta){v.tsVenta=_tsN;}
-        _oRef={id:_tsN+Math.floor(Math.random()*1000),tsVenta:v.tsVenta||_tsN,fechaVenta:v.fecha||new Date().toISOString().slice(0,10),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:_cd,cotVersion:2,updated:_tsN};
+        _oRef={id:_tsN+Math.floor(Math.random()*1000),tsVenta:v.tsVenta||_tsN,fechaVenta:_isoLocal(new Date(v.tsVenta||_tsN)),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:_cd,cotVersion:2,updated:_tsN};
         if(typeof integrarPedidoReutilizando==='function')integrarPedidoReutilizando(_oRef);else orders.unshift(_oRef);
         // Ya no se saca de la lista negra: la lápida tiene hora y este pedido es más nuevo, pasa solo.
       }else{_oRef.cotData=_oRef.cotData||{};_oRef.cotData.lineas=v.lineas||[];
@@ -15784,9 +15839,9 @@ function repararVentasHuerfanas(){
     // pedidos reparados en un mismo tick mostraban la misma hora falsa "hora del reparador".
     // v2026.09.01.03: id UNICO por folio (Date.parse a solas colisiona si comparten fecha).
     const _fVenta=v.fecha||new Date().toISOString().slice(0,10);
-    const _tsV=(Number(v.tsVenta)||Date.parse((v.fecha||'')+'T12:00:00'))||Date.now();
+    const _tsV=(_tsAltaVenta(v)||Date.parse((v.fecha||'')+'T12:00:00'))||Date.now();
     const _idU=_idPedidoDesdeVenta(v);
-    const orderRef={id:_idU,fechaVenta:_fVenta,tsVenta:_tsV,num:v.num,fecha:_fVenta,cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(Number(v.total)||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,inventarioDescontado:true,updated:Date.now()};
+    const orderRef={id:_idU,fechaVenta:_isoLocal(new Date(_tsV)),tsVenta:_tsV,num:v.num,fecha:_fVenta,cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(Number(v.total)||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,inventarioDescontado:true,updated:Date.now()};
     try{if(typeof generarCotHTML==='function'){const _c=generarCotHTML(cotData);orderRef.cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}}catch(e){}
     integrarPedidoReutilizando(orderRef);
     if(typeof cloudSyncOrder==='function')cloudSyncOrder(orderRef);
@@ -15909,7 +15964,7 @@ function _rescatarOrdersAtoradasPorPK(){
   }
   return n;
 }
-loadOrders();loadDefaultContacts();asegurarMarcosChicos42();asegurarPanelesBeige();repararVentasHuerfanas();repararPedidosSinVenta();repararPedidosDeCotizacion();_autoRepararTsVentaMasivo();_rescatarOrdersAtoradasPorPK();actualizarFiltrosEjec();renderFacturas();renderInventario();renderVentas();renderContactos();renderReglasBom();
+loadOrders();loadDefaultContacts();asegurarMarcosChicos42();asegurarPanelesBeige();repararVentasHuerfanas();repararPedidosSinVenta();repararPedidosDeCotizacion();_autoRepararTsVentaMasivo();_autoRepararTsDesdeAlta();_rescatarOrdersAtoradasPorPK();actualizarFiltrosEjec();renderFacturas();renderInventario();renderVentas();renderContactos();renderReglasBom();
 // Inicializar Supabase (después de que todo lo demás esté listo)
 setTimeout(()=>initSupabase(),500);
 aplicarIdentidadEmpresa();
