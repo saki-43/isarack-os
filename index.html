@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.05.01';
+const APP_VERSION='2026.10.05.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -11942,6 +11942,7 @@ async function bajarCambiosDeNube(){
       // DELTA: solo pedidos cambiados desde la última vista
       const {data:od,error}=await supabaseClient.from('orders').select('*').gt('updated_at',_ordersDeltaVisto).order('updated_at',{ascending:true}).limit(10000);
       if(error){console.warn('delta orders error:',error);}
+      else window._ordersNubeOk=true;
       let mx=_ordersDeltaVisto,toco=false;
       (od||[]).forEach(r=>{
         if(r.updated_at&&r.updated_at>mx)mx=r.updated_at;
@@ -12042,6 +12043,7 @@ async function bajarTodoDeNube(silencioso){
     if(typeof cargarPedidosEliminadosNube==='function')await cargarPedidosEliminadosNube();
     const od=await cloudFetchAll('orders');
     if(od){
+      window._ordersNubeOk=true;
       orders=od.map(nubeToLocalOrder).filter(o=>!(typeof estaPedidoEliminado==='function'&&estaPedidoEliminado(o)));
       let _mx=null;od.forEach(r=>{if(r.updated_at&&(!_mx||r.updated_at>_mx))_mx=r.updated_at;});
       if(_mx){_ordersDeltaVisto=_mx;guardarLS('isarack_orders_delta_visto',_mx);}
@@ -15828,8 +15830,14 @@ function limpiarHistoricasEnSeguimiento(){
 
 function repararVentasHuerfanas(){
   if(!Array.isArray(ventas)||!Array.isArray(orders))return;
+  // v2026.10.05.02 — 5 oct 2026, 10:32 a.m.: un equipo nuevo (Firefox, sin copia local)
+  // bajo las ventas pero NO los pedidos; este reparador creyo que las 166 ventas no
+  // tenian pedido, los creo en blanco (Pendiente / Entregado No) y los subio ENCIMA de
+  // los buenos. Por eso: 1) no corre hasta que los pedidos bajaron bien de la nube en
+  // esta sesion, y 2) antes de subir pregunta a la nube si el folio ya existe.
+  if(!window._ordersNubeOk)return 0;
   const eliminados=new Set(getFoliosEliminados());
-  let reparados=0;
+  let reparados=0;const nuevos=[];
   ventas.forEach(v=>{
     const esVenta=(v.tipo==='Venta')||v.estatus==='Confirmada'||v.stage==='Pedido de venta';
     if(!esVenta||!v.num)return;
@@ -15846,11 +15854,35 @@ function repararVentasHuerfanas(){
     const orderRef={id:_idU,fechaVenta:_isoLocal(new Date(_tsV)),tsVenta:_tsV,num:v.num,fecha:_fVenta,cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(Number(v.total)||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,inventarioDescontado:true,updated:Date.now()};
     try{if(typeof generarCotHTML==='function'){const _c=generarCotHTML(cotData);orderRef.cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}}catch(e){}
     integrarPedidoReutilizando(orderRef);
-    if(typeof cloudSyncOrder==='function')cloudSyncOrder(orderRef);
+    nuevos.push(orderRef);
     reparados++;
   });
-  if(reparados>0){saveOrders();console.log('[ISA-OS] Pedidos reparados desde ventas confirmadas:',reparados);}
+  if(reparados>0){window._skipCloudSync=true;saveOrders();setTimeout(()=>{window._skipCloudSync=false;},2000);console.log('[ISA-OS] Pedidos reparados desde ventas confirmadas:',reparados);_subirHuerfanosSiNoExisten(nuevos);}  // saveOrders sin skip sube TODOS los pedidos: los nuevos suben solo tras verificar
   return reparados;
+}
+// Sube los pedidos que creo repararVentasHuerfanas SOLO si el folio no existe en la nube.
+// Si ya existe, el local en blanco se tira (el bueno llega en la siguiente bajada).
+// Si no se puede verificar, tambien se tira: se reintenta en el siguiente sync.
+async function _subirHuerfanosSiNoExisten(nuevos){
+  if(!nuevos||!nuevos.length)return;
+  const quitar=function(lista){
+    if(!lista.length)return;
+    const s=new Set(lista.map(function(o){return o.num;}));
+    orders=orders.filter(function(o){return !(o&&s.has(o.num)&&lista.indexOf(o)>=0);});
+    window._skipCloudSync=true;saveOrders();setTimeout(function(){window._skipCloudSync=false;},2000);
+    if(typeof render==='function')try{render();}catch(e){}
+  };
+  try{
+    if(!supabaseClient||cloudStatus!=='online'){quitar(nuevos);return;}
+    const nums=nuevos.map(function(o){return o.num;});
+    const {data,error}=await supabaseClient.from('orders').select('num').in('num',nums);
+    if(error)throw error;
+    const enNube=new Set((data||[]).map(function(r){return r.num;}));
+    const yaExisten=nuevos.filter(function(o){return enNube.has(o.num);});
+    if(yaExisten.length)console.warn('[ISA-OS] Pedidos NO resubidos (ya existen en la nube):',yaExisten.map(function(o){return o.num;}).join(', '));
+    quitar(yaExisten);
+    nuevos.filter(function(o){return !enNube.has(o.num);}).forEach(function(o){if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);});
+  }catch(e){console.warn('verificar huerfanos:',e);quitar(nuevos);}
 }
 // Espejo: pedido con cotización pero SIN registro en Ventas → crea el registro de venta
 // REGLA: una COTIZACIÓN no debe estar en Seguimiento. Detecta pedidos cuya venta
