@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.02.01';
+const APP_VERSION='2026.10.05.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8798,18 +8798,20 @@ function encontrarComponente(descripcion,color){
   const colorU=norm(color);
   // Split desc into keywords for flexible matching
   const keywords=desc.split(/\s+/).filter(k=>k.length>0);
-  // First pass: all keywords + color must match
-  let match=inventario.find(p=>{
+  // v2026.10.05.01 — Primero por PALABRA COMPLETA. Con includes() la "D" de
+  // "D DIAGONAL 42" se encontraba dentro de "DIAGONAL", asi que el marco AZUL
+  // agarraba la H DIAGONAL 42" AZUL (va antes en el inventario) para las 14 D:
+  // descontaba 17 H por marco y la D azul nunca bajaba.
+  const esc=k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const palabra=(pn,k)=>new RegExp('(^|[^A-Z0-9])'+esc(k)+'([^A-Z0-9]|$)').test(pn);
+  const buscar=(cmp,conColor)=>inventario.find(p=>{
     const pn=norm(p.producto);
-    const allKeywords=keywords.every(k=>pn.includes(k));
-    const colorOk=colorU?pn.includes(colorU):true;
-    return allKeywords&&colorOk;
+    return keywords.every(k=>cmp(pn,k))&&(!conColor||!colorU||pn.includes(colorU));
   });
-  // Second pass: same but ignore color (informational only)
-  if(!match&&colorU){
-    match=inventario.find(p=>keywords.every(k=>norm(p.producto).includes(k)));
-  }
-  return match;
+  const sub=(pn,k)=>pn.includes(k);
+  // 1) palabra completa + color  2) palabra completa sin color
+  // 3) y 4) el match flexible de antes (texto dentro de texto), por si el nombre viene pegado
+  return buscar(palabra,true)||(colorU&&buscar(palabra,false))||buscar(sub,true)||(colorU&&buscar(sub,false))||undefined;
 }
 // Returns array of components needed to deduct for a marco
 function calcularPiezasMarco(marco,cantidadMarcos){
