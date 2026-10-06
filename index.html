@@ -1458,7 +1458,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.05.02';
+const APP_VERSION='2026.10.06.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2538,8 +2538,11 @@ async function _checarVersionVercel(){
   try{
     if(location.protocol==='file:')return;
     if(document.hidden)return;
-    var url=location.origin+location.pathname+'?_v='+Date.now();
-    var res=await fetch(url,{cache:'no-store',credentials:'omit'});
+    // v2026.10.06.01: sin '?_v=' y con 'no-cache' el navegador pregunta a Vercel si
+    // cambio (ETag): si no cambio responde 304 sin bajar el MB del index. Asi se puede
+    // revisar cada 5 min sin gastar datos, y nadie tiene que "Forzar version".
+    var url=location.origin+location.pathname;
+    var res=await fetch(url,{cache:'no-cache',credentials:'omit'});
     if(!res||!res.ok)return;
     var txt=await res.text();
     var m=txt.match(/const\s+APP_VERSION\s*=\s*['"]([\d.]+)['"]/);
@@ -2555,9 +2558,9 @@ async function _checarVersionVercel(){
     try{location.reload(true);}catch(_e){location.reload();}
   }catch(e){/* Si Vercel tampoco llega, no pasa nada */}
 }
-// Arranque: primer chequeo a los 60s, luego cada 30 min mientras la pestana este visible
+// Arranque: primer chequeo a los 60s, luego cada 5 min mientras la pestana este visible
 setTimeout(_checarVersionVercel,60000);
-setInterval(_checarVersionVercel,30*60*1000);
+setInterval(_checarVersionVercel,5*60*1000);
 // Al volver la pestana al frente, chequeo oportunista
 try{document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(_checarVersionVercel,2000);});}catch(e){}
 // Boton manual "🔄 Actualizar" del header: pide confirmacion si hay trabajo
