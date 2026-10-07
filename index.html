@@ -1459,7 +1459,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.07.04';
+const APP_VERSION='2026.10.07.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6979,6 +6979,9 @@ function _marcarListoDesdeSurtido(num){
 function _cerrarSurtido(){
   const cont=document.getElementById('ov-surt-cont');
   if(cont)cont.innerHTML='';
+  // La lista de Almacen ("Juntadas 0 de 3") no se volvia a dibujar al cerrar y
+  // seguia en 0 hasta marcar todo. (Isaac, 7 oct 2026)
+  try{if(typeof renderAlmacen==='function')renderAlmacen();}catch(e){}
 }
 // El propio almacén cierra su parte: al terminar de armar, el pedido pasa a
 // "esperando salida" sin que oficina tenga que intervenir. Se pregunta antes
