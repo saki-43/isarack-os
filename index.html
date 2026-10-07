@@ -1459,7 +1459,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.07.03';
+const APP_VERSION='2026.10.07.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6939,7 +6939,11 @@ function _toggleSurtidoCheck(num,idx){
   if(!o.surtidoChecks||typeof o.surtidoChecks!=='object')o.surtidoChecks={};
   o.surtidoChecks[idx]=!o.surtidoChecks[idx];
   o.updated=Date.now();
+  // Al re-renderizar, el modal regresaba hasta arriba y habia que volver a bajar
+  // en cada pieza (Isaac, 7 oct 2026): se guarda y se repone la posicion.
+  const _ov=document.getElementById('ov-surt');const _top=_ov?_ov.scrollTop:0;
   verListaSurtido(num); // re-renderiza el modal
+  const _ov2=document.getElementById('ov-surt');if(_ov2)_ov2.scrollTop=_top;
   // Auto-guardado (debounced): el avance de surtido no se pierde ni requiere botón.
   if(_surtSaveTimer)clearTimeout(_surtSaveTimer);
   _surtSaveTimer=setTimeout(()=>{try{saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);}catch(e){}},1000);
