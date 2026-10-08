@@ -120,8 +120,9 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
    `codigoPWA('0000000000')` devolvería `0000`. No importa hoy porque ese usuario no
    se captura en Configuración, pero si algún día se lista, hay que agregarlo.
    **La tabla vive duplicada en ISA-OS y en la PWA** — si se cambia un código hay que cambiarlo en los dos.
-   ⚠ Desde v2026.09.08.01 ISA-OS renombró al personal a *nombre + apellido*; **la PWA
-   todavía muestra los nombres viejos**. Hay que aplicarle el mismo cambio.
+   Desde v2026.09.08.01 ISA-OS usa *nombre + apellido*; la PWA se igualó el 8 oct 2026
+   (v2026.10.08.01: Bryan Martinez, Samuel Gomez). La PWA identifica por teléfono, así que
+   renombrar no cambia accesos.
 
 ---
 
