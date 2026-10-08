@@ -1459,7 +1459,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.07.04';
+const APP_VERSION='2026.10.07.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6817,7 +6817,7 @@ function verListaSurtido(num){
       const done=!!o.surtidoChecks[l._idx];
       filas+=`<div class="surt-item${done?' done':''}" onclick="_toggleSurtidoCheck('${esc(num)}',${l._idx})">
         ${_thumb(l)}
-        <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}</div>
+        <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}${(typeof _almNotaPartida==='function')?_almNotaPartida(l):''}</div>
         <div class="surt-qty"><b>${esc(l.cantidad||0)}</b><span>pz</span></div>
         <button class="surt-toggle" type="button" tabindex="-1">${done?_checkSvg+' Surtido':'Surtir'}</button>
       </div>`;
@@ -6979,6 +6979,9 @@ function _marcarListoDesdeSurtido(num){
 function _cerrarSurtido(){
   const cont=document.getElementById('ov-surt-cont');
   if(cont)cont.innerHTML='';
+  // La lista de Almacen ("Juntadas 0 de 3") no se volvia a dibujar al cerrar y
+  // seguia en 0 hasta marcar todo. (Isaac, 7 oct 2026)
+  try{if(typeof renderAlmacen==='function')renderAlmacen();}catch(e){}
 }
 // El propio almacén cierra su parte: al terminar de armar, el pedido pasa a
 // "esperando salida" sin que oficina tenga que intervenir. Se pregunta antes
@@ -7183,6 +7186,14 @@ function _almFila(it){
     _almDetalle(it,arts,checks)+
   '</div>';
 }
+// La descripcion de la partida ("transformada a 96 x 42") es una instruccion
+// para el almacen: si no se ve, la pieza sale tal cual y el problema aparece en la
+// instalacion. (Isaac, 7 oct 2026)
+function _almNotaPartida(l){
+  const d=String((l&&l.desc)||'').trim();
+  if(!d)return '';
+  return '<div style="margin-top:4px;padding:3px 8px;border-radius:6px;background:#FFF4E5;border:1px solid #E8A33D;color:#7a4a00;font-size:12px;font-weight:700;text-decoration:none;display:inline-block">⚠ '+_almEsc(d)+'</div>';
+}
 // Detalle desplegable: material, papeles, quién entrega y la nota del pedido.
 function _almDetalle(it,arts,checks){
   const o=it.o,f=it.f,esc=_almEsc;
@@ -7197,7 +7208,7 @@ function _almDetalle(it,arts,checks){
       return '<div class="al-part'+(checks[l._idx]?' hh':'')+'" onclick="_almCheck(event,\''+esc(o.num)+'\','+l._idx+')">'+
         '<div class="al-mk"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>'+
         '<div class="al-pi"><div class="al-pn">'+esc(l.producto||'')+'</div>'+
-          (l.sku?'<div class="al-ps">'+esc(l.sku)+'</div>':'')+aviso+'</div>'+
+          (l.sku?'<div class="al-ps">'+esc(l.sku)+'</div>':'')+_almNotaPartida(l)+aviso+'</div>'+
         '<div class="al-pc">'+esc(l.cantidad||0)+' <span>pz</span></div>'+
       '</div>';
     }).join('');
