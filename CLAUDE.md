@@ -148,6 +148,16 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
 - **Personal externo** (no está en nómina, va con su nombre de obra): Jesus Mendez, Samuel Gomez, Gilberto Rodriguez, Israel Mendez, Alexis Guadalupe, Daniel Herrera, Brayan Romo, Juan Hernandez, Victor Manuel Medina, Ezequiel Alberto Chigo.
 - **Configuración → 🔧 Instaladores es la única lista de personal.** De ahí salen los pedidos, las entregas y las cuadrillas de Instalaciones (`getPersonalCuadrillas()`). `INST_CUAD` quedó solo como respaldo para los nombres que aún no se capturan. El campo **Rol** (Instala/Entrega/Ambos) filtra cada select; a quien no tiene rol capturado NO se le esconde.
 
+- **Folios de ventas (lección S07495, 8 oct 2026).** El formulario nuevo saca su folio al abrirse (`nextVtaNum`, máximo local + 1). Si mientras está abierto otra persona guarda ese mismo folio y llega por sync, **NO se debe tratar como edición**: eso pisó la venta de Miguel (DOROTHY) con la de Adrián (BROAN). Reglas actuales:
+  - `guardarVenta`/`crearCotizacionVenta` solo toman un folio existente como edición si está en `_vtaNumsMios` (lo guardé yo en esta sesión o lo abrí con **Editar**). Si es de otro → folio nuevo + aviso naranja.
+  - `abrirVentaForm()` **reinicia `editVtaIdx` a -1**. Cualquier función que abra una venta existente debe fijar `editVtaIdx` **después** de llamarla (ver `editarVenta`). Olvidarlo hizo que cada edición creara una copia con folio nuevo (8 oct 2026, copias S07508–S07523).
+  - El folio definitivo lo pide `_folioDefinitivo()` a la función de Supabase `siguiente_folio_venta()` (secuencia). Si la función no existe o no hay red, cae a `_folioLibreNube()`.
+  - Protecciones en Supabase pendientes/aplicadas: tabla `ventas_historial` + trigger `trg_ventas_historial` (copia del renglón ANTES de cada cambio o borrado) y secuencia `folio_venta_seq`. Para recuperar algo pisado: `select * from ventas_historial where num='S0XXXX' order by guardado_en desc`.
+  - S07495 = BROAN (Adrián). La venta de Miguel/DOROTHY se recreó como **S07507** desde su PDF.
+- **Cotizaciones del configurador web (RW-/GW-/PW-)**: el configurador sube además la imagen del diseño a `planos/cotizaciones-web/{folio}.jpg`; `generarCotHTML` la pone junto a los totales si el folio es web. Al buscar el PDF web en esa carpeta se ignoran los `.jpg`. Al pasar a venta el folio RW- se conserva, por eso la imagen sigue saliendo.
+- **Flete e instalación**: el configurador ya cobra igual que ISA-OS — instalación 5 % del material **sin mínimo**; flete con la tabla de `calcularFlete` aplicada al material **en la moneda de la cotización** (en MXN entra el monto en pesos, como hace `sincronizarFleteVenta`). Si se cambia la regla, cambiarla en los dos.
+- **Re-render que pierde el scroll**: al redibujar listas con `innerHTML` (Surtido, personal de Instalaciones) hay que guardar y reponer `scrollTop`; si no, la lista brinca hasta arriba en cada clic.
+
 ## 9. Dónde vive cada módulo (referencias rápidas)
 
 - **Ventas / Cotizaciones**: función `guardarVenta` (transiciones de estado, Casos A/B/C).
