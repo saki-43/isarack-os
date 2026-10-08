@@ -1460,7 +1460,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.08.06';
+const APP_VERSION='2026.10.08.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -12251,7 +12251,7 @@ function _hablarHulk(){
     _hablarHulkTTS();
   }catch(e){try{_hablarHulkTTS();}catch(e2){}}
 }
-try{document.addEventListener('click',function _audioUnlock(){try{var a=_getHulkAudio();if(a){a.muted=true;var p=a.play();if(p&&p.then){p.then(function(){a.pause();try{a.currentTime=0;}catch(e){}a.muted=false;}).catch(function(){a.muted=false;});}else{try{a.pause();}catch(e){}a.muted=false;}}}catch(e){}try{if('speechSynthesis' in window){var _w=new SpeechSynthesisUtterance(' ');_w.volume=0;window.speechSynthesis.speak(_w);}}catch(e){}},{once:true});}catch(e){}
+try{document.addEventListener('click',function _audioUnlock(){try{var _uA=getCurrentUser()||{};if(_canonNotif(_uA.nombreComercial||_uA.nombre||'')!=='Adrian Solorzano')return;}catch(e){return;}document.removeEventListener('click',_audioUnlock);try{var a=_getHulkAudio();if(a){a.muted=true;var p=a.play();if(p&&p.then){p.then(function(){a.pause();try{a.currentTime=0;}catch(e){}a.muted=false;}).catch(function(){a.muted=false;});}else{try{a.pause();}catch(e){}a.muted=false;}}}catch(e){}try{if('speechSynthesis' in window){var _w=new SpeechSynthesisUtterance(' ');_w.volume=0;window.speechSynthesis.speak(_w);}}catch(e){}});}catch(e){}
 function _flashHulk(){
   try{
     if(document.getElementById('_hulk-flash'))return;
@@ -12281,7 +12281,11 @@ async function cargarNotificaciones(){
     _notifs=data;
     try{
       const _fl=JSON.parse(localStorage.getItem('_hulkFlashed')||'[]');
-      const _nuevos=_notifs.filter(n=>n&&!n.leida&&/HULK/i.test(n.titulo||'')&&_fl.indexOf(n.id)<0);
+      // v2026.10.08.07: el Hulk es SOLO para la sesión de Adrián (quien factura).
+      // Doble candado: la notificación debe ir a él y el usuario abierto debe ser él.
+      const _uH=getCurrentUser()||{};
+      const _soyFacturador=_canonNotif(_uH.nombreComercial||_uH.nombre||'')==='Adrian Solorzano';
+      const _nuevos=_soyFacturador?_notifs.filter(n=>n&&!n.leida&&/HULK/i.test(n.titulo||'')&&n.destinatario==='comercial:Adrian Solorzano'&&_fl.indexOf(n.id)<0):[];
       if(_nuevos.length&&typeof _flashHulk==='function'){_flashHulk();_nuevos.forEach(n=>_fl.push(n.id));localStorage.setItem('_hulkFlashed',JSON.stringify(_fl.slice(-200)));}
     }catch(e){}
     const noLeidas=data.filter(n=>!n.leida).length;
