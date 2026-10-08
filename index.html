@@ -1459,7 +1459,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.08.04';
+const APP_VERSION='2026.10.08.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3938,7 +3938,7 @@ function abrirVisorStorage(url,titulo){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';
   const esImg=/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
   const cuerpo=esImg
-    ? `<div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5"><img src="${url}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`
+    ? `<div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5"><img src="${url}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)" onerror="this.outerHTML='<div style=&quot;background:#fff;border:2px solid #c62828;border-radius:10px;padding:24px 28px;max-width:420px;text-align:center;color:#c62828;font-size:14px;line-height:1.5&quot;><div style=&quot;font-size:32px&quot;>⚠</div><b>Este archivo no está en la nube.</b><br><span style=&quot;color:#555;font-size:12px&quot;>Pudo no haberse subido bien o se borró. Vuelve a subirlo.</span></div>'"></div>`
     : `<div style="flex:1;overflow:hidden;background:#e8e8e5"><iframe src="${url}" style="width:100%;height:100%;border:0"></iframe></div>`;
   const urlEsc=url.replace(/'/g,"\\'");
   const titEsc=(titulo||'doc').replace(/'/g,"\\'");
@@ -10762,8 +10762,11 @@ function limpiarNombreArchivo(nombre){
   if(base.length>60)base=base.substring(0,60);
   return base+ext;
 }
+// v2026.10.08.05: motivo de la última subida fallida, para el aviso final
+var _errPlano='';
 async function subirPlanoStorage(file,orderNum){
-  if(!supabaseClient){showToast('⚠ Sin conexión a Supabase','#c62828');return null;}
+  _errPlano='';
+  if(!supabaseClient){_errPlano='sin conexión a la nube';showToast('⚠ Sin conexión a Supabase','#c62828');return null;}
   if(!file||!orderNum)return null;
   // Comprimir si es imagen
   let archivoFinal=file;
@@ -10772,7 +10775,7 @@ async function subirPlanoStorage(file,orderNum){
     if(archivoFinal!==file)console.log('📐 Comprimido:',file.name,Math.round(file.size/1024)+'KB →',Math.round(archivoFinal.size/1024)+'KB');
   }
   // Validar tamaño DESPUÉS de comprimir
-  if(archivoFinal.size>10*1024*1024){showToast('⚠ Archivo muy grande aún después de comprimir ('+Math.round(archivoFinal.size/1024/1024)+' MB)','#c62828');return null;}
+  if(archivoFinal.size>10*1024*1024){_errPlano='muy grande ('+Math.round(archivoFinal.size/1024/1024)+' MB)';showToast('⚠ Archivo muy grande aún después de comprimir ('+Math.round(archivoFinal.size/1024/1024)+' MB)','#c62828');return null;}
   // Limpiar nombre AGRESIVAMENTE
   const cleanName=limpiarNombreArchivo(archivoFinal.name);
   const cleanOrderNum=orderNum.replace(/[^a-zA-Z0-9_-]/g,'_');
@@ -10783,6 +10786,8 @@ async function subirPlanoStorage(file,orderNum){
     const {data,error}=await supabaseClient.storage.from('planos').upload(path,archivoFinal,{cacheControl:'3600',upsert:false,contentType:archivoFinal.type});
     if(error){
       console.error('❌ Storage upload error:',error);
+      _errPlano=(error.message||error.error||'error desconocido');
+      if(typeof _registrarFalloSync==='function')try{_registrarFalloSync('subida','planos',path,_errPlano,false);}catch(_){}
       showToast('⚠ Error: '+(error.message||error.error||'desconocido'),'#c62828');
       return null;
     }
@@ -10798,12 +10803,35 @@ async function subirPlanoStorage(file,orderNum){
     };
   }catch(e){
     console.error('❌ Error inesperado:',e);
+    _errPlano=(e&&e.message)||'error inesperado (¿sin internet?)';
     showToast('⚠ Error: '+e.message,'#c62828');
     return null;
   }
 }
+// v2026.10.08.05: aviso que NO se borra solo (los toasts duran 3 s y se pasaban).
+function _avisoSubidaFallida(fallidos,total){
+  if(!fallidos||!fallidos.length)return;
+  alert('⚠ '+fallidos.length+' de '+total+' archivo(s) NO se subieron a la nube:\n\n'
+    +fallidos.map(f=>'• '+f.name+' — '+f.motivo).join('\n')
+    +'\n\nNo quedaron guardados. Revisa tu internet y vuelve a subirlos.');
+}
+// v2026.10.08.05: la venta y su pedido comparten los MISMOS archivos (mismo path).
+// Antes, quitar el plano de la venta borraba el archivo y el pedido se quedaba
+// apuntando a nada (S07411 perdió sus 6 planos así). Ahora solo se borra del
+// Storage si ningún otro registro lo usa; el que se está editando no cuenta.
+function _pathEnUsoFuera(path){
+  if(!path)return false;
+  const campos=['planos','fotosAvance','fotosTerminacion','fotosEntrega','firmaEntrega'];
+  const usa=r=>r&&campos.some(k=>Array.isArray(r[k])&&r[k].some(x=>x&&x.path===path));
+  const oAbierta=(typeof currentOrderId!=='undefined'&&currentOrderId!=null&&typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(o=>o.id==currentOrderId):null;
+  const vAbierta=(typeof editVtaIdx!=='undefined'&&editVtaIdx>=0&&typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas[editVtaIdx]:null;
+  if(typeof orders!=='undefined'&&Array.isArray(orders)&&orders.some(o=>o!==oAbierta&&usa(o)))return true;
+  if(typeof ventas!=='undefined'&&Array.isArray(ventas)&&ventas.some(v=>v!==vAbierta&&usa(v)))return true;
+  return false;
+}
 async function borrarPlanoStorage(path){
   if(!supabaseClient||!path)return false;
+  if(_pathEnUsoFuera(path)){console.log('📎 No se borra del Storage (lo usa otro registro):',path);return true;}
   try{
     const {error}=await supabaseClient.storage.from('planos').remove([path]);
     if(error){console.error('Storage delete error:',error);return false;}
@@ -10821,16 +10849,17 @@ async function handlePlanosUpload(input){
   if(!validos.length){input.value='';return;}
   const statusEl=document.getElementById('planos-status');
   if(statusEl){statusEl.style.display='block';statusEl.textContent='⏳ Subiendo '+validos.length+' archivo(s)...';}
-  let exitos=0,errores=0;
+  let exitos=0,errores=0;const fallidos=[];
   for(const file of validos){
     const result=await subirPlanoStorage(file,orderNum);
-    if(result){planosOrder.push(result);exitos++;}else{errores++;}
+    if(result){planosOrder.push(result);exitos++;}else{errores++;fallidos.push({name:file.name,motivo:_errPlano||'error desconocido'});}
   }
   if(statusEl)statusEl.style.display='none';
   input.value='';
   renderChipsPlanos();
   if(exitos>0)showToast('✓ '+exitos+' archivo(s) subido(s)'+(errores>0?' ('+errores+' fallaron)':''),'#3B6D11');
   else if(errores>0)showToast('⚠ No se pudo subir ningún archivo','#c62828');
+  _avisoSubidaFallida(fallidos,validos.length);
 }
 function renderChipsPlanos(){
   const cont=document.getElementById('chips-planos');
@@ -13341,15 +13370,16 @@ async function handleVtaPlanosUpload(input){
   if(!num){showToast('⚠ La venta necesita folio','#c62828');input.value='';return;}
   const st=document.getElementById('vfp-status');
   if(st){st.style.display='inline';st.textContent='⏳ Subiendo '+files.length+' archivo(s)...';}
-  let ok=0;
+  let ok=0;const fallidos=[];
   for(const f of files){
     const r=await subirPlanoStorage(f,num);
-    if(r){vtaPlanos.push(r);ok++;}
+    if(r){vtaPlanos.push(r);ok++;}else fallidos.push({name:f.name,motivo:_errPlano||'error desconocido'});
   }
   if(st)st.style.display='none';
   input.value='';
   if(ok>0){setVtaPlanosEstado('Sí lleva');showToast('✓ '+ok+' plano(s) subido(s)','#3B6D11');}
   renderVtaPlanosChips();
+  _avisoSubidaFallida(fallidos,files.length);
 }
 async function eliminarVtaPlano(i){
   const p=vtaPlanos[i];if(!p)return;
