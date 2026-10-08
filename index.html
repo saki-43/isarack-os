@@ -710,6 +710,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
             <span id="vta-form-num" style="font-size:18px;font-weight:700;color:#1a1a1a;padding:8px 16px;background:#fafaf6;border:1px solid #e5e5e0;border-radius:6px;display:inline-flex;align-items:center;letter-spacing:.5px">S07000</span>
             <button id="btn-hist" onclick="toggleVtaHist()" title="Marcar como venta histórica (sin pedido ni inventario)" style="font-size:12px;padding:8px 12px;background:#fff;border:1px solid #ddd;border-radius:6px;color:#888;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">🕓 Histórica</button>
             <span id="vta-form-comercial" onclick="reasignarComercialVenta(event)" style="font-size:12px;color:#555;padding:8px 12px;background:#f0f7ff;border:1px solid #d0e2f3;border-radius:6px;display:inline-flex;align-items:center;font-weight:600">💼 —</span>
+            <button id="btn-renovar-cot" onclick="renovarVigenciaCot()" title="La cotización ya venció: pone la fecha de hoy y 15 días más de vigencia" style="display:none;font-size:12px;padding:8px 12px;background:#fff4e5;border:1px solid #f0b46c;border-radius:6px;color:#B5651D;font-weight:700;cursor:pointer;align-items:center;gap:4px">🔄 Renovar vigencia</button>
             <button class="btn-confirm" onclick="confirmarComoVenta()">✓ Confirmar como Venta</button>
             <button class="btn-outline" onclick="previsualizarCotizacion()">📄 Visualizar PDF</button>
             <button class="btn-outline red" onclick="cerrarVentaForm()">Cancelar</button>
@@ -1459,7 +1460,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.08.05';
+const APP_VERSION='2026.10.08.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -13302,7 +13303,7 @@ function _aplicarReasignComercialVta(nuevo){
   if(typeof renderComisiones==='function')renderComisiones();
   showToast('💼 Comercial reasignado a '+nuevo,'#3B6D11');
 }
-function editarVenta(i){const v=ventas[i];abrirVentaForm();/* abrirVentaForm pone editVtaIdx=-1: se fija DESPUES. Antes quedaba en -1 y guardar dependia del 'anti-duplicado'; con el arreglo de S07495 eso sacaba folio nuevo al editar (8 oct 2026). */editVtaIdx=i;if(v&&v.num)_vtaNumsMios[v.num]=true;document.getElementById('vf-cliente').value=v.cliente||'';document.getElementById('vf-rfc').value=v.rfc||'';const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val||'';};set('vf-razon',v.razon);set('vf-email',v.email);set('vf-tel',v.tel);set('vf-contacto',v.contacto);set('vf-cel',v.cel);set('vf-dir',v.dir);document.getElementById('vf-fecha').value=v.fecha||'';document.getElementById('vf-comercial').value=v.comercial||'';const lblE=document.getElementById('vta-form-comercial');if(lblE){lblE.textContent='💼 '+(v.comercial||'—');const _ua=getCurrentUser();const _nn=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());const _du=_nn(v.comercial||'');const _hu=(!_du||_du==='—'||_du.toLowerCase()==='ninguno');const _yo=_ua?_nn(_ua.nombreComercial||_ua.nombre||''):'';const _puede=_ua&&(_ua.rol==='admin'||(_ua.rol==='comercial'&&(_hu||_du===_yo)));if(_puede){lblE.style.cursor='pointer';lblE.title='Clic para reasignar comercial';}else{lblE.style.cursor='';lblE.title=_ua&&_ua.rol==='comercial'?'Solo '+_du+' o admin pueden reasignar':'';}}document.getElementById('vta-form-num').textContent=v.num||'S07000';if(v.plazo)document.getElementById('vf-plazo').value=v.plazo;if(v.tiempoEntrega)document.getElementById('vf-entrega').value=v.tiempoEntrega;if(v.instalacion)document.getElementById('vf-instalacion').value=v.instalacion;if(v.domicilio)document.getElementById('vf-domicilio').value=v.domicilio;if(v.maniobra)document.getElementById('vf-maniobra').value=v.maniobra;vtaLineas=v.lineas||[];vtaPlanos=(v.planos||[]).slice();setVtaPlanosEstado(v.planosEstado||((v.planos&&v.planos.length)?'Sí lleva':'No aplica'));renderVtaPlanosChips();vtaTipoDoc=v.tipo||'Cotización';setTipoDoc(vtaTipoDoc);vtaStage=v.stage||'Presupuesto';setVtaStage(vtaStage);const _mon=v.moneda||'USD';const _selMon=document.getElementById('vf-moneda');if(_selMon)_selMon.value=_mon;vtaMonedaOrig=_mon;renderLineas();if(typeof actualizarHintRazon==='function')actualizarHintRazon();setVtaHist(v._historica===true);if(v._historica)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf')}
+function editarVenta(i){const v=ventas[i];abrirVentaForm();/* abrirVentaForm pone editVtaIdx=-1: se fija DESPUES. Antes quedaba en -1 y guardar dependia del 'anti-duplicado'; con el arreglo de S07495 eso sacaba folio nuevo al editar (8 oct 2026). */editVtaIdx=i;if(v&&v.num)_vtaNumsMios[v.num]=true;document.getElementById('vf-cliente').value=v.cliente||'';document.getElementById('vf-rfc').value=v.rfc||'';const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val||'';};set('vf-razon',v.razon);set('vf-email',v.email);set('vf-tel',v.tel);set('vf-contacto',v.contacto);set('vf-cel',v.cel);set('vf-dir',v.dir);document.getElementById('vf-fecha').value=v.fecha||'';document.getElementById('vf-comercial').value=v.comercial||'';const lblE=document.getElementById('vta-form-comercial');if(lblE){lblE.textContent='💼 '+(v.comercial||'—');const _ua=getCurrentUser();const _nn=(typeof _normalizaEjecutivo==='function')?_normalizaEjecutivo:(x=>String(x||'').trim());const _du=_nn(v.comercial||'');const _hu=(!_du||_du==='—'||_du.toLowerCase()==='ninguno');const _yo=_ua?_nn(_ua.nombreComercial||_ua.nombre||''):'';const _puede=_ua&&(_ua.rol==='admin'||(_ua.rol==='comercial'&&(_hu||_du===_yo)));if(_puede){lblE.style.cursor='pointer';lblE.title='Clic para reasignar comercial';}else{lblE.style.cursor='';lblE.title=_ua&&_ua.rol==='comercial'?'Solo '+_du+' o admin pueden reasignar':'';}}document.getElementById('vta-form-num').textContent=v.num||'S07000';if(v.plazo)document.getElementById('vf-plazo').value=v.plazo;if(v.tiempoEntrega)document.getElementById('vf-entrega').value=v.tiempoEntrega;if(v.instalacion)document.getElementById('vf-instalacion').value=v.instalacion;if(v.domicilio)document.getElementById('vf-domicilio').value=v.domicilio;if(v.maniobra)document.getElementById('vf-maniobra').value=v.maniobra;vtaLineas=v.lineas||[];vtaPlanos=(v.planos||[]).slice();setVtaPlanosEstado(v.planosEstado||((v.planos&&v.planos.length)?'Sí lleva':'No aplica'));renderVtaPlanosChips();vtaTipoDoc=v.tipo||'Cotización';setTipoDoc(vtaTipoDoc);vtaStage=v.stage||'Presupuesto';setVtaStage(vtaStage);const _mon=v.moneda||'USD';const _selMon=document.getElementById('vf-moneda');if(_selMon)_selMon.value=_mon;vtaMonedaOrig=_mon;renderLineas();if(typeof actualizarHintRazon==='function')actualizarHintRazon();setVtaHist(v._historica===true);if(v._historica)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf');{const _xe=document.getElementById('vf-expira');if(_xe)_xe.value=v.expira||'';}_refrescarBtnRenovar();}
 // Folios de cotizaciones NUEVAS que guardé yo en esta sesión. Solo esos se
 // pueden re-guardar como edición desde un formulario nuevo.
 var _vtaNumsMios={};
@@ -13523,7 +13524,33 @@ _initBorradorLocal();
 setTimeout(_ofrecerRestaurarBorrador,2500);
 function setVtaHist(on){vtaHist=!!on;const b=document.getElementById('btn-hist');if(!b)return;if(vtaHist){b.style.background='#f3eef8';b.style.borderColor='#7c5cbf';b.style.color='#7c5cbf';b.style.fontWeight='700';b.title='Venta HISTÓRICA activada: no crea pedido ni toca inventario';}else{b.style.background='#fff';b.style.borderColor='#ddd';b.style.color='#888';b.style.fontWeight='600';b.title='Marcar como venta histórica (sin pedido ni inventario)';}}
 function toggleVtaHist(){setVtaHist(!vtaHist);if(vtaHist)showToast('🕓 Histórica activada: al guardar no crea pedido ni toca inventario','#7c5cbf');}
-function setTipoDoc(t){vtaTipoDoc=t;const c=document.getElementById('tipo-cot');const v=document.getElementById('tipo-vta');if(c)c.className='tipo-btn'+(t==='Cotización'?' active-cot':'');if(v)v.className='tipo-btn'+(t==='Venta'?' active-vta':'');}
+// v2026.10.08.06: renovar la vigencia de una cotización vieja. El vencimiento no
+// se guarda: siempre es fecha + 15 días (generarCotHTML). Renovar = fecha de hoy.
+// La fecha anterior queda en ventas_historial (trigger) al guardar.
+function _hoyLocalISO(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _vencimientoCot(){
+  const f=(document.getElementById('vf-fecha')||{}).value||'';if(!f)return '';
+  const x=(document.getElementById('vf-expira')||{}).value||'';if(x)return x;
+  const d=new Date(f+'T00:00:00');if(isNaN(d))return '';d.setDate(d.getDate()+15);return _hoyLocalISO(d);
+}
+function _refrescarBtnRenovar(){
+  const b=document.getElementById('btn-renovar-cot');if(!b)return;
+  const ven=_vencimientoCot();
+  const esCot=(typeof vtaTipoDoc==='undefined'||vtaTipoDoc==='Cotización')&&(typeof vtaStage==='undefined'||vtaStage!=='Pedido de venta');
+  const vencida=!!ven&&ven<_hoyLocalISO();
+  b.style.display=(esCot&&vencida)?'inline-flex':'none';
+  if(vencida)b.title='Venció el '+ven.split('-').reverse().join('/')+'. Pone la fecha de hoy y 15 días más de vigencia.';
+}
+function renovarVigenciaCot(){
+  const fEl=document.getElementById('vf-fecha'),xEl=document.getElementById('vf-expira');if(!fEl)return;
+  const antes=fEl.value?fEl.value.split('-').reverse().join('/'):'—';
+  const hoy=_hoyLocalISO();const v=new Date(hoy+'T00:00:00');v.setDate(v.getDate()+15);const venc=_hoyLocalISO(v);
+  if(!confirm('¿Renovar la vigencia de esta cotización?\n\nFecha: '+antes+' → '+hoy.split('-').reverse().join('/')+'\nVence: '+venc.split('-').reverse().join('/')+'\n\nLos precios NO cambian. Después dale 💾 Guardar.'))return;
+  fEl.value=hoy;if(xEl)xEl.value=venc;
+  _refrescarBtnRenovar();
+  showToast('✓ Vigencia renovada hasta el '+venc.split('-').reverse().join('/')+' — dale 💾 Guardar','#B5651D');
+}
+function setTipoDoc(t){vtaTipoDoc=t;setTimeout(_refrescarBtnRenovar,0);const c=document.getElementById('tipo-cot');const v=document.getElementById('tipo-vta');if(c)c.className='tipo-btn'+(t==='Cotización'?' active-cot':'');if(v)v.className='tipo-btn'+(t==='Venta'?' active-vta':'');}
 
 function guardarClienteRapido(){
   const get=id=>(document.getElementById(id)?.value||'').trim();
@@ -13566,7 +13593,7 @@ function guardarClienteRapido(){
     showToast('✓ Cliente "'+nombre+'" guardado en Contactos','#3B6D11');
   }
 }
-function setVtaStage(s){vtaStage=s;['vs-pres','vs-env','vs-ped'].forEach(id=>document.getElementById(id).classList.remove('active'));if(s==='Presupuesto')document.getElementById('vs-pres').classList.add('active');if(s==='Presupuesto enviado')document.getElementById('vs-env').classList.add('active');if(s==='Pedido de venta')document.getElementById('vs-ped').classList.add('active');}
+function setVtaStage(s){setTimeout(()=>{if(typeof _refrescarBtnRenovar==='function')_refrescarBtnRenovar();},0);vtaStage=s;['vs-pres','vs-env','vs-ped'].forEach(id=>document.getElementById(id).classList.remove('active'));if(s==='Presupuesto')document.getElementById('vs-pres').classList.add('active');if(s==='Presupuesto enviado')document.getElementById('vs-env').classList.add('active');if(s==='Pedido de venta')document.getElementById('vs-ped').classList.add('active');}
 let _vtaColapManual=false;
 function colapsarDatosVenta(colap){const g=document.getElementById('vta-detail-grid');if(!g)return;g.classList.toggle('colap',!!colap);const b=document.getElementById('btn-toggle-datos');if(b)b.textContent=colap?'▸ Mostrar datos del cliente':'▾ Ocultar datos del cliente';}
 function toggleDatosVenta(){const g=document.getElementById('vta-detail-grid');if(!g)return;_vtaColapManual=true;colapsarDatosVenta(!g.classList.contains('colap'));}
