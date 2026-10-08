@@ -1459,7 +1459,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.07.06';
+const APP_VERSION='2026.10.08.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4908,10 +4908,17 @@ function _instPersonalHtml(){
   var grid=grupos.map(function(g){return '<div style="margin-bottom:7px"><div style="font-size:11px;color:#888;font-weight:600;margin-bottom:4px">'+_ie(g.nombre)+'</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+g.miembros.map(function(n){return _instPersonaChip(n,!!selLow[(''+n).toLowerCase()]);}).join('')+'</div></div>';}).join('');
   return '<label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:5px">Personal que asistió ('+sel.length+')</label>'+
     '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">'+chips+'</div>'+
-    '<div style="max-height:200px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa">'+grid+'</div>'+
+    '<div id="ie-grid" style="max-height:200px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa">'+grid+'</div>'+
     '<div style="display:flex;gap:6px;margin-top:6px"><input id="ie-nuevo" placeholder="Otro nombre (libre)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div>';
 }
-function _instRenderPersonal(){var c=document.getElementById('ie-personal');if(c)c.innerHTML=_instPersonalHtml();var l=document.getElementById('ie-lider');if(l){var cur=INST_EDIT.lider;l.innerHTML='<option value="">—</option>'+INST_EDIT.instaladores.map(function(n){return '<option'+(cur===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('');}}
+function _instRenderPersonal(){var c=document.getElementById('ie-personal');
+  // Al palomear a alguien de abajo, la lista se redibujaba y regresaba hasta
+  // arriba (Isaac, 8 oct 2026). Se guarda la posicion de la lista y del modal.
+  var g0=document.getElementById('ie-grid'),gTop=g0?g0.scrollTop:0;
+  var sc=[];for(var a=c&&c.parentElement;a;a=a.parentElement){if(a.scrollHeight>a.clientHeight&&a.scrollTop>0)sc.push([a,a.scrollTop]);}
+  if(c)c.innerHTML=_instPersonalHtml();
+  var g1=document.getElementById('ie-grid');if(g1)g1.scrollTop=gTop;
+  sc.forEach(function(x){x[0].scrollTop=x[1];});var l=document.getElementById('ie-lider');if(l){var cur=INST_EDIT.lider;l.innerHTML='<option value="">—</option>'+INST_EDIT.instaladores.map(function(n){return '<option'+(cur===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('');}}
 
 async function renderInstalaciones(){
   var root=document.getElementById('inst-root');if(!root)return;
