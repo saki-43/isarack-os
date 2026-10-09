@@ -1460,7 +1460,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.08.07';
+const APP_VERSION='2026.10.09.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -6574,7 +6574,7 @@ function adjuntarXmlComplemento(i){
     if(!/\.xml$/i.test(file.name)){showToast('Debe ser un archivo .xml','#BA7517');return;}
     if(typeof validarTamanoArchivo==='function'&&!validarTamanoArchivo(file,'XML Complemento'))return;
     const reader=new FileReader();
-    reader.onload=ev=>{facturas[i].xmlComplemento={name:file.name,data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ XML del complemento cargado','#3B6D11');};
+    reader.onload=ev=>{facturas[i].xmlComplemento={name:file.name,data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);_notifComplemento(facturas[i]);renderFacturas();showToast('✓ XML del complemento cargado','#3B6D11');};
     reader.readAsDataURL(file);};
   inp.click();
 }
@@ -6598,6 +6598,17 @@ async function descargarXmlFactura(i){
     document.body.appendChild(a);a.click();a.remove();showToast('⬇ Descargando XML','#185FA5');
   }catch(e){showToast('Error al descargar','#BA7517');}
 }
+// v2026.10.09.01: al subir el complemento de pago (PDF o XML) le llega una notificación
+// (campanita) al comercial de ese pedido. Una sola vez por pedido: crearNotificacion
+// ignora duplicados (destinatario+titulo+ref).
+function _notifComplemento(f){
+  try{
+    if(!f||!f.pedido||typeof crearNotificacion!=='function')return;
+    const com=(typeof _ejecutivoReal==='function'?_ejecutivoReal(f):'')||f.ejecutivo||'';
+    if(!com||com==='—')return;
+    crearNotificacion('comercial:'+_canonNotif(com),'💰 Complemento de pago','Pedido '+f.pedido+(f.cliente?' · '+f.cliente:'')+': ya se subió el complemento de pago',f.pedido);
+  }catch(e){}
+}
 function adjuntarCampoFact(i,campo){
   if((campo==='factura'||campo==='complemento')&&!puedeEditarFactura(campo==='factura'?facturas[i]:null)){showToast('🔒 Solo Adrián Solórzano puede subir la factura o el complemento (Daniel: solo facturas históricas 🕓)','#BA7517');return;}
   const labels={rfc:'RFC',factura:'Factura',poNum:'PO',anticipo:'Anticipo',finiquito:'Finiquito',complemento:'Complemento de pago'};
@@ -6617,7 +6628,7 @@ function adjuntarCampoFact(i,campo){
     leerArchivoComprimido(file).then(res=>{
       const _f=facturas[i];
       facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};
-      guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();
+      guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);if(campo==='complemento')_notifComplemento(facturas[i]);renderFacturas();
       showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');
     }).catch(()=>showToast('Error al procesar archivo','#c62828'));
   };
@@ -6642,7 +6653,7 @@ function _adjuntarXmlComplementoConFile(i,file){
   const reader=new FileReader();
   reader.onload=ev=>{
     facturas[i].xmlComplemento={name:file.name,data:ev.target.result};
-    guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();
+    guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);_notifComplemento(facturas[i]);renderFacturas();
     showToast('✓ XML del complemento cargado','#3B6D11');
   };
   reader.readAsDataURL(file);
@@ -6659,6 +6670,7 @@ function _procesarPdfCampoFact(i,campo,file){
     facturas[i][pdfKeys[campo]]={name:nombreDocFactura(_f.pedido,_f.cliente,_TIPO_LABEL_CAMPO[campo],file),data:res.data};
     guardarFacturasLS();
     if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);
+    if(campo==='complemento')_notifComplemento(facturas[i]);
     renderFacturas();
     showToast('✓ '+labels[campo]+' adjuntado','#3B6D11');
   }).catch(()=>showToast('Error al procesar archivo','#c62828'));
@@ -6674,7 +6686,7 @@ function _procesarXmlComplementoFile(i,file){
   if(typeof puedeEditarFactura==='function'&&!puedeEditarFactura()){showToast('🔒 Sin permiso para subir el complemento','#BA7517');return;}
   if(typeof validarTamanoArchivo==='function'&&!validarTamanoArchivo(file,'XML Complemento'))return;
   const reader=new FileReader();
-  reader.onload=ev=>{facturas[i].xmlComplemento={name:file.name,data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);renderFacturas();showToast('✓ XML del complemento cargado','#3B6D11');};
+  reader.onload=ev=>{facturas[i].xmlComplemento={name:file.name,data:ev.target.result};guardarFacturasLS();if(typeof cloudSyncFactura==='function')cloudSyncFactura(facturas[i]);_notifComplemento(facturas[i]);renderFacturas();showToast('✓ XML del complemento cargado','#3B6D11');};
   reader.readAsDataURL(file);
 }
 // Despacha un archivo suelto/pegado al slot correcto segun campo y extension.
