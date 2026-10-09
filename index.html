@@ -1460,7 +1460,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.09.01';
+const APP_VERSION='2026.10.09.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -10022,6 +10022,7 @@ async function abrirKardex(sku){
             <div><label style="font-size:10px;color:#555">Motivo</label>
               <select id="kx-motivo" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px">
                 <option value="conteo_fisico">Conteo físico</option>
+                <option value="entrada_importacion">Entrada de importación</option>
                 <option value="merma">Merma / dañado</option>
                 <option value="correccion">Corrección de captura</option>
                 <option value="devolucion">Devolución de cliente</option>
@@ -10087,7 +10088,7 @@ async function _kardexCargarHist(sku){
     const {data,error}=await supabaseClient.from('inv_movimientos').select('*').eq('sku',sku).order('fecha',{ascending:false}).limit(200);
     if(error)throw error;
     if(!data||!data.length){cont.innerHTML=_pedidosHTML+'<div style="text-align:center;color:#888;font-size:12px;padding:20px">Sin movimientos registrados. Los movimientos futuros se irán registrando aquí automáticamente.</div>';return;}
-    const tag=(t)=>{const m={venta:['VENTA','#FCEBEB','#A32D2D'],compra:['COMPRA','#EAF3DE','#3B6D11'],ajuste:['AJUSTE','#FAEEDA','#854F0B'],conteo:['CONTEO','#E6F1FB','#185FA5'],devolucion:['DEVOLUCIÓN','#EEEDFE','#534AB7'],reintegro:['REINTEGRO','#EEEDFE','#534AB7'],inicial:['INICIAL','#F1EFE8','#5F5E5A']}[t]||[t.toUpperCase(),'#F1EFE8','#5F5E5A'];return `<span style="background:${m[1]};color:${m[2]};font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">${m[0]}</span>`;};
+    const tag=(t)=>{const m={venta:['VENTA','#FCEBEB','#A32D2D'],compra:['COMPRA','#EAF3DE','#3B6D11'],importacion:['IMPORTACIÓN','#EAF3DE','#3B6D11'],ajuste:['AJUSTE','#FAEEDA','#854F0B'],conteo:['CONTEO','#E6F1FB','#185FA5'],devolucion:['DEVOLUCIÓN','#EEEDFE','#534AB7'],reintegro:['REINTEGRO','#EEEDFE','#534AB7'],inicial:['INICIAL','#F1EFE8','#5F5E5A']}[t]||[t.toUpperCase(),'#F1EFE8','#5F5E5A'];return `<span style="background:${m[1]};color:${m[2]};font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">${m[0]}</span>`;};
     let html='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1a1a1a;color:#fff"><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Fecha</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Tipo</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Referencia</th><th style="text-align:left;padding:7px 8px;font-size:10px;font-weight:600">Usuario</th><th style="text-align:right;padding:7px 8px;font-size:10px;font-weight:600">Cant.</th><th style="text-align:right;padding:7px 8px;font-size:10px;font-weight:600">Saldo</th></tr></thead><tbody>';
     data.forEach(m=>{
       const f=new Date(m.fecha);const fs=('0'+f.getDate()).slice(-2)+'/'+('0'+(f.getMonth()+1)).slice(-2)+' '+('0'+f.getHours()).slice(-2)+':'+('0'+f.getMinutes()).slice(-2);
@@ -10107,10 +10108,13 @@ async function _kardexGuardarAjuste(sku){
   const cant=Number(document.getElementById('kx-cant').value||0);
   const nota=document.getElementById('kx-nota').value.trim();
   if(!cant){showToast('Ingresa una cantidad distinta de 0','#BA7517');return;}
+  // v2026.10.09.02: material que llega de proveedor (contenedor). Solo suma.
+  const _esImp=motivo==='entrada_importacion';
+  if(_esImp&&cant<0){showToast('La entrada de importación debe ser positiva','#BA7517');return;}
   p.cantidad=Number(p.cantidad||0)+cant;
   guardarLS('isarack_inventario_v4',inventario);
   if(typeof cloudSyncInventario==='function')cloudSyncInventario(p);
-  await _kardexRegistrar({sku,tipo:'ajuste',motivo,cantidad:cant,nota,ref_tipo:'ajuste'});
+  await _kardexRegistrar({sku,tipo:_esImp?'importacion':'ajuste',motivo:_esImp?'Entrada de importación':motivo,cantidad:cant,nota,ref_tipo:_esImp?'importacion':'ajuste'});
   document.getElementById('kardex-modal-overlay').remove();
   if(typeof renderInventario==='function')renderInventario();
   showToast('✓ Ajuste guardado en Kardex','#3B6D11');
