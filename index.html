@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.10.01';
+const APP_VERSION='2026.10.10.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -10004,6 +10004,7 @@ function abrirKardexLote(){
         <input id="kxl-buscar" autocomplete="off" oninput="_kxlSugerir(this.value)" onkeydown="if(event.key==='Enter'){const f=document.querySelector('#kxl-sug [data-sku]');if(f){event.preventDefault();_kxlAgregar(f.dataset.sku);}}" placeholder="🔍 Ej: viga 144, malla 108, SEL-0081…" style="width:100%;padding:9px;border:2px solid #D85A30;border-radius:6px;font-size:13px;box-sizing:border-box">
         <div id="kxl-sug" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:300px;overflow:auto;z-index:5;display:none"></div>
       </div>
+      <div id="kxl-nuevo" style="display:none"></div>
       <div style="margin-top:12px"><label style="font-size:11px;color:#555;font-weight:600">3. ¿Cuánto? (por renglón)</label>
         <div id="kxl-tabla"></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap">
@@ -10024,7 +10025,8 @@ function _kxlSugerir(q){
   if(!pal.length){box.style.display='none';return;}
   const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
   const res=inv.filter(p=>p&&p.sku&&!p.es_servicio&&!p.esServicio&&pal.every(w=>((p.sku||'')+' '+(p.producto||'')).toLowerCase().includes(w))).slice(0,15);
-  box.innerHTML=res.length?res.map(p=>`<div data-sku="${_kxlEsc(p.sku)}" onclick="_kxlAgregar(this.dataset.sku)" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;display:flex;gap:8px" onmouseover="this.style.background='#fff4ee'" onmouseout="this.style.background='#fff'"><b style="color:#D85A30;min-width:78px">${_kxlEsc(p.sku)}</b><span style="flex:1">${_kxlEsc(p.producto)}</span><span style="color:#888">hay ${Number(p.cantidad||0).toLocaleString()}</span></div>`).join(''):'<div style="padding:10px;color:#888;font-size:12px">Sin resultados</div>';
+  const _nuevo=`<div onclick="_kxlFormNuevo()" style="padding:9px 10px;cursor:pointer;font-size:12px;color:#185FA5;font-weight:600;background:#f5f9ff" onmouseover="this.style.background='#e6f1fb'" onmouseout="this.style.background='#f5f9ff'">➕ ¿No está? Dar de alta producto nuevo: "${_kxlEsc(q.trim())}"</div>`;
+  box.innerHTML=(res.length?res.map(p=>`<div data-sku="${_kxlEsc(p.sku)}" onclick="_kxlAgregar(this.dataset.sku)" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;display:flex;gap:8px" onmouseover="this.style.background='#fff4ee'" onmouseout="this.style.background='#fff'"><b style="color:#D85A30;min-width:78px">${_kxlEsc(p.sku)}</b><span style="flex:1">${_kxlEsc(p.producto)}</span><span style="color:#888">hay ${Number(p.cantidad||0).toLocaleString()}</span></div>`).join(''):'<div style="padding:10px;color:#888;font-size:12px">Sin resultados</div>')+_nuevo;
   box.style.display='block';
 }
 function _kxlAgregar(sku){
@@ -10035,6 +10037,46 @@ function _kxlAgregar(sku){
   const box=document.getElementById('kxl-sug');if(box)box.style.display='none';
   _kxlRender();
   setTimeout(()=>{const c=document.getElementById('kxl-c-'+sku.replace(/[^A-Za-z0-9_-]/g,'_'));if(c){c.focus();c.select();}},30);
+}
+// Alta rápida de un producto que no existe (p.ej. tornillería nueva de un contenedor).
+// Nace con existencia 0; la cantidad que llegó se suma al darle Cargar y queda en el kardex.
+const _KXL_SIS={SELECTIVO:'SEL',PICKING:'PIC',APLIC:'APL',MECANO:'MEC',GONDOLAS:'GON',DRIVING:'DRI',CANTILEVER:'CAN',MEZZANINE:'MEZ',ACCESORIOS:'ACC',OTRO:'OT'};
+function _kxlSkuNuevo(sis){const pre=_KXL_SIS[sis]||'OT';const nums=inventario.filter(x=>(x.sku||'').startsWith(pre+'-')).map(x=>parseInt(x.sku.split('-')[1])||0);return pre+'-'+String((nums.length?Math.max(...nums):0)+1).padStart(4,'0');}
+function _kxlFormNuevo(){
+  const box=document.getElementById('kxl-sug');if(box)box.style.display='none';
+  const q=((document.getElementById('kxl-buscar')||{}).value||'').trim().toUpperCase();
+  const f=document.getElementById('kxl-nuevo');if(!f)return;
+  f.style.display='block';
+  f.innerHTML=`<div style="margin-top:10px;background:#f5f9ff;border:1px solid #c5d8ea;border-radius:8px;padding:12px">
+    <div style="font-size:12px;font-weight:700;color:#185FA5;margin-bottom:8px">➕ Producto nuevo (nace en 0; lo que llegó se suma al Cargar)</div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;align-items:end">
+      <div><label style="font-size:10px;color:#555">Nombre *</label><input id="kxn-nombre" value="${_kxlEsc(q)}" placeholder="Ej: TORNILLO HEXAGONAL M10X25 C/TUERCA" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;font-size:12px;box-sizing:border-box;text-transform:uppercase"></div>
+      <div><label style="font-size:10px;color:#555">Sistema</label><select id="kxn-sis" onchange="document.getElementById('kxn-sku').textContent=_kxlSkuNuevo(this.value)" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;font-size:12px">${Object.keys(_KXL_SIS).map(k=>`<option${k==='SELECTIVO'?' selected':''}>${k}</option>`).join('')}</select></div>
+      <div><label style="font-size:10px;color:#555">Medida</label><input id="kxn-medida" placeholder='Ej: 3/8"x1"' style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+      <div><label style="font-size:10px;color:#555">Precio USD</label><input id="kxn-precio" type="number" step="0.01" value="0" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <span style="font-size:11px;color:#555">SKU que tendrá: <b id="kxn-sku" style="color:#D85A30">${_kxlSkuNuevo('SELECTIVO')}</b></span>
+      <span><button onclick="document.getElementById('kxl-nuevo').style.display='none'" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="_kxlCrearNuevo()" style="background:#185FA5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">Crear y agregar a la lista</button></span>
+    </div></div>`;
+  setTimeout(()=>{const n=document.getElementById('kxn-nombre');if(n)n.focus();},30);
+}
+function _kxlCrearNuevo(){
+  if(typeof puedeEditarInventario==='function'&&!puedeEditarInventario()){showToast('🔒 Sin permiso para dar de alta productos','#BA7517');return;}
+  const nombre=((document.getElementById('kxn-nombre')||{}).value||'').trim().toUpperCase();
+  if(!nombre){showToast('Pon el nombre del producto','#BA7517');return;}
+  const dup=inventario.find(x=>(x.producto||'').trim().toUpperCase()===nombre);
+  if(dup){showToast('Ya existe: '+dup.sku+' — lo agregué a la lista','#BA7517');document.getElementById('kxl-nuevo').style.display='none';_kxlAgregar(dup.sku);return;}
+  const sis=(document.getElementById('kxn-sis')||{}).value||'SELECTIVO';
+  const sku=_kxlSkuNuevo(sis);
+  const data={sku,producto:nombre,sistema:sis,medida:((document.getElementById('kxn-medida')||{}).value||'').trim(),precio:parseFloat((document.getElementById('kxn-precio')||{}).value)||0,cantidad:0,cantidad_inicial:0,alerta_minimo:0};
+  inventario.unshift(data);
+  guardarLS('isarack_inventario_v4',inventario);
+  if(typeof cloudSyncInventario==='function')cloudSyncInventario(data);
+  document.getElementById('kxl-nuevo').style.display='none';
+  showToast('✓ Producto nuevo '+sku+' creado','#185FA5');
+  _kxlAgregar(sku);
 }
 function _kxlSoloPositivo(){return _kxl.motivo==='entrada_importacion'||_kxl.motivo==='devolucion';}
 function _kxlRender(){
