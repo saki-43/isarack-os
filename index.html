@@ -666,6 +666,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       </div>
       <div class="toolbar">
         <input id="inv-buscar" class="sbx" placeholder="🔍 Buscar producto..." oninput="renderInventario()">
+        <button id="btn-kardex-lote" onclick="abrirKardexLote()" title="Registrar varios artículos de un jalón (entrada de importación, conteo, etc.)" style="display:none;background:#D85A30;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📋 Kardex · Varios</button>
         <select id="inv-filtro-sis" class="sbx" style="width:auto;border-radius:8px" onchange="renderInventario()"><option value="">Todos los sistemas</option><option value="SELECTIVO">SEL — Selectivo</option><option value="PICKING">PIC — Picking</option><option value="APLICK">APL — Aplic</option><option value="CANTILEVER">CAN — Cantilever</option><option value="MECANO">MEC — Mecano</option><option value="GONDOLAS">GON — Góndolas</option><option value="DRIVING">DRI — Driving</option><option value="ACCESORIOS">ACC — Accesorios</option></select>
         <select id="inv-filtro-estado" class="sbx" style="width:auto;border-radius:8px" onchange="renderInventario()"><option value="">Todos</option><option value="ok">Con stock</option><option value="bajo">Stock bajo</option><option value="cero">Sin stock</option><option value="deficit">⚠ Solo en déficit</option></select><div id="inv-admin-buttons" style="display:none;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;position:relative"><button onclick="abrirNuevoProducto()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ Nuevo Producto</button><button onclick="toggleMenuOpcionesInv(event)" style="padding:6px 14px;background:#444;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⚙ Más opciones ▾</button><div id="menu-opciones-inv" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);min-width:240px;z-index:200;overflow:hidden"><button onclick="cerrarMenuOpcionesInv();abrirPanelDeficit()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">⚠ <span style="margin-left:4px;color:#c62828;font-weight:600">Déficit</span></button><button onclick="cerrarMenuOpcionesInv();abrirReporteVentas()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">📊 <span style="margin-left:4px;color:#3B6D11;font-weight:600">Reporte de ventas</span></button><button onclick="cerrarMenuOpcionesInv();abrirPanelMarcos()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#e8f2fc'" onmouseout="this.style.background='transparent'">📐 <span style="margin-left:4px;color:#185FA5;font-weight:600">Marcos disponibles</span></button><button onclick="cerrarMenuOpcionesInv();abrirPanelGondolas()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">🏬 <span style="margin-left:4px;color:#3B6D11;font-weight:600">Góndolas disponibles</span></button><button onclick="cerrarMenuOpcionesInv();abrirModalReglasBom()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">🔧 <span style="margin-left:4px;color:#D85A30;font-weight:600">Reglas BOM</span></button><button onclick="cerrarMenuOpcionesInv();abrirModalModulos()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">📦 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Módulos</span></button><button onclick="cerrarMenuOpcionesInv();exportarInventarioExcel()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">📊 <span style="margin-left:4px;color:#1F6B3F;font-weight:600">Exportar Excel</span></button><button onclick="cerrarMenuOpcionesInv();reconciliarInventarioMasivo()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">🔁 <span style="margin-left:4px;color:#c62828;font-weight:600">Reconciliar inventario</span></button><button onclick="cerrarMenuOpcionesInv();limpiarHistoricasEnSeguimiento()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">🕓 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Limpiar históricas en seguimiento</span></button><button onclick="cerrarMenuOpcionesInv();abrirCierreMes()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">📅 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Cierre de mes</span></button></div></div>
       </div>
@@ -1460,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.09.02';
+const APP_VERSION='2026.10.10.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -9816,6 +9817,8 @@ function aplicarPermisosInventarioUI(){
     const esAdmin=u&&u.rol==='admin';
     const cont=document.getElementById('inv-admin-buttons');
     if(cont)cont.style.display=esAdmin?'flex':'none';
+    const _bk=document.getElementById('btn-kardex-lote');
+    if(_bk)_bk.style.display=(typeof puedeEditarInventario==='function'&&puedeEditarInventario())?'inline-block':'none';
   }catch(e){console.warn('aplicarPermisosInventarioUI:',e);}
 }
 function toggleMenuOpcionesInv(ev){
@@ -9967,6 +9970,111 @@ async function _kardexRegistrar(mov){
     }
   }catch(e){console.warn('kardex insert:',e);}
 }
+
+// ── v2026.10.10.01: KARDEX · VARIOS ──────────────────────────────────────────
+// Movimiento de varios artículos de un jalón (p.ej. llega un contenedor):
+// 1) motivo, 2) buscar producto (predictivo, como al cotizar), 3) cantidad por
+// renglón, 4) Cargar. Cada renglón suma a su SKU, sube a la nube y queda en su
+// kardex igual que el ajuste individual. El borrador se guarda en este equipo.
+const _KXL_KEY='isarack_kardex_lote';
+const _KXL_MOTIVOS=[['entrada_importacion','Entrada de importación'],['conteo_fisico','Conteo físico'],['merma','Merma / dañado'],['correccion','Corrección de captura'],['devolucion','Devolución de cliente'],['otro','Otro']];
+let _kxl={motivo:'entrada_importacion',nota:'',filas:[]};
+function _kxlGuardar(){try{localStorage.setItem(_KXL_KEY,JSON.stringify(_kxl));}catch(e){}}
+function _kxlEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function abrirKardexLote(){
+  if(typeof puedeEditarInventario==='function'&&!puedeEditarInventario()){showToast('🔒 Sin permiso para mover inventario','#BA7517');return;}
+  try{const b=JSON.parse(localStorage.getItem(_KXL_KEY)||'null');if(b&&Array.isArray(b.filas))_kxl=b;}catch(e){}
+  const old=document.getElementById('kxl-overlay');if(old)old.remove();
+  const ov=document.createElement('div');ov.id='kxl-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding:24px 12px;overflow:auto';
+  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:900px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,.15);overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#D85A30;color:#fff">
+      <div style="font-weight:700;font-size:14px">📋 Kardex — Movimiento de varios artículos</div>
+      <button onclick="document.getElementById('kxl-overlay').remove()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <div><label style="font-size:11px;color:#555;font-weight:600">1. Motivo</label>
+          <select id="kxl-motivo" onchange="_kxl.motivo=this.value;_kxlGuardar();_kxlRender()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px">${_KXL_MOTIVOS.map(m=>`<option value="${m[0]}"${_kxl.motivo===m[0]?' selected':''}>${m[1]}</option>`).join('')}</select></div>
+        <div><label style="font-size:11px;color:#555;font-weight:600">Nota / referencia</label>
+          <input id="kxl-nota" value="${_kxlEsc(_kxl.nota)}" oninput="_kxl.nota=this.value;_kxlGuardar()" placeholder="Ej: Contenedor 9 oct 2026" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-top:12px;position:relative">
+        <label style="font-size:11px;color:#555;font-weight:600">2. Buscar producto (SKU o nombre)</label>
+        <input id="kxl-buscar" autocomplete="off" oninput="_kxlSugerir(this.value)" onkeydown="if(event.key==='Enter'){const f=document.querySelector('#kxl-sug [data-sku]');if(f){event.preventDefault();_kxlAgregar(f.dataset.sku);}}" placeholder="🔍 Ej: viga 144, malla 108, SEL-0081…" style="width:100%;padding:9px;border:2px solid #D85A30;border-radius:6px;font-size:13px;box-sizing:border-box">
+        <div id="kxl-sug" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:300px;overflow:auto;z-index:5;display:none"></div>
+      </div>
+      <div style="margin-top:12px"><label style="font-size:11px;color:#555;font-weight:600">3. ¿Cuánto? (por renglón)</label>
+        <div id="kxl-tabla"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap">
+        <div id="kxl-resumen" style="font-size:12px;color:#555"></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="if(confirm('¿Vaciar la lista?')){_kxl.filas=[];_kxlGuardar();_kxlRender();}" style="background:#fff;color:#A32D2D;border:1px solid #e3b5b5;border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer">Vaciar</button>
+          <button id="kxl-cargar" onclick="_kxlCargar()" style="background:#3B6D11;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">⬆ Cargar</button>
+        </div>
+      </div>
+    </div></div>`;
+  document.body.appendChild(ov);
+  _kxlRender();
+  setTimeout(()=>{const b=document.getElementById('kxl-buscar');if(b)b.focus();},50);
+}
+function _kxlSugerir(q){
+  const box=document.getElementById('kxl-sug');if(!box)return;
+  const pal=String(q||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if(!pal.length){box.style.display='none';return;}
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  const res=inv.filter(p=>p&&p.sku&&!p.es_servicio&&!p.esServicio&&pal.every(w=>((p.sku||'')+' '+(p.producto||'')).toLowerCase().includes(w))).slice(0,15);
+  box.innerHTML=res.length?res.map(p=>`<div data-sku="${_kxlEsc(p.sku)}" onclick="_kxlAgregar(this.dataset.sku)" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;display:flex;gap:8px" onmouseover="this.style.background='#fff4ee'" onmouseout="this.style.background='#fff'"><b style="color:#D85A30;min-width:78px">${_kxlEsc(p.sku)}</b><span style="flex:1">${_kxlEsc(p.producto)}</span><span style="color:#888">hay ${Number(p.cantidad||0).toLocaleString()}</span></div>`).join(''):'<div style="padding:10px;color:#888;font-size:12px">Sin resultados</div>';
+  box.style.display='block';
+}
+function _kxlAgregar(sku){
+  const i=_kxl.filas.findIndex(f=>f.sku===sku);
+  if(i<0)_kxl.filas.push({sku,cant:''});
+  _kxlGuardar();
+  const b=document.getElementById('kxl-buscar');if(b)b.value='';
+  const box=document.getElementById('kxl-sug');if(box)box.style.display='none';
+  _kxlRender();
+  setTimeout(()=>{const c=document.getElementById('kxl-c-'+sku.replace(/[^A-Za-z0-9_-]/g,'_'));if(c){c.focus();c.select();}},30);
+}
+function _kxlSoloPositivo(){return _kxl.motivo==='entrada_importacion'||_kxl.motivo==='devolucion';}
+function _kxlRender(){
+  const t=document.getElementById('kxl-tabla');if(!t)return;
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  if(!_kxl.filas.length){t.innerHTML='<div style="text-align:center;color:#888;font-size:12px;padding:18px;border:1px dashed #ddd;border-radius:8px">Busca un producto arriba para agregarlo a la lista</div>';}
+  else t.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1a1a1a;color:#fff"><th style="text-align:left;padding:7px 8px">SKU</th><th style="text-align:left;padding:7px 8px">Producto</th><th style="text-align:right;padding:7px 8px">Hay</th><th style="text-align:right;padding:7px 8px;width:120px">'+(_kxlSoloPositivo()?'Llegó':'Cantidad (+/−)')+'</th><th style="text-align:right;padding:7px 8px">Quedará</th><th style="width:30px"></th></tr></thead><tbody>'+
+    _kxl.filas.map((f,i)=>{const p=inv.find(x=>x.sku===f.sku);const hay=p?Number(p.cantidad||0):0;const c=Number(f.cant)||0;const id='kxl-c-'+f.sku.replace(/[^A-Za-z0-9_-]/g,'_');
+      return `<tr style="border-bottom:1px solid #eee${p?'':';background:#FCEBEB'}"><td style="padding:6px 8px;color:#D85A30;font-weight:700">${_kxlEsc(f.sku)}</td><td style="padding:6px 8px">${p?_kxlEsc(p.producto):'<b style="color:#A32D2D">No existe en inventario</b>'}</td><td style="padding:6px 8px;text-align:right">${hay.toLocaleString()}</td><td style="padding:4px 8px;text-align:right"><input id="${id}" type="number" value="${_kxlEsc(f.cant)}" oninput="_kxl.filas[${i}].cant=this.value;_kxlGuardar();_kxlResumen();const q=this.closest('tr').querySelector('.kxl-q');if(q)q.textContent=(${hay}+(Number(this.value)||0)).toLocaleString()" onkeydown="if(event.key==='Enter'){event.preventDefault();const b=document.getElementById('kxl-buscar');if(b)b.focus();}" style="width:100px;padding:6px;border:1px solid #ccc;border-radius:6px;text-align:right;font-size:13px;font-weight:600"></td><td class="kxl-q" style="padding:6px 8px;text-align:right;color:#3B6D11;font-weight:600">${(hay+c).toLocaleString()}</td><td style="text-align:center"><button onclick="_kxl.filas.splice(${i},1);_kxlGuardar();_kxlRender()" title="Quitar" style="background:none;border:none;color:#A32D2D;cursor:pointer;font-size:14px">✕</button></td></tr>`;}).join('')+'</tbody></table>';
+  _kxlResumen();
+}
+function _kxlResumen(){
+  const r=document.getElementById('kxl-resumen');if(!r)return;
+  const n=_kxl.filas.filter(f=>Number(f.cant)).length;const tot=_kxl.filas.reduce((a,f)=>a+(Number(f.cant)||0),0);
+  r.innerHTML=`<b>${n}</b> artículo(s) con cantidad · <b>${tot.toLocaleString()}</b> pieza(s)`;
+}
+async function _kxlCargar(){
+  if(typeof puedeEditarInventario==='function'&&!puedeEditarInventario()){showToast('🔒 Sin permiso para mover inventario','#BA7517');return;}
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  const filas=_kxl.filas.map(f=>({sku:f.sku,cant:Number(f.cant)||0,p:inv.find(x=>x.sku===f.sku)})).filter(f=>f.cant!==0);
+  if(!filas.length){showToast('Pon la cantidad en al menos un renglón','#BA7517');return;}
+  if(filas.some(f=>!f.p)){showToast('Hay SKU que no existen en inventario (en rojo). Quítalos primero.','#c62828');return;}
+  if(_kxlSoloPositivo()&&filas.some(f=>f.cant<0)){showToast('Con este motivo las cantidades deben ser positivas','#BA7517');return;}
+  const motLbl=(_KXL_MOTIVOS.find(m=>m[0]===_kxl.motivo)||[,_kxl.motivo])[1];
+  const tot=filas.reduce((a,f)=>a+f.cant,0);
+  if(!confirm('¿Cargar '+filas.length+' artículo(s) al inventario?\n\nMotivo: '+motLbl+(_kxl.nota?'\nNota: '+_kxl.nota:'')+'\nTotal: '+tot.toLocaleString()+' pieza(s)\n\n'+filas.slice(0,12).map(f=>'• '+f.sku+'  '+(f.cant>0?'+':'')+f.cant).join('\n')+(filas.length>12?'\n…':'')))return;
+  const btn=document.getElementById('kxl-cargar');if(btn){btn.disabled=true;btn.textContent='⏳ Cargando…';}
+  const esImp=_kxl.motivo==='entrada_importacion';
+  filas.forEach(f=>{f.p.cantidad=Number(f.p.cantidad||0)+f.cant;});
+  guardarLS('isarack_inventario_v4',inventario);
+  for(const f of filas){
+    try{if(typeof cloudSyncInventario==='function')await cloudSyncInventario(f.p);}catch(e){}
+    await _kardexRegistrar({sku:f.sku,tipo:esImp?'importacion':'ajuste',motivo:esImp?'Entrada de importación':_kxl.motivo,cantidad:f.cant,nota:_kxl.nota||'',ref_tipo:esImp?'importacion':'ajuste'});
+  }
+  _kxl={motivo:_kxl.motivo,nota:'',filas:[]};_kxlGuardar();
+  const ov=document.getElementById('kxl-overlay');if(ov)ov.remove();
+  if(typeof renderInventario==='function')renderInventario();
+  showToast('✓ '+filas.length+' artículo(s) cargados al inventario y al kardex','#3B6D11');
+}
+
 function _kardexRegistrarLote(movs){try{(movs||[]).forEach(m=>_kardexRegistrar(m));}catch(e){}}
 function _comprometidoSKU(sku){
   try{
