@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.12.01';
+const APP_VERSION='2026.10.12.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2982,10 +2982,15 @@ async function renderDashboard(){
   // cotizaciones sin confirmar y aparecian en Top clientes / Ventas por comercial
   // como si fueran ventas reales (bug S07xxx Isaac Romero -> Isaac Romero).
   const ventasDetalle=[];
+  // v2026.10.12.02: el mes de un pedido es cuando se CONFIRMO como venta (la misma
+  // fecha que muestra Seguimiento, _tsVentaOrden), no la fecha de la cotizacion.
+  // Antes S07419 (cotizada 8 sep, confirmada 8 oct) contaba en septiembre y el
+  // dashboard de octubre mostraba 4 pedidos contra 7 en Seguimiento.
+  const _fechaVentaDash=o=>{try{const t=(typeof _tsVentaOrden==='function')?_tsVentaOrden(o):0;if(t){const d=new Date(t);if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}}catch(e){}return o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):null);};
   for(const o of orders){
     if(!o||o.archivadoCotizacion)continue;
     if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))continue;
-    const fecha=o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):null);
+    const fecha=_fechaVentaDash(o);
     if(!fecha)continue;
     let lineas=null;
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length)lineas=o.cotData.lineas;
@@ -3011,7 +3016,7 @@ async function renderDashboard(){
   
   // ── KPIs MENSUALES (filtrados por mesActual) ──
   const ventasMesActual=esTodos?ventasDetalle:ventasDetalle.filter(v=>v.fecha.slice(0,7)===mesActual);
-  const ordersDelMes=esTodos?orders.slice():orders.filter(o=>{const f=o.fecha||(o.id?new Date(o.id).toISOString().slice(0,10):null);return f&&f.slice(0,7)===mesActual;});
+  const ordersDelMes=esTodos?orders.slice():orders.filter(o=>{const f=_fechaVentaDash(o);return f&&f.slice(0,7)===mesActual;});
   const facturasDelMes=esTodos?facturas.slice():facturas.filter(f=>f.fecha&&f.fecha.slice(0,7)===mesActual);
   
   const totalVendido=ventasMesActual.reduce((s,d)=>s+d.total,0);
