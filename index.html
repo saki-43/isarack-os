@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.10.02';
+const APP_VERSION='2026.10.12.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -12652,7 +12652,7 @@ function _renderResumenDiario(R){
   H+=seccion('Entregas / instalaciones (7 días)','#854F0B','📅',R.entregas,function(e){return fila(e.num,e.cliente,e.cuando+(e.inst?' · '+e.inst:''),'#854F0B');},'Sin entregas programadas esta semana.');
   H+=seccion('Instalaciones en proceso','#185FA5','🚧',R.enProceso,function(e){return fila(e.num,e.cliente,e.inst||'sin instalador','#185FA5');},'Ninguna instalación en proceso ahora.');
   H+=seccion('Fotos de hoy en obra','#0F6E56','📸',R.fotosObra,function(e){return fila(e.num,e.cliente+(e.comercial?' · '+e.comercial:''),e.txt,'#0F6E56');},'Hoy no se han subido fotos en obra.');
-  H+=seccion('Pendientes de firma del cliente','#A32D2D','✍️',R.sinFirma,function(e){return fila(e.num,e.cliente,'falta firma','#A32D2D');},'Todo firmado. 👌');
+  // v2026.10.12.01: se quitó la lista 'Pendientes de firma del cliente' (a petición de Isaac).
   H+=seccion('Cambios desde tu última visita','#7c5cbf','🆕',R.novedades,function(e){return fila(e.num,e.cliente+(e.comercial?' · '+e.comercial:''),e.txt,'#7c5cbf');},'Sin cambios nuevos desde tu última visita.');
   H+='<div style="padding:14px 18px 18px;display:flex;justify-content:flex-end"><button onclick="_cerrarResumenDia()" style="font-size:13px;background:#D85A30;color:#fff;border:none;border-radius:8px;padding:9px 22px;font-weight:600;cursor:pointer">Entendido</button></div></div>';
   var ov=document.createElement('div');ov.id='resumen-dia-ov';
