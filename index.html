@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.12.02';
+const APP_VERSION='2026.10.13.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -13727,6 +13727,28 @@ function renovarVigenciaCot(){
 }
 function setTipoDoc(t){vtaTipoDoc=t;setTimeout(_refrescarBtnRenovar,0);const c=document.getElementById('tipo-cot');const v=document.getElementById('tipo-vta');if(c)c.className='tipo-btn'+(t==='Cotización'?' active-cot':'');if(v)v.className='tipo-btn'+(t==='Venta'?' active-vta':'');}
 
+// v2026.10.13.01: al guardar una cotizacion/venta, el cliente pasa solo a Contactos.
+// Si no existe se crea; si existe se llenan los datos que le faltan y se cambian
+// los que sean distintos. Lo que viene VACIO en la venta no borra nada del contacto.
+// Solo escribe a la nube si algo cambio.
+function _sincContactoDesdeVenta(v){
+  try{
+    if(!v||typeof contactos==='undefined'||!Array.isArray(contactos))return;
+    const nombre=String(v.cliente||'').trim();
+    if(!nombre||nombre==='CLIENTE')return;
+    const val=k=>{let x=String(v[k]==null?'':v[k]).trim();if(k==='rfc')x=x.toUpperCase();return x;};
+    const campos=['razon','rfc','email','tel','cel','dir'];
+    const key=nombre.toUpperCase();
+    let c=contactos.find(x=>x&&x.nombre&&x.nombre.toUpperCase().trim()===key);
+    let cambio=false;
+    if(!c){c={nombre};contactos.push(c);cambio=true;}
+    campos.forEach(k=>{const nv=val(k);if(nv&&String(c[k]||'').trim()!==nv){c[k]=nv;cambio=true;}});
+    if(!cambio)return;
+    guardarLS(CT_KEY,contactos);
+    if(typeof cloudSyncContacto==='function')cloudSyncContacto(c);
+    if(typeof renderContactos==='function')renderContactos();
+  }catch(e){console.warn('_sincContactoDesdeVenta:',e);}
+}
 function guardarClienteRapido(){
   const get=id=>(document.getElementById(id)?.value||'').trim();
   const nombre=get('vf-cliente');
@@ -14352,7 +14374,7 @@ else{
   if(_ix>=0){ventas[_ix]=v;editVtaIdx=_ix;}
   else{ventas.push(v);editVtaIdx=ventas.length-1;}
 }
-guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);if(_hist)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf');
+guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);_sincContactoDesdeVenta(v);if(_hist)showToast('🕓 Venta HISTÓRICA: no crea pedido ni toca inventario','#7c5cbf');
 try{if(typeof sincronizarMontoFacturaConVenta==='function'&&sincronizarMontoFacturaConVenta(v)){if(typeof renderFacturas==='function')renderFacturas();if(typeof renderComisiones==='function')renderComisiones();}}catch(_e){console.warn('sincMontoFactura:',_e);}
 // Cuando editas una venta que venia del configurador web (RW-/GW-/PW-), el PDF `_fromWeb`
 // original ya no refleja lo que hay ahora en `v.lineas`. Se quita del arreglo para que el
@@ -14646,7 +14668,7 @@ async function confirmarComoVenta(){
   // v2026.09.01.03: incluir tsVenta ("minutero" real) para que futuros reparadores lo respeten.
   const _vventa={num,fecha,tsVenta:_tsNueva,cliente:cli,comercial,rfc,razon:(document.getElementById('vf-razon')||{}).value||'',email,tel,cel,dir,tipo:'Venta',stage:'Pedido de venta',moneda,plazo,plantilla,tiempoEntrega:tEntrega,instalacion:incInst,domicilio:incDom,maniobra:incMan,lineas:JSON.parse(JSON.stringify(vtaLineas)),total:cot.total,estatus:'Confirmada'};
   {const _ix=(editVtaIdx>=0&&ventas[editVtaIdx])?editVtaIdx:ventas.findIndex(x=>x.num===num);if(_ix>=0)ventas[_ix]=_vventa;else ventas.push(_vventa);}
-  guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(_vventa);
+  guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(_vventa);_sincContactoDesdeVenta(_vventa);
   // ── 3. Descontar inventario ──
   let descuentos=[];let bomDescontados=[];let _skusTocadosCCV=[];
   vtaLineas.forEach(l=>{
