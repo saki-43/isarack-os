@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.13.06';
+const APP_VERSION='2026.10.13.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4826,7 +4826,7 @@ var INST_CUAD=[
   // 'Otros' también son de ISARACK (Isaac, 13 oct 2026).
   {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto Miranda','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro','Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio Jarquin',
     // 13 oct 2026: también de ISARACK (Isaac)
-    'Isaac Romero','Adrian Solorzano','Alfredo','Gerardo']},
+    'Isaac Romero','Adrian Solorzano','Gerardo']},
   {nombre:'Personal de Samuel',miembros:['Samuel Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']}
 ];
 // ── Nombres con los que la MISMA persona quedó capturada en distintos lados ──
@@ -4845,7 +4845,7 @@ const PERSONAL_ALIAS={
   'Abel Mazariegos':['Abel','ABEL'],
   'Miguel Morga':['MIGUEL MORGA'],
   'Oscar Ochoa':['Oscar','OSCAR','Oscar Francisco Ochoa'],
-  'Jose Alfredo Osuna':['Jose Alfredo','JOSE ALFREDO'],
+  'Jose Alfredo Osuna':['Jose Alfredo','JOSE ALFREDO','Alfredo','Fredy','FREDY'],
   'Miguel Rios':['Miguel Angel Rios','Miki','MIKI','MIGUEL ANGEL RIOS'],
   'Isaac Romero':['ISAAC ROMERO'],
   'Jonas Sañudo':['JONAS SAÑUDO','Jonas Sanudo'],
@@ -4861,8 +4861,7 @@ const PERSONAL_ALIAS={
   // nombre bueno es el que se usa en obra, no hay documento del que sacarlo.
   'Jesus Mendez':['JESUS','Jesus'],
   'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel'],
-  // 13 oct 2026: "a Fredy ponle Alfredo" (Isaac). Va en ISARACK.
-  'Alfredo':['Fredy','FREDY'],
+  // 13 oct 2026: "Fredy" es Jose Alfredo Osuna (Isaac) — su alias va arriba.
   'Gerardo':['GERARDO']
 };
 // Externos confirmados (además de los dos de arriba): Gilberto Rodriguez,
