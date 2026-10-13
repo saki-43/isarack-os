@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.13.03';
+const APP_VERSION='2026.10.13.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4901,7 +4901,9 @@ function _instPersonaChip(n,on){
 // v2026.10.13.02: arriba las 3 cuadrillas (+ Otros); al elegir una, abajo sale
 // SU gente para palomear solo a los que van (de 8 de Brayan se mandan 2). Todo en
 // MAYUSCULAS solo a la vista: lo guardado sigue con el nombre bueno de siempre.
-var _INST_LIDERES={'Personal de Gilberto':'Gilberto Rodriguez','Personal de Brayan':'Bryan Martinez','Personal de Samuel':'Samuel Gomez'};
+// ISARACK (antes 'Brayan') no tiene lider fijo: esa cuadrilla se puede partir en
+// dos con un lider cada una, y se escoge por obra en 'Lider (opcional)'.
+var _INST_LIDERES={'Personal de Gilberto':'Gilberto Rodriguez','Personal de Brayan':'','Personal de Samuel':'Samuel Gomez'};
 function _instMay(n){return _ie(String((typeof _personaCanonica==='function')?_personaCanonica(n):n).toUpperCase());}
 // La cuadrilla de Brayan ya es personal interno: se muestra como ISARACK (Isaac,
 // 13 oct 2026). Lo guardado sigue diciendo 'Brayan' para no tocar los datos.
@@ -4927,7 +4929,7 @@ function _instPersonalHtml(){
   var cuads=[],otros=[],vistos={};
   var poner=function(arr,n){var k=_cn(n);if(!k||vistos[k])return;vistos[k]=1;arr.push(n);};
   // Primero los líderes, cada uno al frente de su cuadrilla.
-  Object.keys(_INST_LIDERES).forEach(function(gn){var c={nombre:gn,etq:_instEtqCuad(gn.replace(/^Personal de\s*/i,'')),lider:_INST_LIDERES[gn],miembros:[]};cuads.push(c);poner(c.miembros,c.lider);});
+  Object.keys(_INST_LIDERES).forEach(function(gn){var c={nombre:gn,etq:_instEtqCuad(gn.replace(/^Personal de\s*/i,'')),lider:_INST_LIDERES[gn],miembros:[]};cuads.push(c);if(c.lider)poner(c.miembros,c.lider);});
   _base.forEach(function(g){var c=cuads.find(function(x){return x.nombre===g.nombre;});(g.miembros||[]).forEach(function(n){poner(c?c.miembros:otros,n);});});
   _instRoster().forEach(function(n){poner(otros,n);});
   sel.forEach(function(n){poner(otros,n);});
@@ -15398,13 +15400,17 @@ function getPersonalCuadrillas(){
   };
   // 1) Configuración manda: si el nombre está capturado, ese es el bueno.
   const cfgList=(typeof empresaCfg!=='undefined'&&Array.isArray(empresaCfg.instaladores))?empresaCfg.instaladores:[];
-  cfgList.forEach(pe=>{if(pe&&pe.nombre)meter((''+(pe.cuadrilla||'')).trim()||'Sin cuadrilla',pe.nombre);});
+  // v2026.10.13.04: quien está en Configuración SIN cuadrilla ya no gana: antes eso
+  // mandaba a Bryan, Gilberto y Samuel a "Sin cuadrilla" y no salían con su gente.
+  cfgList.forEach(pe=>{if(pe&&pe.nombre&&(''+(pe.cuadrilla||'')).trim())meter((''+pe.cuadrilla).trim(),pe.nombre);});
   // 2) Los que solo viven en el código, como respaldo.
   const cuad=(typeof INST_CUAD!=='undefined'&&Array.isArray(INST_CUAD))?INST_CUAD:[];
   cuad.forEach(g=>{
     const nom=(''+(g.nombre||'')).replace(/^Personal de\s*/i,'').trim()||'Otros';
     (g.miembros||[]).forEach(n=>meter(nom,n));
   });
+  // 3) Los de Configuración sin cuadrilla que tampoco están en el código.
+  cfgList.forEach(pe=>{if(pe&&pe.nombre)meter('Sin cuadrilla',pe.nombre);});
   const orden=['Gilberto','Brayan','Samuel','Otros'];
   const peso=k=>k==='Sin cuadrilla'?200:(orden.indexOf(k)<0?100:orden.indexOf(k));
   return Object.keys(porCuad).sort((a,b)=>peso(a)-peso(b)||a.localeCompare(b))
