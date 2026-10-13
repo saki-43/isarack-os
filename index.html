@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.13.05';
+const APP_VERSION='2026.10.13.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4821,10 +4821,12 @@ function _instFecha(r){var a=r.fecha_inicio||'',b=r.fecha_fin||'';if(a&&b&&(''+a
 function _instRoster(){var set={};INST.rows.forEach(function(r){_instMiembros(r).forEach(function(n){if(n)set[n]=1;});});return Object.keys(set).sort(function(a,b){return a.localeCompare(b);});}
 // Cuadrillas para el selector rápido (grupos como en la app de instalaciones)
 var INST_CUAD=[
-  {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez']},
+  {nombre:'Personal de Gilberto',miembros:['Gilberto Rodriguez','Israel Mendez','Alexis Guadalupe','Daniel Herrera','Brayan Romo','Jesus Mendez','Luis Cornejo','Juan Hernandez','Brayan Ramos','Julio Ortega']},
   // 'Brayan' se muestra como ISARACK (personal interno). Los 6 que estaban en
   // 'Otros' también son de ISARACK (Isaac, 13 oct 2026).
-  {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto Miranda','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro','Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio Jarquin']},
+  {nombre:'Personal de Brayan',miembros:['Bryan Martinez','Joel Soto','Jose Alberto Miranda','Fermin Segovia','Delmar Velazquez','Brayan Zamora','Miguel Rios','Jonathan Amaro','Jonas Sañudo','Oscar Ochoa','Jose Alfredo Osuna','Abel Mazariegos','Fernando Fuentes','Octavio Jarquin',
+    // 13 oct 2026: también de ISARACK (Isaac)
+    'Isaac Romero','Adrian Solorzano','Gerardo']},
   {nombre:'Personal de Samuel',miembros:['Samuel Gomez','Victor Manuel Medina','Ezequiel Alberto Chigo']}
 ];
 // ── Nombres con los que la MISMA persona quedó capturada en distintos lados ──
@@ -4843,7 +4845,7 @@ const PERSONAL_ALIAS={
   'Abel Mazariegos':['Abel','ABEL'],
   'Miguel Morga':['MIGUEL MORGA'],
   'Oscar Ochoa':['Oscar','OSCAR','Oscar Francisco Ochoa'],
-  'Jose Alfredo Osuna':['Jose Alfredo','JOSE ALFREDO'],
+  'Jose Alfredo Osuna':['Jose Alfredo','JOSE ALFREDO','Alfredo','Fredy','FREDY'],
   'Miguel Rios':['Miguel Angel Rios','Miki','MIKI','MIGUEL ANGEL RIOS'],
   'Isaac Romero':['ISAAC ROMERO'],
   'Jonas Sañudo':['JONAS SAÑUDO','Jonas Sanudo'],
@@ -4858,7 +4860,9 @@ const PERSONAL_ALIAS={
   // Isaac confirmó el 7 sep 2026 que estos trabajan por fuera, así que su
   // nombre bueno es el que se usa en obra, no hay documento del que sacarlo.
   'Jesus Mendez':['JESUS','Jesus'],
-  'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel']
+  'Samuel Gomez':['Samuel A. Gomez','Samuel Alfredo Gomez','Samuel'],
+  // 13 oct 2026: "Fredy" es Jose Alfredo Osuna (Isaac) — su alias va arriba.
+  'Gerardo':['GERARDO']
 };
 // Externos confirmados (además de los dos de arriba): Gilberto Rodriguez,
 // Israel Mendez, Alexis Guadalupe, Daniel Herrera, Brayan Romo, Juan Hernandez,
@@ -4932,7 +4936,10 @@ function _instPersonalHtml(){
   // Primero los líderes, cada uno al frente de su cuadrilla.
   Object.keys(_INST_LIDERES).forEach(function(gn){var c={nombre:gn,etq:_instEtqCuad(gn.replace(/^Personal de\s*/i,'')),lider:_INST_LIDERES[gn],miembros:[]};cuads.push(c);if(c.lider)poner(c.miembros,c.lider);});
   _base.forEach(function(g){var c=cuads.find(function(x){return x.nombre===g.nombre;});(g.miembros||[]).forEach(function(n){poner(c?c.miembros:otros,n);});});
-  _instRoster().forEach(function(n){poner(otros,n);});
+  // Los dados de baja (_CFG_BAJAS, p.ej. BRAYITA) ya no se ofrecen; si una obra
+  // vieja los trae, siguen saliendo palomeados.
+  var _bajas=(typeof _CFG_BAJAS!=='undefined'?_CFG_BAJAS:[]).map(_cn);
+  _instRoster().forEach(function(n){if(_bajas.indexOf(_cn(n))<0)poner(otros,n);});
   sel.forEach(function(n){poner(otros,n);});
   var tabs=cuads.concat([{nombre:'Otros',etq:'Otros',miembros:otros}]);
   // Pestaña abierta: la que eligió el usuario; si no, la que tenga más palomeados.
