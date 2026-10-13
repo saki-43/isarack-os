@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.13.02';
+const APP_VERSION='2026.10.13.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4903,6 +4903,9 @@ function _instPersonaChip(n,on){
 // MAYUSCULAS solo a la vista: lo guardado sigue con el nombre bueno de siempre.
 var _INST_LIDERES={'Personal de Gilberto':'Gilberto Rodriguez','Personal de Brayan':'Bryan Martinez','Personal de Samuel':'Samuel Gomez'};
 function _instMay(n){return _ie(String((typeof _personaCanonica==='function')?_personaCanonica(n):n).toUpperCase());}
+// La cuadrilla de Brayan ya es personal interno: se muestra como ISARACK (Isaac,
+// 13 oct 2026). Lo guardado sigue diciendo 'Brayan' para no tocar los datos.
+function _instEtqCuad(k){return k==='Brayan'?'ISARACK':k;}
 function _instCuadTab(t){INST_EDIT._cuadTab=t;_instRenderPersonal();}
 function _instPersonaFila(n,on,esLider){
   var st=(INST_DC3&&INST_DC3[_docPersonaKey(n)])||null;
@@ -4924,7 +4927,7 @@ function _instPersonalHtml(){
   var cuads=[],otros=[],vistos={};
   var poner=function(arr,n){var k=_cn(n);if(!k||vistos[k])return;vistos[k]=1;arr.push(n);};
   // Primero los líderes, cada uno al frente de su cuadrilla.
-  Object.keys(_INST_LIDERES).forEach(function(gn){var c={nombre:gn,etq:gn.replace(/^Personal de\s*/i,''),lider:_INST_LIDERES[gn],miembros:[]};cuads.push(c);poner(c.miembros,c.lider);});
+  Object.keys(_INST_LIDERES).forEach(function(gn){var c={nombre:gn,etq:_instEtqCuad(gn.replace(/^Personal de\s*/i,'')),lider:_INST_LIDERES[gn],miembros:[]};cuads.push(c);poner(c.miembros,c.lider);});
   _base.forEach(function(g){var c=cuads.find(function(x){return x.nombre===g.nombre;});(g.miembros||[]).forEach(function(n){poner(c?c.miembros:otros,n);});});
   _instRoster().forEach(function(n){poner(otros,n);});
   sel.forEach(function(n){poner(otros,n);});
@@ -15553,7 +15556,7 @@ function cfgAbrirEditor(tipo,idx){
     if(c.type==='select'){
       h+='<select id="cfg-edit-'+c.k+'" style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #e5e5e5;border-radius:6px;font-size:14px;background:#fff">';
       h+='<option value="">— Sin definir —</option>';
-      h+=(c.opts||[]).map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('');
+      h+=(c.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===o?' selected':'')+'>'+(c.k==='cuadrilla'&&typeof _instEtqCuad==='function'?_instEtqCuad(o):o)+'</option>';}).join('');
       h+='</select>';
     }else{
       h+='<input id="cfg-edit-'+c.k+'" type="'+(c.type||'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #e5e5e5;border-radius:6px;font-size:14px">';
