@@ -1461,7 +1461,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.13.07';
+const APP_VERSION='2026.10.13.08';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4941,7 +4941,8 @@ function _instPersonalHtml(){
   var _bajas=(typeof _CFG_BAJAS!=='undefined'?_CFG_BAJAS:[]).map(_cn);
   _instRoster().forEach(function(n){if(_bajas.indexOf(_cn(n))<0)poner(otros,n);});
   sel.forEach(function(n){poner(otros,n);});
-  var tabs=cuads.concat([{nombre:'Otros',etq:'Otros',miembros:otros}]);
+  // OTROS solo sale si tiene a alguien (13 oct 2026).
+  var tabs=otros.length?cuads.concat([{nombre:'Otros',etq:'Otros',miembros:otros}]):cuads.slice();
   // Pestaña abierta: la que eligió el usuario; si no, la que tenga más palomeados.
   var cuenta=function(t){return t.miembros.filter(function(n){return selLow[_cn(n)];}).length;};
   var act=tabs.find(function(t){return t.nombre===INST_EDIT._cuadTab;});
@@ -4952,7 +4953,7 @@ function _instPersonalHtml(){
     '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">'+chips+'</div>'+
     '<div style="display:flex;gap:6px;margin-bottom:6px">'+tabsHtml+'</div>'+
     '<div id="ie-grid" style="max-height:220px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;align-content:start">'+lista+'</div>'+
-    '<div style="display:flex;gap:6px;margin-top:6px"><input id="ie-nuevo" placeholder="Otro nombre (libre)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div>';
+    '<div style="display:flex;gap:6px;margin-top:6px"><input id="ie-nuevo" placeholder="'+(act.nombre==='Otros'?'Otro nombre (libre)…':'Agregar a '+_ie(act.etq.toUpperCase())+' (nombre)…')+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_instAddMiembro();}" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><button onclick="_instAddMiembro()" style="border:1px solid #ddd;background:#f0f0ee;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer">Agregar</button></div>';
 }
 function _instRenderPersonal(){var c=document.getElementById('ie-personal');
   // Al palomear a alguien de abajo, la lista se redibujaba y regresaba hasta
@@ -5450,7 +5451,30 @@ function _instModal(){
 function _instChips(){
   return INST_EDIT.instaladores.map(function(n,i){return '<span style="background:#eaf1fb;color:#185FA5;border:1px solid #cfe0f5;border-radius:16px;padding:3px 9px;font-size:12px">'+_ie(n)+' <span onclick="_instDelMiembro('+i+')" style="cursor:pointer;font-weight:700">✕</span></span>';}).join('')||'<span style="font-size:12px;color:#c62828">Aún sin personal</span>';
 }
-function _instAddMiembro(){var inp=document.getElementById('ie-nuevo');if(!inp)return;var v=(inp.value||'').trim();if(!v)return;if(INST_EDIT.instaladores.map(function(x){return (''+x).toLowerCase();}).indexOf(v.toLowerCase())<0)INST_EDIT.instaladores.push(v);inp.value='';_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();}
+// v2026.10.13.08: el nombre nuevo entra a la cuadrilla que está abierta (Isaac:
+// "selecciona a Gilberto, Samuel o ISARACK y si metes otro que se meta a ese
+// supervisor"). Se guarda en Configuración → Instaladores con su cuadrilla, para
+// que salga ahí en todas las obras. Si ya existe en alguna cuadrilla, solo se palomea.
+function _instAddMiembro(){
+  var inp=document.getElementById('ie-nuevo');if(!inp)return;
+  var v=(inp.value||'').trim();if(!v)return;
+  var nom=(typeof _personaCanonica==='function')?_personaCanonica(v):v;
+  var _cn=function(n){return (typeof _personaCanonica==='function')?_cfgNormNombre(_personaCanonica(n)):(''+n).toLowerCase();};
+  if(INST_EDIT.instaladores.map(_cn).indexOf(_cn(nom))<0)INST_EDIT.instaladores.push(nom);
+  var tab=INST_EDIT._cuadTab||'';
+  var cuad=/^Personal de /.test(tab)?tab.replace(/^Personal de\s*/,''):'';
+  if(cuad){
+    var yaEnCuad=((typeof getPersonalCuadrillas==='function')?getPersonalCuadrillas():[]).some(function(g){return /^Personal de /.test(g.nombre)&&(g.miembros||[]).some(function(n){return _cn(n)===_cn(nom);});});
+    if(!yaEnCuad&&typeof empresaCfg!=='undefined'&&empresaCfg){
+      if(!Array.isArray(empresaCfg.instaladores))empresaCfg.instaladores=[];
+      var ex=empresaCfg.instaladores.find(function(pe){return pe&&_cn(pe.nombre)===_cn(nom);});
+      if(ex)ex.cuadrilla=cuad;else empresaCfg.instaladores.push({nombre:nom,cuadrilla:cuad});
+      if(typeof guardarEmpresaConfig==='function')guardarEmpresaConfig(empresaCfg);
+      showToast('✓ '+String(nom).toUpperCase()+' agregado a '+(typeof _instEtqCuad==='function'?_instEtqCuad(cuad):cuad).toUpperCase(),'#3B6D11');
+    }
+  }
+  inp.value='';_instRenderPersonal();if(typeof _instAutosave==='function')_instAutosave();
+}
 function _instDelMiembro(i){INST_EDIT.instaladores.splice(i,1);_instRefreshChips();}
 function _instRefreshChips(){
   var c=document.getElementById('ie-chips');if(c)c.innerHTML=_instChips();
