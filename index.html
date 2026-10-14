@@ -681,7 +681,10 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
     <div class="tab-body">
       <!-- LISTA -->
       <div id="vta-lista-view" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+        <!-- KPIs de Ventas escondidos a peticion de Isaac (14 oct 2026): repetian lo que ya dicen
+             los filtros y el contador de registros. Se siguen calculando; para volver a mostrarlos
+             quita el display:none. -->
+        <div class="stats" style="grid-template-columns:repeat(4,1fr);display:none">
           <div class="stat"><div class="stat-label">Total</div><div class="stat-val" style="color:#D85A30" id="vta-total">0</div></div>
           <div class="stat"><div class="stat-label">Monto total</div><div class="stat-val c-green" id="vta-monto">$0.00</div></div>
           <div class="stat"><div class="stat-label">Cotizaciones</div><div class="stat-val" style="color:#D85A30" id="vta-pend">0</div></div>
@@ -1461,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.14.02';
+const APP_VERSION='2026.10.14.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
