@@ -1464,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.14.04';
+const APP_VERSION='2026.10.14.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8789,6 +8789,13 @@ function agregarSobrante(medida){
   if(typeof cloudSyncInventario==='function')cloudSyncInventario(_prodSob); // SYNC: subir el sobrante
 }
 function descontarMarcoPickingBOM(marco,cantidadMarcos){
+  // Marco sin receta capturada (108", 156"): no se sabe de qué poste sale, así que no se
+  // descuenta nada y se reporta como faltante para descontarlo a mano en Kardex. Antes
+  // esto TRONABA (marco.bom undefined) a media conversión: el pedido quedaba creado pero
+  // la venta seguía en Presupuesto sin ningún aviso (S07536, 14 oct 2026).
+  if(!marco||!marco.bom){
+    return [{nombre:'MARCO PICKING '+((marco&&marco.size)||'?')+'" X '+((marco&&marco.fondo)||'?')+'" — sin receta de piezas, descuéntalo a mano en Kardex',cantidad:cantidadMarcos,faltante:true}];
+  }
   const piezas=calcularPiezasMarcoPicking(marco,cantidadMarcos);
   const resultado=[];
   // Procesar postes con lógica inteligente de cortes
