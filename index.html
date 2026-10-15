@@ -1464,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.15.01';
+const APP_VERSION='2026.10.15.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8001,8 +8001,8 @@ const MARCO_BOM_PICKING={
   '73':{posteSize:'72',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 6' — poste 72" + 1" de pie
   '84':{posteSize:'84',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 7'
   '96':{posteSize:'96',postePartes:1,diagonalD:3,diagonalH:3,pie:2},  // 8'
-  // 108 y 156 (Isaac, 15 oct 2026): se cortan del poste de 254" como todos menos el de 73".
-  // buscarPosteParaCorte no encuentra poste exacto, corta uno de 254" y guarda el sobrante.
+  // 108 y 156 (Isaac, 15 oct 2026). Todos menos el de 73" se cortan del poste de 254":
+  // ver POSTE_FUENTE_PICKING en buscarPosteParaCorte.
   // Diagonales siguiendo el patron de los vecinos (96→3, 120→4, 144→5, 168→6).
   '108':{posteSize:'108',postePartes:1,diagonalD:3,diagonalH:3,pie:2},
   '156':{posteSize:'156',postePartes:1,diagonalD:5,diagonalH:3,pie:2},
@@ -8051,7 +8051,15 @@ function _dispMarcoPicking(size,fondo){
   const marco={size:String(size),color:'VERDE',fondo:String(fondo),bom,sistema:'PICKING'};
   const piezas=calcularPiezasMarcoPicking(marco,1);
   let min=Infinity,falta=false;const detalles=[];
-  piezas.forEach(pz=>{
+  piezas.forEach((pz,iPz)=>{
+    // El poste (primera pieza) sale del 254" y sus sobrantes, no de un poste de su medida.
+    if(iPz===0){
+      const disp=_piezasPosteDisponibles(bom.posteSize);
+      const posibles=Math.floor(disp/pz.cant);
+      if(posibles<min)min=posibles;
+      detalles.push({n:'POSTE '+bom.posteSize+'" (del 254" y sobrantes)',cant:pz.cant,stock:disp,posibles,nota:pz.nota||''});
+      return;
+    }
     const comp=(typeof encontrarComponente==='function')?encontrarComponente(pz.descBuscar,'VERDE'):null;
     if(comp){
       const posibles=Math.floor((comp.cantidad||0)/pz.cant);
@@ -8740,12 +8748,39 @@ function _medidaPoste2x2(txt){
   const m=/2"X2"\s*(?:VERDE\s*)?([\d.]+)"/.exec(String(txt||'').toUpperCase());
   return m?parseFloat(m[1]):NaN;
 }
+// Postes de marco picking (Isaac, 15 oct 2026): TODOS se cortan del poste de 254", menos
+// el del marco de 73" que ya viene cortado (poste de 72"). Los postes de otras medidas que
+// haya en inventario (84", 96", 120"...) NO se toman: solo el 254" y sus sobrantes.
+const POSTE_FUENTE_PICKING=254;
+const POSTES_PRECORTADOS_PICKING=['72'];
+function _esPosteFuente2x2(p){
+  const txt=(p&&p.producto||'').toUpperCase();
+  return txt.includes('POSTE 2"X2"')&&txt.includes('VERDE')&&!txt.includes('SOBRANTE')&&_medidaPoste2x2(txt)===POSTE_FUENTE_PICKING;
+}
+// Cuántas piezas de `medida` salen de lo que hay: postes de 254" + sobrantes (para "disponibles").
+function _piezasPosteDisponibles(medida){
+  const med=parseFloat(medida);if(!isFinite(med)||med<=0)return 0;
+  if(POSTES_PRECORTADOS_PICKING.includes(String(medida))){
+    const ex=inventario.filter(p=>{const t=(p.producto||'').toUpperCase();return t.includes('POSTE 2"X2"')&&t.includes('VERDE')&&!t.includes('SOBRANTE')&&_medidaPoste2x2(t)===med;});
+    return ex.reduce((s,p)=>s+Math.max(0,p.cantidad||0),0);
+  }
+  const porPieza=med+MERMA_CORTE;
+  let n=0;
+  inventario.forEach(p=>{
+    const c=Math.max(0,p.cantidad||0);if(!c)return;
+    if(_esPosteFuente2x2(p)){n+=c*(med>=POSTE_FUENTE_PICKING?1:Math.floor((POSTE_FUENTE_PICKING+MERMA_CORTE)/porPieza));return;}
+    const t=(p.producto||'').toUpperCase();
+    if(t.includes('SOBRANTE 2"X2"')&&t.includes('VERDE')){const m=_medidaPoste2x2(t);if(isFinite(m)&&m>=porPieza)n+=c*Math.floor((m+MERMA_CORTE)/porPieza);}
+  });
+  return n;
+}
 function buscarPosteParaCorte(medidaDeseada,cantidadNecesaria){
   const medidaNum=parseFloat(medidaDeseada);
-  // 1. Buscar postes enteros de la medida exacta
-  const enteros=inventario.filter(p=>{
+  const _exactoPermitido=POSTES_PRECORTADOS_PICKING.includes(String(medidaDeseada))||medidaNum===POSTE_FUENTE_PICKING;
+  // 1. Postes enteros de la medida exacta: solo el de 72" (marco 73") o el mismo 254" (marco 128" partido)
+  const enteros=!_exactoPermitido?[]:inventario.filter(p=>{
     const txt=(p.producto||'').toUpperCase();
-    return txt.includes('POSTE 2"X2"')&&txt.includes(medidaDeseada+'"')&&txt.includes('VERDE')&&!txt.includes('SOBRANTE')&&p.cantidad>0;
+    return txt.includes('POSTE 2"X2"')&&_medidaPoste2x2(txt)===medidaNum&&txt.includes('VERDE')&&!txt.includes('SOBRANTE')&&p.cantidad>0;
   });
   if(enteros.length){const total=enteros.reduce((s,p)=>s+p.cantidad,0);if(total>=cantidadNecesaria)return {tipo:'entero',producto:enteros[0]};}
   // 2. Buscar sobrantes que sirvan (medida >= deseada + merma)
@@ -8761,16 +8796,8 @@ function buscarPosteParaCorte(medidaDeseada,cantidadNecesaria){
     return _medidaPoste2x2(a.producto)-_medidaPoste2x2(b.producto);
   });
   if(sobrantes.length)return {tipo:'sobrante',producto:sobrantes[0]};
-  // 3. Buscar postes largos enteros que sirvan
-  const postesLargos=inventario.filter(p=>{
-    const txt=(p.producto||'').toUpperCase();
-    if(!txt.includes('POSTE 2"X2"')||!txt.includes('VERDE')||txt.includes('SOBRANTE'))return false;
-    if(p.cantidad<=0)return false;
-    const med=_medidaPoste2x2(txt);
-    return isFinite(med)&&med>=minNecesario;
-  }).sort((a,b)=>{
-    return _medidaPoste2x2(a.producto)-_medidaPoste2x2(b.producto);
-  });
+  // 3. Cortar del poste de 254" (el único del que se cortan los postes de picking)
+  const postesLargos=inventario.filter(p=>_esPosteFuente2x2(p)&&p.cantidad>0&&POSTE_FUENTE_PICKING>=minNecesario);
   if(postesLargos.length)return {tipo:'poste-largo',producto:postesLargos[0]};
   return null;
 }
