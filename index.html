@@ -1464,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.14.05';
+const APP_VERSION='2026.10.15.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8001,8 +8001,11 @@ const MARCO_BOM_PICKING={
   '73':{posteSize:'72',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 6' — poste 72" + 1" de pie
   '84':{posteSize:'84',postePartes:1,diagonalD:2,diagonalH:3,pie:2},  // 7'
   '96':{posteSize:'96',postePartes:1,diagonalD:3,diagonalH:3,pie:2},  // 8'
-  // 108 y 156 quedan SIN BOM a proposito: no se sabe de que poste salen, asi que
-  // se ofrecen con su precio real pero en 0 disponibles hasta que Isaac pase el dato.
+  // 108 y 156 (Isaac, 15 oct 2026): se cortan del poste de 254" como todos menos el de 73".
+  // buscarPosteParaCorte no encuentra poste exacto, corta uno de 254" y guarda el sobrante.
+  // Diagonales siguiendo el patron de los vecinos (96→3, 120→4, 144→5, 168→6).
+  '108':{posteSize:'108',postePartes:1,diagonalD:3,diagonalH:3,pie:2},
+  '156':{posteSize:'156',postePartes:1,diagonalD:5,diagonalH:3,pie:2},
   '120':{posteSize:'120',postePartes:1,diagonalD:4,diagonalH:3,pie:2},  // poste propio PIC-0091
   '128':{posteSize:'254',postePartes:2,diagonalD:4,diagonalH:3,pie:2},  // poste 254" partido + 1" de pie
   '144':{posteSize:'144',postePartes:1,diagonalD:5,diagonalH:3,pie:2},
@@ -8730,6 +8733,13 @@ const MERMA_CORTE=0.125;
 const MIN_SOBRANTE=12;
 // Helper: encontrar el mejor poste/sobrante para cortar uno o más postes de medida deseada
 // Estrategia: preferir poste exacto entero > sobrante más chico que sirva > poste largo más chico que sirva
+// Medida (pulgadas) de un poste o sobrante 2"x2". Acepta los dos formatos de nombre que hay
+// en inventario: 'POSTE 2"X2" 84" VERDE' y 'POSTE 2"X2" VERDE 254"' (15 oct 2026: con
+// VERDE antes de la medida el 254" no se reconocía y nunca se cortaba de él).
+function _medidaPoste2x2(txt){
+  const m=/2"X2"\s*(?:VERDE\s*)?([\d.]+)"/.exec(String(txt||'').toUpperCase());
+  return m?parseFloat(m[1]):NaN;
+}
 function buscarPosteParaCorte(medidaDeseada,cantidadNecesaria){
   const medidaNum=parseFloat(medidaDeseada);
   // 1. Buscar postes enteros de la medida exacta
@@ -8744,14 +8754,11 @@ function buscarPosteParaCorte(medidaDeseada,cantidadNecesaria){
     const txt=(p.producto||'').toUpperCase();
     if(!txt.includes('SOBRANTE 2"X2"')||!txt.includes('VERDE'))return false;
     if(p.cantidad<=0)return false;
-    const m=txt.match(/SOBRANTE 2"X2" ([\d.]+)"/);
-    if(!m)return false;
-    return parseFloat(m[1])>=minNecesario;
+    const med=_medidaPoste2x2(txt);
+    return isFinite(med)&&med>=minNecesario;
   }).sort((a,b)=>{
     // Sobrantes: usar el más chico que sirva primero (para no desperdiciar postes grandes)
-    const ma=a.producto.match(/SOBRANTE 2"X2" ([\d.]+)"/);
-    const mb=b.producto.match(/SOBRANTE 2"X2" ([\d.]+)"/);
-    return parseFloat(ma[1])-parseFloat(mb[1]);
+    return _medidaPoste2x2(a.producto)-_medidaPoste2x2(b.producto);
   });
   if(sobrantes.length)return {tipo:'sobrante',producto:sobrantes[0]};
   // 3. Buscar postes largos enteros que sirvan
@@ -8759,13 +8766,10 @@ function buscarPosteParaCorte(medidaDeseada,cantidadNecesaria){
     const txt=(p.producto||'').toUpperCase();
     if(!txt.includes('POSTE 2"X2"')||!txt.includes('VERDE')||txt.includes('SOBRANTE'))return false;
     if(p.cantidad<=0)return false;
-    const m=txt.match(/POSTE 2"X2" ([\d.]+)"/);
-    if(!m)return false;
-    return parseFloat(m[1])>=minNecesario;
+    const med=_medidaPoste2x2(txt);
+    return isFinite(med)&&med>=minNecesario;
   }).sort((a,b)=>{
-    const ma=a.producto.match(/POSTE 2"X2" ([\d.]+)"/);
-    const mb=b.producto.match(/POSTE 2"X2" ([\d.]+)"/);
-    return parseFloat(ma[1])-parseFloat(mb[1]);
+    return _medidaPoste2x2(a.producto)-_medidaPoste2x2(b.producto);
   });
   if(postesLargos.length)return {tipo:'poste-largo',producto:postesLargos[0]};
   return null;
@@ -8822,8 +8826,7 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
     // Caso 2: Es sobrante o poste largo - cortar
     else{
       const idx=inventario.indexOf(fuente.producto);
-      const m=fuente.producto.producto.match(/([\d.]+)"/);
-      const medFuente=parseFloat(m[1]);
+      const medFuente=_medidaPoste2x2(fuente.producto.producto);
       const medCortada=parseFloat(medidaDeseada);
       const medSobrante=medFuente-medCortada-MERMA_CORTE;
       const prev=inventario[idx].cantidad;
