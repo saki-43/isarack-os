@@ -745,7 +745,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
             <div class="vta-field"><span class="vf-label">Dirección</span><input id="vf-dir" placeholder="Dirección del cliente"></div>
             <div class="vta-field"><span class="vf-label">Plantilla</span><select id="vf-plantilla"><option>GENERAL</option><option>SELECTIVO</option><option>PICKING</option><option>INSTALACIÓN</option></select></div>
             <div class="vta-field"><span class="vf-label">Moneda</span><select id="vf-moneda" onchange="cambiarMoneda(this.value)"><option value="USD">USD — Dólares</option><option value="MXN">MXN — Pesos</option></select></div>
-            <div class="vta-field"><span class="vf-label">Plazo</span><select id="vf-plazo"><option>Inmediato</option><option>15 días</option><option>30 días</option><option>60 días</option><option>50% anticipo / 50% contra entrega</option></select></div>
+            <div class="vta-field"><span class="vf-label">Plazo de pago</span><select id="vf-plazo"><option>15 días</option><option>Inmediato</option><option>30 días</option><option>60 días</option><option>50% anticipo / 50% contra entrega</option></select></div>
             <div class="vta-field"><span class="vf-label">Entrega</span><select id="vf-entrega"><option>5 A 6 DIAS HABILES</option><option>10 A 12 DIAS HABILES</option><option>15 A 20 DIAS HABILES</option><option>3 A 4 SEMANAS</option><option>POR DEFINIR</option></select></div>
             <div class="vta-field" style="grid-column:span 3;background:#fafaf6;padding:6px 10px;border-radius:4px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
               <span style="font-size:11px;color:#555;font-weight:600;display:inline-flex;align-items:center;gap:6px">TC DOF: $<input id="tc-dof-input" type="number" step="0.0001" value="17.2623" readonly onchange="if(window._tcAdminEdit){TC_DOF=parseFloat(this.value)||17.2623;}" style="width:70px;border:1px solid #ddd;border-radius:3px;background:#f8f8f6;font-weight:700;color:#3B6D11;font-size:11px;text-align:center;padding:2px 4px;cursor:not-allowed" title="TC oficial de Banxico (DOF) — se actualiza automáticamente"> MXN/USD <span id="tc-status-badge" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:#EAF3DE;color:#3B6D11;border-radius:10px;font-size:10px;font-weight:600;cursor:default" title="">⏳</span></span>
@@ -1464,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.16.01';
+const APP_VERSION='2026.10.16.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -13746,7 +13746,7 @@ if(usrV){
   selVf.value='';
   if(lblCom)lblCom.textContent='💼 —';
 }
-document.getElementById('vf-plantilla').value='GENERAL';document.getElementById('vf-moneda').value='USD';document.getElementById('vf-plazo').value='Inmediato';document.getElementById('vf-entrega').value='5 A 6 DIAS HABILES';document.getElementById('vf-instalacion').value='NO';document.getElementById('vf-domicilio').value='SI';document.getElementById('vf-maniobra').value='SI';setTipoDoc('Cotización');setVtaStage('Presupuesto');setVtaHist(false);renderLineas();}
+document.getElementById('vf-plantilla').value='GENERAL';document.getElementById('vf-moneda').value='USD';document.getElementById('vf-plazo').value='15 días';document.getElementById('vf-entrega').value='5 A 6 DIAS HABILES';document.getElementById('vf-instalacion').value='NO';document.getElementById('vf-domicilio').value='SI';document.getElementById('vf-maniobra').value='SI';setTipoDoc('Cotización');setVtaStage('Presupuesto');setVtaHist(false);renderLineas();}
 function _normNombreVta(s){return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\b(lic|ing|sr|sra|c|arq|dr)\.?\s*/g,'').replace(/[^a-z0-9 ]/g,'').trim();}
 // Al entrar al tab Ventas: siempre mostrar la lista. Si hay un form con avance, conservarlo.
 function irAVentasLista(){
