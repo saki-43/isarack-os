@@ -1464,7 +1464,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.15.02';
+const APP_VERSION='2026.10.16.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -13262,10 +13262,11 @@ async function cambiarTipoVenta(ri,nuevoTipo){
     if(!confirm(msg+'\n\n¿Continuar?'))return;
     // ¿Ya existe el pedido con ese número? No duplicar.
     let orderRef=orders.find(o=>o.num===v.num);
+    const _pedidoReusado=!!orderRef;
     if(!orderRef){
       const cotData={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
       // v2026.09.01.03: setear tsVenta ("minutero" real) tambien en la venta para que reparadores lo respeten
-      const _tsN=Date.now();if(!v.tsVenta){v.tsVenta=_tsN;}
+      const _tsN=Date.now();v.tsVenta=_tsN;   // confirmación nueva: su hora es la de ahora
       orderRef={id:_tsN,tsVenta:v.tsVenta||_tsN,fechaVenta:_isoLocal(new Date(v.tsVenta||_tsN)),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:cotData,cotVersion:2,updated:_tsN};
       try{if(typeof generarCotHTML==='function'){const _c=generarCotHTML(cotData);orderRef.cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}}catch(e){}
       integrarPedidoReutilizando(orderRef);
@@ -13279,6 +13280,8 @@ async function cambiarTipoVenta(ri,nuevoTipo){
       delete orderRef.archivadoCotizacion;
       orderRef.updated=Date.now();
     }
+    // Pedido reutilizado (venía de una confirmación anterior): toma la fecha de ESTA confirmación.
+    if(_pedidoReusado)_fechaConfirmacionAhora(orderRef,v);
     // Descontar inventario una sola vez
     let mensajeInv='';
     if(!orderRef.inventarioDescontado&&orderRef.cotData&&orderRef.cotData.lineas&&orderRef.cotData.lineas.length){
@@ -13476,6 +13479,17 @@ showToast('✓ Eliminado'+(restaurados>0?' · '+restaurados+' producto(s) restau
 // a "Borrador" y limpia metadata BOM para evitar doble descuento al re-confirmar.
 // Reutiliza el pedido existente del mismo folio: conserva archivos, instalador y avance.
 // Si no existe, lo crea normal. Evita duplicados y pérdida de información.
+// FECHA DE LA VENTA = la ÚLTIMA vez que se pasó a Venta (Isaac, 16 oct 2026, lección S07488).
+// Si una venta se confirma, se regresa a Presupuesto y se vuelve a confirmar, el pedido se
+// reutiliza (no se duplica) pero su fecha/hora en Seguimiento debe ser la de esta confirmación.
+// Antes se quedaba con la del primer alta (29/09) y el pedido aparecía como viejo, abajo de
+// los del mes. El id NO se toca (es llave primaria en Supabase).
+function _fechaConfirmacionAhora(o,v){
+  const ts=Date.now();
+  if(o){o.tsVenta=ts;o.fechaVenta=_isoLocal(new Date(ts));o.updated=ts;}
+  if(v)v.tsVenta=ts;
+  return ts;
+}
 function integrarPedidoReutilizando(nuevo){
   const ix=orders.findIndex(x=>x&&x.num===nuevo.num);
   if(ix<0){orders.unshift(nuevo);return nuevo;}
@@ -14561,14 +14575,16 @@ try{
       if(!_oRef){
         const _cd={num:v.num,cliente:v.cliente,rfc:v.rfc||'',razon:v.razon||'',fecha:v.fecha||'',comercial:v.comercial||'',moneda:v.moneda||'USD',plazo:v.plazo||'',tEntrega:v.tiempoEntrega||'',incInst:v.instalacion||'NO',incDom:v.domicilio||'SI',incMan:v.maniobra||'SI',lineas:v.lineas||[]};
         // v2026.09.01.03: setear tsVenta en la venta para preservar el minutero real
-        const _tsN=Date.now();if(!v.tsVenta){v.tsVenta=_tsN;}
+        const _tsN=Date.now();v.tsVenta=_tsN;   // confirmación nueva: su hora es la de ahora
         _oRef={id:_tsN+Math.floor(Math.random()*1000),tsVenta:v.tsVenta||_tsN,fechaVenta:_isoLocal(new Date(v.tsVenta||_tsN)),num:v.num,fecha:v.fecha||new Date().toISOString().slice(0,10),cliente:v.cliente,comercial:v.comercial||'',desc:'Total: $'+(v.total||0).toFixed(2)+' '+(v.moneda||'USD'),ubicacion:v.dir||'',planos:(v.planos||[]).slice(),contactoNombre:v.contacto||v.cliente||'',whatsapp:v.cel||v.tel||'',entrega:'',notas:'',instaladorCel:'',instaladorNombre:'',repse:'C/ REPSE',estatus:'Pendiente',armado:'Pendiente',instalacion:'Pendiente',entregado:'No',sistemas:[],surtido:0,fab:0,pdfsPresupuesto:[],pdfsRecepcion:[],cotData:_cd,cotVersion:2,updated:_tsN};
         if(typeof integrarPedidoReutilizando==='function')integrarPedidoReutilizando(_oRef);else orders.unshift(_oRef);
         // Ya no se saca de la lista negra: la lápida tiene hora y este pedido es más nuevo, pasa solo.
       }else{_oRef.cotData=_oRef.cotData||{};_oRef.cotData.lineas=v.lineas||[];
         // Mismo caso que en cambiarTipoVenta: el pedido existía pero venía archivado desde que
         // se regresó a Presupuesto. Sin desarchivarlo aquí, no reaparece en Seguimiento.
-        if(_oRef.archivadoCotizacion){delete _oRef.archivadoCotizacion;_oRef.updated=Date.now();}}
+        if(_oRef.archivadoCotizacion){delete _oRef.archivadoCotizacion;_oRef.updated=Date.now();}
+        // Pedido reutilizado: la fecha en Seguimiento es la de ESTA confirmación (lección S07488).
+        _fechaConfirmacionAhora(_oRef,v);if(typeof saveOrders==='function')saveOrders();}
       if(!_oRef.inventarioDescontado&&typeof descontarInventarioPedido==='function'){
         const _r=descontarInventarioPedido(_oRef,v.lineas);
         if(_r&&!_r.ya&&!_r.nodata){
