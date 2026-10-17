@@ -387,6 +387,16 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 #mobile-more-menu button,#mobile-more-menu label{display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;border-radius:8px;font-size:14px;font-weight:600;color:#333;cursor:pointer;font-family:inherit;box-sizing:border-box}
 #mobile-more-menu button:hover,#mobile-more-menu label:hover{background:#fdf2ee;color:#D85A30}
 @media (max-width:768px){
+  /* FACTURACION en celular (17 oct 2026): una pantalla a la vez. Lista a todo
+     lo ancho; al tocar una factura el detalle abre a pantalla completa con
+     "Volver a la lista". Antes el detalle quedaba cortado a la derecha. */
+  #fact-md{flex-direction:column!important;padding:6px!important}
+  #fact-md-lista{max-width:none!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box}
+  #fact-md-detalle{display:none!important}
+  #fact-md.ver-detalle #fact-md-lista{display:none!important}
+  #fact-md.ver-detalle #fact-md-detalle{display:block!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box;padding:12px!important}
+  #fact-md.ver-detalle .fact-volver{display:flex!important}
+  #fact-md-detalle button{min-height:40px}
   .header{padding:6px 10px!important;flex-wrap:wrap;gap:6px}
   .header>div:first-child img{height:38px!important}
   #date-str{font-size:9.5px!important}
@@ -1464,7 +1474,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.16.02';
+const APP_VERSION='2026.10.17.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -7724,7 +7734,18 @@ function renderFacturasPanel(fl){
   renderFacturaDetalle();
 }
 
-function seleccionarFacturaPanel(pedido){_factSelPedido=pedido;renderFacturas();}
+function _factEsCel(){return !!(window.matchMedia&&window.matchMedia('(max-width:768px)').matches);}
+function seleccionarFacturaPanel(pedido){
+  _factSelPedido=pedido;renderFacturas();
+  // En celular el detalle abre a pantalla completa (ver CSS de #fact-md)
+  if(_factEsCel()){const md=document.getElementById('fact-md');if(md){md.classList.add('ver-detalle');md.scrollIntoView({block:'start'});}}
+}
+function factVolverLista(){
+  const md=document.getElementById('fact-md');if(!md)return;
+  md.classList.remove('ver-detalle');
+  const sel=[...document.querySelectorAll('#fact-md-lista [onclick^="seleccionarFacturaPanel"]')].find(el=>el.getAttribute('onclick').indexOf("'"+_factSelPedido+"'")>=0);
+  (sel||md).scrollIntoView({block:'center'});
+}
 
 function renderFacturaDetalle(){
   const det=document.getElementById('fact-md-detalle');
@@ -7900,6 +7921,7 @@ function renderFacturaDetalle(){
   const noFactBtn='<button onclick="marcarNoRequiereFactura('+ri+')" style="width:100%;padding:7px;background:'+(noFactActivo?'#f7f6f1':'#fff')+';border:1px dashed '+(noFactActivo?'#BA7517':'#c8c8c2')+';color:'+(noFactActivo?'#633806':'#666')+';border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px">'+(noFactActivo?'↩ Este pedido NO requiere factura — reactivar documentos':'🚫 Marcar: no requiere factura (PO, Factura y CSF en N/A)')+'</button>';
 
   det.innerHTML=
+    '<button class="fact-volver" onclick="factVolverLista()" style="display:none;align-items:center;gap:6px;width:100%;padding:10px 12px;margin-bottom:10px;background:#fdf2ee;border:1px solid #f0c9b6;color:#B5502A;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">← Volver a la lista</button>'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
       '<div><div style="font-size:19px;font-weight:800;color:#D85A30">'+f.pedido+'</div><div style="font-size:14px;color:#222;font-weight:600">'+(f.cliente||'—')+'</div><div style="font-size:12px;color:#777">'+(f.ejecutivo||'—')+(f.fecha?' · '+fmt(f.fecha):'')+'</div></div>'+
       '<span style="background:'+ec.bg+';color:'+ec.c+';font-size:12px;padding:5px 12px;border-radius:16px;font-weight:700">'+ec.l+'</span>'+
