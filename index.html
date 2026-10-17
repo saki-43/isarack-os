@@ -391,11 +391,14 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
      lo ancho; al tocar una factura el detalle abre a pantalla completa con
      "Volver a la lista". Antes el detalle quedaba cortado a la derecha. */
   #fact-md{flex-direction:column!important;padding:6px!important}
-  #fact-md-lista{max-width:none!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box}
+  #fact-md-lista{max-width:none!important;width:100%;min-width:0!important;flex:1 1 auto!important;min-height:0;max-height:100%!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch;box-sizing:border-box}
   #fact-md-detalle{display:none!important}
   #fact-md.ver-detalle #fact-md-lista{display:none!important}
-  #fact-md.ver-detalle #fact-md-detalle{display:block!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box;padding:12px!important}
-  #fact-md.ver-detalle .fact-volver{display:flex!important;position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  /* El detalle se desliza solo (la pagina no hace scroll: .tab-body y .card
+     cortan lo que sobra). "Volver" se queda pegado arriba. */
+  #fact-md.ver-detalle #fact-md-detalle{display:block!important;width:100%;min-width:0!important;flex:1 1 auto!important;min-height:0;max-height:100%!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch;box-sizing:border-box;padding:0 12px 12px!important}
+  #fact-md.ver-detalle .fact-volver{margin-top:0}
+  #fact-md.ver-detalle .fact-volver{display:flex!important;position:sticky;top:0;z-index:5;box-shadow:0 4px 8px -4px rgba(0,0,0,.15);border-top:12px solid #fff!important;background-clip:padding-box}
   /* En el detalle: sin KPIs ni filtros arriba, y renglones compactos para que
      quepa todo en una pantalla */
   #tab-facturacion.fact-cel-det .stats,#tab-facturacion.fact-cel-det .card>.card-hdr{display:none!important}
@@ -1482,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.17.02';
+const APP_VERSION='2026.10.17.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
