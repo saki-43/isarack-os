@@ -387,6 +387,24 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 #mobile-more-menu button,#mobile-more-menu label{display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;border-radius:8px;font-size:14px;font-weight:600;color:#333;cursor:pointer;font-family:inherit;box-sizing:border-box}
 #mobile-more-menu button:hover,#mobile-more-menu label:hover{background:#fdf2ee;color:#D85A30}
 @media (max-width:768px){
+  /* FACTURACION en celular (17 oct 2026): una pantalla a la vez. Lista a todo
+     lo ancho; al tocar una factura el detalle abre a pantalla completa con
+     "Volver a la lista". Antes el detalle quedaba cortado a la derecha. */
+  #fact-md{flex-direction:column!important;padding:6px!important}
+  #fact-md-lista{max-width:none!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box}
+  #fact-md-detalle{display:none!important}
+  #fact-md.ver-detalle #fact-md-lista{display:none!important}
+  #fact-md.ver-detalle #fact-md-detalle{display:block!important;width:100%;min-width:0!important;flex:none!important;max-height:none!important;box-sizing:border-box;padding:12px!important}
+  #fact-md.ver-detalle .fact-volver{display:flex!important;position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  /* En el detalle: sin KPIs ni filtros arriba, y renglones compactos para que
+     quepa todo en una pantalla */
+  #tab-facturacion.fact-cel-det .stats,#tab-facturacion.fact-cel-det .card>.card-hdr{display:none!important}
+  #fact-md-detalle [style*="grid-template-columns:1fr auto"]{padding:3px 0!important}
+  #fact-md-detalle [style*="grid-template-columns:1fr auto"]>span:first-child{font-size:13px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #fact-md-detalle [style*="grid-template-columns:74px 92px 46px"]{grid-template-columns:72px 72px 40px!important;gap:4px!important}
+  #fact-md-detalle [style*="grid-template-columns:74px 92px 46px"]>span:first-child{font-size:11px!important}
+  #fact-md-detalle button{min-height:32px}
+  #fact-md-detalle .fact-tip{display:none!important}
   .header{padding:6px 10px!important;flex-wrap:wrap;gap:6px}
   .header>div:first-child img{height:38px!important}
   #date-str{font-size:9.5px!important}
@@ -745,7 +763,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
             <div class="vta-field"><span class="vf-label">Dirección</span><input id="vf-dir" placeholder="Dirección del cliente"></div>
             <div class="vta-field"><span class="vf-label">Plantilla</span><select id="vf-plantilla"><option>GENERAL</option><option>SELECTIVO</option><option>PICKING</option><option>INSTALACIÓN</option></select></div>
             <div class="vta-field"><span class="vf-label">Moneda</span><select id="vf-moneda" onchange="cambiarMoneda(this.value)"><option value="USD">USD — Dólares</option><option value="MXN">MXN — Pesos</option></select></div>
-            <div class="vta-field"><span class="vf-label">Plazo</span><select id="vf-plazo"><option>Inmediato</option><option>15 días</option><option>30 días</option><option>60 días</option><option>50% anticipo / 50% contra entrega</option></select></div>
+            <div class="vta-field"><span class="vf-label">Plazo de pago</span><select id="vf-plazo"><option>15 días</option><option>Inmediato</option><option>30 días</option><option>60 días</option><option>50% anticipo / 50% contra entrega</option></select></div>
             <div class="vta-field"><span class="vf-label">Entrega</span><select id="vf-entrega"><option>5 A 6 DIAS HABILES</option><option>10 A 12 DIAS HABILES</option><option>15 A 20 DIAS HABILES</option><option>3 A 4 SEMANAS</option><option>POR DEFINIR</option></select></div>
             <div class="vta-field" style="grid-column:span 3;background:#fafaf6;padding:6px 10px;border-radius:4px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
               <span style="font-size:11px;color:#555;font-weight:600;display:inline-flex;align-items:center;gap:6px">TC DOF: $<input id="tc-dof-input" type="number" step="0.0001" value="17.2623" readonly onchange="if(window._tcAdminEdit){TC_DOF=parseFloat(this.value)||17.2623;}" style="width:70px;border:1px solid #ddd;border-radius:3px;background:#f8f8f6;font-weight:700;color:#3B6D11;font-size:11px;text-align:center;padding:2px 4px;cursor:not-allowed" title="TC oficial de Banxico (DOF) — se actualiza automáticamente"> MXN/USD <span id="tc-status-badge" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:#EAF3DE;color:#3B6D11;border-radius:10px;font-size:10px;font-weight:600;cursor:default" title="">⏳</span></span>
@@ -1464,7 +1482,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.16.01';
+const APP_VERSION='2026.10.17.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -7724,7 +7742,19 @@ function renderFacturasPanel(fl){
   renderFacturaDetalle();
 }
 
-function seleccionarFacturaPanel(pedido){_factSelPedido=pedido;renderFacturas();}
+function _factEsCel(){return !!(window.matchMedia&&window.matchMedia('(max-width:768px)').matches);}
+function seleccionarFacturaPanel(pedido){
+  _factSelPedido=pedido;renderFacturas();
+  // En celular el detalle abre a pantalla completa (ver CSS de #fact-md)
+  if(_factEsCel()){const md=document.getElementById('fact-md');const tb=document.getElementById('tab-facturacion');if(tb)tb.classList.add('fact-cel-det');if(md){md.classList.add('ver-detalle');md.scrollIntoView({block:'start'});}}
+}
+function factVolverLista(){
+  const md=document.getElementById('fact-md');if(!md)return;
+  md.classList.remove('ver-detalle');
+  const tb=document.getElementById('tab-facturacion');if(tb)tb.classList.remove('fact-cel-det');
+  const sel=[...document.querySelectorAll('#fact-md-lista [onclick^="seleccionarFacturaPanel"]')].find(el=>el.getAttribute('onclick').indexOf("'"+_factSelPedido+"'")>=0);
+  (sel||md).scrollIntoView({block:'center'});
+}
 
 function renderFacturaDetalle(){
   const det=document.getElementById('fact-md-detalle');
@@ -7900,6 +7930,7 @@ function renderFacturaDetalle(){
   const noFactBtn='<button onclick="marcarNoRequiereFactura('+ri+')" style="width:100%;padding:7px;background:'+(noFactActivo?'#f7f6f1':'#fff')+';border:1px dashed '+(noFactActivo?'#BA7517':'#c8c8c2')+';color:'+(noFactActivo?'#633806':'#666')+';border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px">'+(noFactActivo?'↩ Este pedido NO requiere factura — reactivar documentos':'🚫 Marcar: no requiere factura (PO, Factura y CSF en N/A)')+'</button>';
 
   det.innerHTML=
+    '<button class="fact-volver" onclick="factVolverLista()" style="display:none;align-items:center;gap:6px;width:100%;padding:10px 12px;margin-bottom:10px;background:#fdf2ee;border:1px solid #f0c9b6;color:#B5502A;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">← Volver a la lista</button>'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
       '<div><div style="font-size:19px;font-weight:800;color:#D85A30">'+f.pedido+'</div><div style="font-size:14px;color:#222;font-weight:600">'+(f.cliente||'—')+'</div><div style="font-size:12px;color:#777">'+(f.ejecutivo||'—')+(f.fecha?' · '+fmt(f.fecha):'')+'</div></div>'+
       '<span style="background:'+ec.bg+';color:'+ec.c+';font-size:12px;padding:5px 12px;border-radius:16px;font-weight:700">'+ec.l+'</span>'+
@@ -7922,7 +7953,7 @@ function renderFacturaDetalle(){
     '<div style="padding:6px 0 2px"><button onclick="agregarPagoFact('+ri+')" style="width:100%;padding:8px;background:#fff;border:1px dashed #c9a48f;color:#B5502A;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ agregar pago</button></div>'+
     noFactBtn+
     '<div style="display:flex;gap:8px;margin-top:8px">'+pagadoBtn+factBtn+'<button onclick="enviarCotizacionPorCorreo({numPedido:\''+f.pedido.replace(/'/g,"\\'")+'\',cliente:\''+(f.cliente||'').replace(/'/g,"\\'")+'\',monto:'+(f.monto||0)+',fecha:\''+(f.fecha||'')+'\',tipoDoc:\'Factura\'})" style="flex:1;padding:9px;background:#fff;border:1px solid #185FA5;color:#185FA5;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📧 Enviar</button></div>'+
-    '<div style="margin-top:6px;font-size:11px;color:#888;text-align:center">💡 Arrastra un PDF/XML/imagen sobre cualquier renglon, o da click al renglon y pega con Ctrl+V</div>';
+    '<div class="fact-tip" style="margin-top:6px;font-size:11px;color:#888;text-align:center">💡 Arrastra un PDF/XML/imagen sobre cualquier renglon, o da click al renglon y pega con Ctrl+V</div>';
   if(typeof _armarDropZonesFactura==='function')_armarDropZonesFactura(det,ri);
 }
 
@@ -13746,7 +13777,7 @@ if(usrV){
   selVf.value='';
   if(lblCom)lblCom.textContent='💼 —';
 }
-document.getElementById('vf-plantilla').value='GENERAL';document.getElementById('vf-moneda').value='USD';document.getElementById('vf-plazo').value='Inmediato';document.getElementById('vf-entrega').value='5 A 6 DIAS HABILES';document.getElementById('vf-instalacion').value='NO';document.getElementById('vf-domicilio').value='SI';document.getElementById('vf-maniobra').value='SI';setTipoDoc('Cotización');setVtaStage('Presupuesto');setVtaHist(false);renderLineas();}
+document.getElementById('vf-plantilla').value='GENERAL';document.getElementById('vf-moneda').value='USD';document.getElementById('vf-plazo').value='15 días';document.getElementById('vf-entrega').value='5 A 6 DIAS HABILES';document.getElementById('vf-instalacion').value='NO';document.getElementById('vf-domicilio').value='SI';document.getElementById('vf-maniobra').value='SI';setTipoDoc('Cotización');setVtaStage('Presupuesto');setVtaHist(false);renderLineas();}
 function _normNombreVta(s){return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\b(lic|ing|sr|sra|c|arq|dr)\.?\s*/g,'').replace(/[^a-z0-9 ]/g,'').trim();}
 // Al entrar al tab Ventas: siempre mostrar la lista. Si hay un form con avance, conservarlo.
 function irAVentasLista(){
