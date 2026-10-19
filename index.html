@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.04';
+const APP_VERSION='2026.10.19.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -4997,18 +4997,20 @@ async function renderInstalaciones(){
   INST.docs=undefined;
   if(!INST_DC3)_instCargarDC3();
   _instPintar();
+  _instTerminarPorPedido();
 }
 function _instSeg(m,label){var on=INST.modo===m;return '<button onclick="INST.modo=\''+m+'\';INST.q=\'\';_instPintar()" style="border:none;border-radius:18px;padding:6px 13px;font-size:12px;cursor:pointer;font-weight:'+(on?'600':'400')+';background:'+(on?'#fff':'transparent')+';color:'+(on?'#DA6635':'#666')+';box-shadow:'+(on?'0 1px 3px rgba(0,0,0,.12)':'none')+'">'+label+'</button>';}
 function _instPintar(){
   var root=document.getElementById('inst-root');if(!root)return;
   var head='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">'+
-    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('fin','✓ Terminadas')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('docs','📁 Documentos')+'</div>'+
+    '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('fin','✓ Terminadas')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('asis','🗓 Asistencia')+_instSeg('docs','📁 Documentos')+'</div>'+
     ((INST.modo==='obra'||INST.modo==='persona')?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
     '<button onclick="abrirInstEditor(null)" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Registrar obra</button></div>';
   var body='';
   if(INST.modo==='persona')body=_instPorPersona();
   else if(INST.modo==='obra')body=_instPorObra();
   else if(INST.modo==='docs')body=_instDocsView();
+  else if(INST.modo==='asis')body=_asisSemanaView();
   else if(INST.modo==='fin')body=_instTerminadas();
   else body=_instBoardPedidos();
   root.innerHTML=head+body;
@@ -5436,11 +5438,139 @@ function _instExportCSV(){
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='REPSE_'+(INST.q||'obra').replace(/\s+/g,'_')+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},100);
   if(typeof showToast==='function')showToast('CSV exportado','#3B6D11');
 }
+// ═══ ASISTENCIA POR DÍA (Isaac, 19 oct 2026) ═══
+// La oficina pasa lista por obra y por día. Se guarda en instalaciones_activas.asistencia
+// (jsonb): { 'YYYY-MM-DD': { 'Nombre': 1 | 0.5 | 0 } }  1 = día completo, 0.5 = medio día,
+// 0 = faltó; si la persona no aparece ese día, no se ha pasado lista.
+function _asisHoy(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _asisSumDia(iso,n){var d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+var _ASIS_DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function _asisEtq(iso){var d=new Date(iso+'T12:00:00');return _ASIS_DIAS[d.getDay()]+' '+d.getDate();}
+// Días de la obra: de fecha inicio a fecha fin (o hoy), sin domingos, + los días que ya traigan lista.
+function _asisDias(e){
+  var a=(e.asistencia&&typeof e.asistencia==='object')?e.asistencia:{};
+  var fi=(''+(e.fecha_inicio||'')).slice(0,10),ff=(''+(e.fecha_fin||'')).slice(0,10),hoy=_asisHoy();
+  var set={};Object.keys(a).forEach(function(k){if(/^\d{4}-\d{2}-\d{2}$/.test(k))set[k]=1;});
+  if(fi){var fin=ff||hoy;if(fin<fi)fin=fi;var d=fi,n=0;while(d<=fin&&n<62){if(new Date(d+'T12:00:00').getDay()!==0)set[d]=1;d=_asisSumDia(d,1);n++;}}
+  return Object.keys(set).sort();
+}
+function _asisVal(e,dia,n){var a=e.asistencia||{};var r=a[dia];if(!r||typeof r!=='object')return undefined;return (n in r)?Number(r[n]):undefined;}
+function _asisCelda(v){
+  if(v===1)return '<span style="display:inline-flex;width:30px;height:24px;border-radius:6px;align-items:center;justify-content:center;font-weight:800;background:#3B6D11;color:#fff">✓</span>';
+  if(v===0.5)return '<span style="display:inline-flex;width:30px;height:24px;border-radius:6px;align-items:center;justify-content:center;font-weight:800;background:#F6C76B;color:#5a3c00">½</span>';
+  if(v===0)return '<span style="display:inline-flex;width:30px;height:24px;border-radius:6px;align-items:center;justify-content:center;font-weight:800;background:#fdecea;color:#c62828">✕</span>';
+  return '<span style="display:inline-flex;width:30px;height:24px;border-radius:6px;align-items:center;justify-content:center;background:#f4f4f2;color:#bbb">·</span>';
+}
+function _asisHtml(){
+  var e=INST_EDIT;if(!e)return '';
+  var dias=_asisDias(e),hoy=_asisHoy();
+  var gente=(e.instaladores||[]).slice();
+  Object.keys(e.asistencia||{}).forEach(function(d){Object.keys(e.asistencia[d]||{}).forEach(function(n){if(gente.indexOf(n)<0)gente.push(n);});});
+  var head='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:12px;font-weight:800;color:#DA6635;letter-spacing:.04em">📋 ASISTENCIA POR DÍA</span><button type="button" onclick="_asisPasarHoy()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-weight:700;font-size:12px;cursor:pointer">✓ Pasar lista hoy</button></div>'+
+    '<div style="font-size:10.5px;color:#777;margin:4px 0 6px">✓ día completo · ½ medio día · ✕ faltó — toca el cuadro para cambiarlo</div>';
+  if(!gente.length)return head+'<div style="font-size:12px;color:#999;padding:8px 0">Primero palomea al personal de la obra.</div>';
+  if(!dias.length)return head+'<div style="font-size:12px;color:#999;padding:8px 0">Pon la fecha de inicio para ver los días (o usa "Pasar lista hoy").</div>';
+  var tot={},totDia={};
+  var th=dias.map(function(d){var h=d===hoy;return '<th style="font-size:10px;color:'+(h?'#DA6635':'#888')+';padding:4px 2px;font-weight:700;'+(h?'background:#fff7f2':'')+'">'+_asisEtq(d)+(h?'<br>HOY':'')+'</th>';}).join('');
+  var filas=gente.map(function(n){
+    var t=0;var tds=dias.map(function(d){var v=_asisVal(e,d,n);if(v>0){t+=v;totDia[d]=(totDia[d]||0)+v;}return '<td style="text-align:center;padding:3px 2px;'+(d===hoy?'background:#fff7f2':'')+'"><span onclick="_asisCiclo(\''+d+'\',\''+_ieAttr(n)+'\')" style="cursor:pointer">'+_asisCelda(v)+'</span></td>';}).join('');
+    tot[n]=t;
+    return '<tr><td style="font-size:11.5px;font-weight:700;white-space:nowrap;padding:3px 6px 3px 0">'+_instMay(n)+(e.lider===n?' ★':'')+'</td>'+tds+'<td style="text-align:center;font-weight:800;color:#DA6635">'+t+'</td></tr>';
+  }).join('');
+  var totObra=gente.reduce(function(s,n){return s+tot[n];},0);
+  var pie='<tr><td style="font-size:11px;color:#888;padding:3px 0">Total obra</td>'+dias.map(function(d){return '<td style="text-align:center;font-size:11px;color:#555">'+(totDia[d]||'—')+'</td>';}).join('')+'<td style="text-align:center;font-weight:800;color:#DA6635;font-size:13px">'+totObra+'</td></tr>';
+  return head+'<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left;font-size:10px;color:#888">Persona</th>'+th+'<th style="font-size:10px;color:#888">Jornadas</th></tr>'+filas+pie+'</table></div>';
+}
+function _asisPintar(){var c=document.getElementById('ie-asis');if(c){var sl=c.querySelector('div[style*="overflow-x"]');var x=sl?sl.scrollLeft:0;c.innerHTML=_asisHtml();var s2=c.querySelector('div[style*="overflow-x"]');if(s2)s2.scrollLeft=x;}}
+function _asisCiclo(dia,n){
+  var e=INST_EDIT;if(!e)return;
+  if(!e.asistencia||typeof e.asistencia!=='object')e.asistencia={};
+  var r=e.asistencia[dia]||(e.asistencia[dia]={});
+  var v=(n in r)?Number(r[n]):undefined;
+  // · → ✓ → ½ → ✕ → ·
+  if(v===undefined)r[n]=1;else if(v===1)r[n]=0.5;else if(v===0.5)r[n]=0;else delete r[n];
+  if(!Object.keys(r).length)delete e.asistencia[dia];
+  _asisPintar();_instAutosave();
+}
+function _asisPasarHoy(){
+  var e=INST_EDIT;if(!e)return;
+  if(!(e.instaladores||[]).length){showToast('Primero palomea al personal de la obra','#c62828');return;}
+  if(!e.asistencia||typeof e.asistencia!=='object')e.asistencia={};
+  var hoy=_asisHoy();var r=e.asistencia[hoy]||(e.asistencia[hoy]={});
+  e.instaladores.forEach(function(n){if(!(n in r))r[n]=1;});
+  if(!e.fecha_inicio){e.fecha_inicio=hoy;var fi=document.getElementById('ie-fi');if(fi)fi.value=hoy;}
+  _asisPintar();_instAutosave();
+  showToast('✓ Lista de hoy: '+e.instaladores.length+' persona(s). Cambia al que faltó.','#3B6D11');
+}
+// ── Resumen semanal (todas las obras) ──
+function _asisLunes(iso){var d=new Date((iso||_asisHoy())+'T12:00:00');var w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _asisSemanaDatos(){
+  var lun=INST.semana||_asisLunes();
+  var dias=[0,1,2,3,4,5].map(function(i){return _asisSumDia(lun,i);});
+  var per={};
+  INST.rows.forEach(function(r){
+    var a=(r.asistencia&&typeof r.asistencia==='object')?r.asistencia:{};
+    var etq=((r.folio||'')+' '+(r.obra||r.cliente||'')).trim();
+    dias.forEach(function(d){var x=a[d];if(!x)return;Object.keys(x).forEach(function(n){var v=Number(x[n]);var p=per[n]||(per[n]={dias:{},obras:{},tot:0});
+      var c=p.dias[d]||(p.dias[d]={v:0,obras:[],falta:false});if(v>0){c.v+=v;c.obras.push(etq);p.tot+=v;p.obras[etq]=(p.obras[etq]||0)+v;}else c.falta=true;});});
+  });
+  return {lun,dias,per};
+}
+function _asisSemanaView(){
+  var s=_asisSemanaDatos();
+  var nombres=Object.keys(s.per).sort(function(a,b){return s.per[b].tot-s.per[a].tot||a.localeCompare(b);});
+  var fin=s.dias[5];
+  var nav='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><div style="font-weight:700">🗓 Asistencia semanal — '+_fmtF(s.lun)+' al '+_fmtF(fin)+'</div><div style="display:flex;gap:6px"><button onclick="INST.semana=_asisSumDia(\''+s.lun+'\',-7);_instPintar()" style="background:#fff;border:1px solid #cfe0f5;color:#185FA5;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">◀ Anterior</button><button onclick="INST.semana=null;_instPintar()" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Esta semana</button><button onclick="INST.semana=_asisSumDia(\''+s.lun+'\',7);_instPintar()" style="background:#fff;border:1px solid #cfe0f5;color:#185FA5;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Siguiente ▶</button><button onclick="_asisExportar()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">⬇ Exportar Excel</button></div></div>';
+  if(!nombres.length)return nav+'<div style="padding:30px;text-align:center;color:#999">Sin lista pasada esta semana. Abre una obra y usa <b>Pasar lista hoy</b>.</div>';
+  var th=s.dias.map(function(d){return '<th style="font-size:10px;color:#888;padding:6px 4px">'+_asisEtq(d)+'</th>';}).join('');
+  var filas=nombres.map(function(n){var p=s.per[n];
+    var tds=s.dias.map(function(d){var c=p.dias[d];var v=c?(c.v>0?(c.v>=1?1:0.5):(c.falta?0:undefined)):undefined;return '<td style="text-align:center;padding:4px">'+_asisCelda(v)+(c&&c.obras.length?'<div style="font-size:9.5px;color:#666;margin-top:1px">'+_ie(c.obras.join(' / '))+'</div>':'')+'</td>';}).join('');
+    var desg=Object.keys(p.obras).map(function(o){return _ie(o)+' '+p.obras[o];}).join(' · ');
+    return '<tr style="border-bottom:1px solid #f0eee8"><td style="font-weight:700;font-size:12px;white-space:nowrap;padding:4px 8px 4px 0">'+_instMay(n)+'</td>'+tds+'<td style="text-align:center;font-weight:800;color:#DA6635">'+p.tot+'</td><td style="font-size:10.5px;color:#555">'+desg+'</td></tr>';}).join('');
+  return nav+'<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:10px;overflow-x:auto"><table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left;font-size:10px;color:#888">Persona</th>'+th+'<th style="font-size:10px;color:#888">Días</th><th style="text-align:left;font-size:10px;color:#888">Obras</th></tr>'+filas+'</table></div>';
+}
+function _asisExportar(){
+  var s=_asisSemanaDatos();
+  var q=function(t){return '"'+String(t==null?'':t).replace(/"/g,'""')+'"';};
+  var lines=[['Persona'].concat(s.dias.map(_asisEtq)).concat(['Días','Obras']).map(q).join(',')];
+  Object.keys(s.per).sort().forEach(function(n){var p=s.per[n];
+    lines.push([n].concat(s.dias.map(function(d){var c=p.dias[d];if(!c)return '';if(c.v>0)return c.v+' '+c.obras.join(' / ');return c.falta?'FALTÓ':'';})).concat([p.tot,Object.keys(p.obras).map(function(o){return o+' '+p.obras[o];}).join(' · ')]).map(q).join(','));});
+  var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Asistencia_'+s.lun+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},100);
+  showToast('Asistencia exportada','#3B6D11');
+}
+// ── Estatus de la instalación → pedido en Seguimiento ──
+// En proceso / Falta material / Por terminar / Terminada se anota en el pedido
+// (o.instalacionEstatus) y un pedido Pendiente pasa a En proceso. Completado NO se
+// pone desde aqui: ese exige la firma de entrega.
+function _instSyncPedido(e){
+  try{
+    if(!e||!e.folio||typeof orders==='undefined'||!Array.isArray(orders))return;
+    var o=orders.find(function(x){return x&&x.num===e.folio;});if(!o)return;
+    if(/complet|cancel/i.test(o.estatus||''))return;
+    var cambio=false;
+    if((o.instalacionEstatus||'')!==(e.estatus||'')){o.instalacionEstatus=e.estatus||'';cambio=true;}
+    if(!o.estatus||o.estatus==='Pendiente'){o.estatus='En proceso';cambio=true;}
+    if(!cambio)return;
+    o.updated=Date.now();saveOrders();
+    if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
+    if(typeof renderTable==='function')try{renderTable();}catch(_e){}
+  }catch(err){console.warn('_instSyncPedido',err);}
+}
+// Pedido Completado → su registro de instalación queda Terminada (al abrir Instalaciones).
+async function _instTerminarPorPedido(){
+  try{
+    var pend=INST.rows.filter(function(r){return r&&r.id&&r.folio&&!/termin/i.test(r.estatus||'')&&_instOrderFin(r.folio);});
+    for(var i=0;i<pend.length;i++){var r=pend[i];var res=await supabaseClient.from('instalaciones_activas').update({estatus:'Terminada',updated_at:new Date().toISOString()}).eq('id',r.id);if(!(res&&res.error))r.estatus='Terminada';}
+  }catch(err){console.warn('_instTerminarPorPedido',err);}
+}
 // ── Editor / captura ──
 function abrirInstEditor(id){
   var r=(id!=null)?INST.rows.find(function(x){return x.id===id;}):null;
   INST_EDIT=r?JSON.parse(JSON.stringify(r)):{id:null,folio:'',obra:'',cliente:'',ubicacion:'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:'En proceso'};
   if(!Array.isArray(INST_EDIT.instaladores))INST_EDIT.instaladores=[];
+  if(!INST_EDIT.asistencia||typeof INST_EDIT.asistencia!=='object')INST_EDIT.asistencia={};
+  if(INST_EDIT.folio&&_instOrderFin(INST_EDIT.folio)&&!/termin/i.test(INST_EDIT.estatus||''))INST_EDIT.estatus='Terminada';
   // Snapshot de la cuadrilla ORIGINAL cargada de la nube: si el auto-save
   // se dispara antes de que el usuario toque la lista, no debemos pisarla
   // con [] (bug historico que borro cuadrillas entre navegadores).
@@ -5463,6 +5593,7 @@ function _instModal(){
       '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+estOpts.map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
+      '<div id="ie-asis" style="border:1px solid #f0e2d8;border-radius:10px;padding:10px;background:#fffdfb">'+_asisHtml()+'</div>'+
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
       '<button onclick="_instPaquete()" style="width:100%;padding:11px;border:1px solid #DA6635;background:#fff5f0;color:#c2410c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Paquete de documentos para llevar</button>'+
     '</div>'+
@@ -5527,8 +5658,9 @@ function _instSyncEditor(){
   v=g('ie-ff');if(v!==undefined)INST_EDIT.fecha_fin=v;
   v=g('ie-lider');if(v!==undefined)INST_EDIT.lider=v;
   v=g('ie-estatus');if(v!==undefined)INST_EDIT.estatus=v;
+  try{var _ia=document.getElementById('ie-asis');if(_ia&&_ia.dataset.k!==(INST_EDIT.fecha_inicio+'|'+INST_EDIT.fecha_fin)){_ia.dataset.k=INST_EDIT.fecha_inicio+'|'+INST_EDIT.fecha_fin;_asisPintar();}}catch(_e){}
 }
-function _instMergeRow(e){if(!e.id)return;var row={id:e.id,folio:e.folio,obra:e.obra,cliente:e.obra,ubicacion:e.ubicacion,instaladores:(e.instaladores||[]).slice(),lider:e.lider,fecha_inicio:e.fecha_inicio,fecha_fin:e.fecha_fin,notas:e.notas,estatus:e.estatus};var i=INST.rows.findIndex(function(r){return r.id===e.id;});if(i>=0)INST.rows[i]=row;else INST.rows.push(row);}
+function _instMergeRow(e){if(!e.id)return;var row={id:e.id,folio:e.folio,obra:e.obra,cliente:e.obra,ubicacion:e.ubicacion,instaladores:(e.instaladores||[]).slice(),lider:e.lider,fecha_inicio:e.fecha_inicio,fecha_fin:e.fecha_fin,notas:e.notas,estatus:e.estatus,asistencia:e.asistencia||{}};var i=INST.rows.findIndex(function(r){return r.id===e.id;});if(i>=0)INST.rows[i]=row;else INST.rows.push(row);}
 async function _instSaveCore(){
   if(!INST_EDIT)return;
   if(_instSaving){_instDirty=true;return;}
@@ -5536,7 +5668,7 @@ async function _instSaveCore(){
   var e=INST_EDIT;
   if(!(e.obra||e.folio||(e.instaladores&&e.instaladores.length))){_instSaveIndicador('');return;} // no guardar vacíos
   _instSaving=true;_instDirty=false;_instSaveIndicador('…');
-  var payload={folio:e.folio||'',obra:e.obra||'',cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores||[],lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',updated_at:new Date().toISOString()};
+  var payload={folio:e.folio||'',obra:e.obra||'',cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores||[],lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',asistencia:e.asistencia||{},updated_at:new Date().toISOString()};
   // PROTECCION: si el editor no cargo bien la cuadrilla (INST_EDIT.instaladores
   // llego vacio pero la fila original la traia), NO sobreescribir con [] — es
   // el bug que borro cuadrillas cuando un usuario abria una obra con cache
@@ -5551,6 +5683,7 @@ async function _instSaveCore(){
     else{payload.creado=new Date().toISOString();res=await supabaseClient.from('instalaciones_activas').insert(payload).select('id').single();if(res&&res.data&&res.data.id)e.id=res.data.id;}
     if(res&&res.error)throw res.error;
     _instMergeRow(e);_instSaveIndicador('ok');
+    _instSyncPedido(e);
   }catch(err){console.error('inst save',err);_instSaveIndicador('err');}
   _instSaving=false;
   if(_instDirty)_instSaveCore();
@@ -6212,7 +6345,7 @@ function duplicarPedido(id){
   showToast('✓ Duplicado como '+copia.num,'#3B6D11');
 }
 function renderTable(){const _esAdmin=getCurrentUser()?.rol==='admin';const q=(document.getElementById('search').value||'').toLowerCase();const list=_pedidosVisibles().filter(o=>{if(filter!=='todos'&&o.estatus!==filter)return false;if(q&&!((o.num||'')+o.cliente+o.comercial+(o.desc||'')).toLowerCase().includes(q))return false;return true;}).sort((a,b)=>{const ia=_tsVentaOrden(a),ib=_tsVentaOrden(b);return sortAsc?ia-ib:ib-ia;});document.getElementById('tbl-header').textContent=`PEDIDOS — ${list.length} registro${list.length!==1?'s':''}`;const tb=document.getElementById('tbody');if(!list.length){tb.innerHTML=`<tr><td colspan="12" class="empty-row"><span style="font-size:32px;display:block;margin-bottom:.5rem">📦</span>Sin pedidos</td></tr>`;return;}
-tb.innerHTML=list.map(o=>{const id=o.id,si=(o.sistemas||[]).map(s=>`<span class="tag">${s}</span>`).join('')||'<span style="color:#ccc">—</span>',sp=o.surtido||0,fp=o.fab||0,ef=o.entrega?o.entrega.split('-').reverse().join('/'):'+ fecha',ff=(()=>{const t=_tsVentaOrden(o);if(!t)return o.fecha?o.fecha.split('-').reverse().join('/'):'—';const d=new Date(t);const dia=String(d.getDate()).padStart(2,'0'),mes=String(d.getMonth()+1).padStart(2,'0'),anio=d.getFullYear();let h=d.getHours();const m=String(d.getMinutes()).padStart(2,'0');const am=h<12?'a.m.':'p.m.';h=h%12||12;return `${String(h).padStart(2,'0')}:${m} ${am}<br><span style="font-size:11px;color:#888">${dia}/${mes}/${anio}</span>`;})(),hp=o.pdfsPresupuesto?.length>0||!!o.cotHTML||!!o.cotData,hr=_tieneFirmaCierre(o);return`<tr data-id="${id}" style="${o.estatus==='Completado'?'background:#e8f5e0':''}"><td class="drag-handle">⠿</td><td><button class="act-btn" onclick="openModal(${id})" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap" title="Abrir reporte completo del pedido"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>Reporte<span class="mob-hide"> de entrega</span></button></td><td>${(()=>{const fi=facturas.findIndex(x=>x.pedido===o.num);if(fi<0)return `<button onclick="crearFacturaDesdePedido(${id})" style="padding:4px 9px;background:#fff;border:1px dashed #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Crear factura para este pedido">+ Factura</button>`;const f=facturas[fi];const tienePdf=_hayAdj(f.pdfFactNum);return tienePdf?`<button onclick="verAdjuntoFact(${fi},'pdfFactNum')" style="padding:4px 10px;background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Ver PDF de la factura">📄 Ver</button>`:`<button onclick="adjuntarCampoFact(${fi},'factura')" style="padding:4px 10px;background:#fff;border:1px solid #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Adjuntar PDF de la factura">📎 Adjuntar</button>`;})()}</td><td>${hp?`<button class="act-btn" onclick="viewPDF(event,${id},'presupuesto')" style="background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:700;padding:5px 12px;gap:5px" title="Ver presupuesto ${o.num}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${o.num}</button>`:`<span class="num" style="cursor:default" title="Sin presupuesto adjunto">${o.num}</span>`}</td><td class="fecha-cell" data-inline onclick="inlineFechaPresp(event,${id},'${o.fecha||''}')" style="line-height:1.3">${ff}</td><td data-inline onclick="inlineCliente(event,${id},${JSON.stringify(o.cliente||'').replace(/"/g,'&quot;')})" style="max-width:220px;overflow:hidden;font-weight:500;cursor:pointer;vertical-align:top" title="Click para editar cliente — nota en boton 📝"><div style="display:flex;align-items:center;gap:4px;overflow:hidden"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">${o.cliente||''}</span><button onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="padding:1px 5px;background:${o.notas?'#FFF3EC':'transparent'};border:1px solid ${o.notas?'#D85A30':'#e0d9cf'};border-radius:6px;font-size:11px;color:${o.notas?'#B5502A':'#aaa'};cursor:pointer;line-height:1.2;flex-shrink:0" title="${o.notas?'Nota — click para ver/editar':'Agregar nota'}">📝</button></div>${(()=>{var _escN=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};const _nt=(o.notas||'').trim();const _nu=_nt&&!/^Moneda:/i.test(_nt)?_nt:'';return _nu?`<div onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="font-size:10.5px;color:#8a6a5a;background:#FFF3EC;border-left:2px solid #D85A30;padding:2px 6px;margin-top:3px;border-radius:0 4px 4px 0;line-height:1.3;font-weight:400;cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escN(_nu)}">📝 ${_escN(_nu.length>60?_nu.slice(0,58)+'…':_nu)}</div>`:'';})()}</td><td data-inline onclick="inlineComercial(event,${id},${JSON.stringify(o.comercial||'').replace(/"/g,'&quot;')})" style="font-size:12px;color:#666;max-width:145px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer" title="Click para editar — ${o.comercial||''}">${o.comercial||'—'}</td><td>${o.whatsapp?`<div style="display:flex;align-items:center;gap:4px"><a href="https://wa.me/52${o.whatsapp.replace(/\D/g,'')}" target="_blank" style="padding:3px 9px;background:#e8faf0;border:1px solid #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;text-decoration:none;font-weight:600">💬 ${o.contactoNombre||o.whatsapp}</a><button data-inline onclick="inlineWhatsapp(event,${id},${JSON.stringify(o.contactoNombre||'').replace(/"/g,'&quot;')},${JSON.stringify(o.whatsapp||'').replace(/"/g,'&quot;')})" style="padding:2px 6px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#666" title="Editar">✏</button></div>`:`<button data-inline onclick="inlineWhatsapp(event,${id},'','')" style="padding:3px 9px;background:#fff;border:1px dashed #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;cursor:pointer">+ Agregar 💬</button>`}</td><td>${o.instaladorNombre?`<div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap"><span data-inline onclick="inlineInstalador(event,${id},'${o.instaladorCel||''}')" style="font-size:12px;max-width:100px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5;font-weight:600" title="Click para cambiar">${o.instaladorNombre}</span><button onclick="notificarPorId(${id})" style="padding:4px 10px;background:#25D366;border:none;border-radius:20px;font-size:11px;color:#fff;font-weight:700;cursor:pointer;flex-shrink:0">📤</button></div>`:`<button data-inline onclick="inlineInstalador(event,${id},'')" style="padding:4px 10px;background:#fff;border:1px dashed #185FA5;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Asignar 👷</button>`}</td><td>${o.ubicacion?`<div style="display:flex;align-items:center;gap:4px"><span data-inline onclick="inlineUbicacion(event,${id},${JSON.stringify(o.ubicacion||'').replace(/"/g,'&quot;')})" style="font-size:11px;max-width:140px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5" title="Click para editar — ${(o.ubicacion||'').replace(/"/g,'&quot;')}">${o.ubicacion}</span><button onclick="verMapaInline(event,${id})" style="padding:2px 8px;background:#E6F1FB;border:1px solid #b5cce8;border-radius:20px;font-size:10px;color:#185FA5;font-weight:600;cursor:pointer;flex-shrink:0">🗺</button></div>`:`<button data-inline onclick="inlineUbicacion(event,${id},'')" style="padding:3px 9px;background:#fff;border:1px dashed #b5cce8;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Ubicación 📍</button>`}</td><td><span class="badge ${eC[o.estatus]||'b-pendiente'}" data-inline onclick="inlineSelect(event,${id},'estatus',ESTATUS_OPTS,'${o.estatus||''}')">${o.estatus||'Pendiente'} ▾</span>${o.estatus==='Completado'&&!hr?` <span style="background:#FCEBEB;color:#791F1F;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:600;white-space:nowrap;margin-left:3px" title="Falta firma del cliente">⚠ Sin firma</span>`:''}</td><td></td></tr>`}).join('');setTimeout(initRowDrag,30);
+tb.innerHTML=list.map(o=>{const id=o.id,si=(o.sistemas||[]).map(s=>`<span class="tag">${s}</span>`).join('')||'<span style="color:#ccc">—</span>',sp=o.surtido||0,fp=o.fab||0,ef=o.entrega?o.entrega.split('-').reverse().join('/'):'+ fecha',ff=(()=>{const t=_tsVentaOrden(o);if(!t)return o.fecha?o.fecha.split('-').reverse().join('/'):'—';const d=new Date(t);const dia=String(d.getDate()).padStart(2,'0'),mes=String(d.getMonth()+1).padStart(2,'0'),anio=d.getFullYear();let h=d.getHours();const m=String(d.getMinutes()).padStart(2,'0');const am=h<12?'a.m.':'p.m.';h=h%12||12;return `${String(h).padStart(2,'0')}:${m} ${am}<br><span style="font-size:11px;color:#888">${dia}/${mes}/${anio}</span>`;})(),hp=o.pdfsPresupuesto?.length>0||!!o.cotHTML||!!o.cotData,hr=_tieneFirmaCierre(o);return`<tr data-id="${id}" style="${o.estatus==='Completado'?'background:#e8f5e0':''}"><td class="drag-handle">⠿</td><td><button class="act-btn" onclick="openModal(${id})" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap" title="Abrir reporte completo del pedido"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>Reporte<span class="mob-hide"> de entrega</span></button></td><td>${(()=>{const fi=facturas.findIndex(x=>x.pedido===o.num);if(fi<0)return `<button onclick="crearFacturaDesdePedido(${id})" style="padding:4px 9px;background:#fff;border:1px dashed #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Crear factura para este pedido">+ Factura</button>`;const f=facturas[fi];const tienePdf=_hayAdj(f.pdfFactNum);return tienePdf?`<button onclick="verAdjuntoFact(${fi},'pdfFactNum')" style="padding:4px 10px;background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Ver PDF de la factura">📄 Ver</button>`:`<button onclick="adjuntarCampoFact(${fi},'factura')" style="padding:4px 10px;background:#fff;border:1px solid #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Adjuntar PDF de la factura">📎 Adjuntar</button>`;})()}</td><td>${hp?`<button class="act-btn" onclick="viewPDF(event,${id},'presupuesto')" style="background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:700;padding:5px 12px;gap:5px" title="Ver presupuesto ${o.num}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${o.num}</button>`:`<span class="num" style="cursor:default" title="Sin presupuesto adjunto">${o.num}</span>`}</td><td class="fecha-cell" data-inline onclick="inlineFechaPresp(event,${id},'${o.fecha||''}')" style="line-height:1.3">${ff}</td><td data-inline onclick="inlineCliente(event,${id},${JSON.stringify(o.cliente||'').replace(/"/g,'&quot;')})" style="max-width:220px;overflow:hidden;font-weight:500;cursor:pointer;vertical-align:top" title="Click para editar cliente — nota en boton 📝"><div style="display:flex;align-items:center;gap:4px;overflow:hidden"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">${o.cliente||''}</span><button onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="padding:1px 5px;background:${o.notas?'#FFF3EC':'transparent'};border:1px solid ${o.notas?'#D85A30':'#e0d9cf'};border-radius:6px;font-size:11px;color:${o.notas?'#B5502A':'#aaa'};cursor:pointer;line-height:1.2;flex-shrink:0" title="${o.notas?'Nota — click para ver/editar':'Agregar nota'}">📝</button></div>${(()=>{var _escN=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};const _nt=(o.notas||'').trim();const _nu=_nt&&!/^Moneda:/i.test(_nt)?_nt:'';return _nu?`<div onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="font-size:10.5px;color:#8a6a5a;background:#FFF3EC;border-left:2px solid #D85A30;padding:2px 6px;margin-top:3px;border-radius:0 4px 4px 0;line-height:1.3;font-weight:400;cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escN(_nu)}">📝 ${_escN(_nu.length>60?_nu.slice(0,58)+'…':_nu)}</div>`:'';})()}</td><td data-inline onclick="inlineComercial(event,${id},${JSON.stringify(o.comercial||'').replace(/"/g,'&quot;')})" style="font-size:12px;color:#666;max-width:145px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer" title="Click para editar — ${o.comercial||''}">${o.comercial||'—'}</td><td>${o.whatsapp?`<div style="display:flex;align-items:center;gap:4px"><a href="https://wa.me/52${o.whatsapp.replace(/\D/g,'')}" target="_blank" style="padding:3px 9px;background:#e8faf0;border:1px solid #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;text-decoration:none;font-weight:600">💬 ${o.contactoNombre||o.whatsapp}</a><button data-inline onclick="inlineWhatsapp(event,${id},${JSON.stringify(o.contactoNombre||'').replace(/"/g,'&quot;')},${JSON.stringify(o.whatsapp||'').replace(/"/g,'&quot;')})" style="padding:2px 6px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#666" title="Editar">✏</button></div>`:`<button data-inline onclick="inlineWhatsapp(event,${id},'','')" style="padding:3px 9px;background:#fff;border:1px dashed #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;cursor:pointer">+ Agregar 💬</button>`}</td><td>${o.instaladorNombre?`<div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap"><span data-inline onclick="inlineInstalador(event,${id},'${o.instaladorCel||''}')" style="font-size:12px;max-width:100px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5;font-weight:600" title="Click para cambiar">${o.instaladorNombre}</span><button onclick="notificarPorId(${id})" style="padding:4px 10px;background:#25D366;border:none;border-radius:20px;font-size:11px;color:#fff;font-weight:700;cursor:pointer;flex-shrink:0">📤</button></div>`:`<button data-inline onclick="inlineInstalador(event,${id},'')" style="padding:4px 10px;background:#fff;border:1px dashed #185FA5;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Asignar 👷</button>`}</td><td>${o.ubicacion?`<div style="display:flex;align-items:center;gap:4px"><span data-inline onclick="inlineUbicacion(event,${id},${JSON.stringify(o.ubicacion||'').replace(/"/g,'&quot;')})" style="font-size:11px;max-width:140px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5" title="Click para editar — ${(o.ubicacion||'').replace(/"/g,'&quot;')}">${o.ubicacion}</span><button onclick="verMapaInline(event,${id})" style="padding:2px 8px;background:#E6F1FB;border:1px solid #b5cce8;border-radius:20px;font-size:10px;color:#185FA5;font-weight:600;cursor:pointer;flex-shrink:0">🗺</button></div>`:`<button data-inline onclick="inlineUbicacion(event,${id},'')" style="padding:3px 9px;background:#fff;border:1px dashed #b5cce8;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Ubicación 📍</button>`}</td><td><span class="badge ${eC[o.estatus]||'b-pendiente'}" data-inline onclick="inlineSelect(event,${id},'estatus',ESTATUS_OPTS,'${o.estatus||''}')">${o.estatus||'Pendiente'} ▾</span>${(o.instalacionEstatus&&o.estatus!=='Completado'&&o.estatus!=='Cancelado')?` <span title="Estatus de la instalación (pestaña Instalaciones)" style="background:${/falta/i.test(o.instalacionEstatus)?'#FCEBEB':(/termin/i.test(o.instalacionEstatus)?'#EAF3DE':'#FFF4E5')};color:${/falta/i.test(o.instalacionEstatus)?'#791F1F':(/termin/i.test(o.instalacionEstatus)?'#27500A':'#8a5300')};padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">🔧 ${o.instalacionEstatus}</span>`:''}${o.estatus==='Completado'&&!hr?` <span style="background:#FCEBEB;color:#791F1F;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:600;white-space:nowrap;margin-left:3px" title="Falta firma del cliente">⚠ Sin firma</span>`:''}</td><td></td></tr>`}).join('');setTimeout(initRowDrag,30);
 // Ocultar la columna Comercial cuando el usuario ES comercial (todas las filas son suyas)
 const _esCom=(typeof segFiltroEjec!=='undefined'&&segFiltroEjec&&segFiltroEjec!=='todos');
 const _tblSeg=document.getElementById('tbody')?.closest('table');
