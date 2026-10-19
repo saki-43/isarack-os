@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.05';
+const APP_VERSION='2026.10.19.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5550,7 +5550,11 @@ function _instSyncPedido(e){
     if(/complet|cancel/i.test(o.estatus||''))return;
     var cambio=false;
     if((o.instalacionEstatus||'')!==(e.estatus||'')){o.instalacionEstatus=e.estatus||'';cambio=true;}
-    if(!o.estatus||o.estatus==='Pendiente'){o.estatus='En proceso';cambio=true;}
+    // Una obra en Pendiente no mueve el pedido; cualquier otro estatus lo pone En proceso.
+    if((!o.estatus||o.estatus==='Pendiente')&&e.estatus&&!/pendiente/i.test(e.estatus)){o.estatus='En proceso';cambio=true;}
+    // Fecha de inicio de la obra → F. Entrega del pedido (si el pedido no la tiene o si se cambio aqui).
+    var fi=(''+(e.fecha_inicio||'')).slice(0,10);
+    if(fi&&(!o.entrega||(fi!==(e._fiOriginal||'')&&o.entrega!==fi))){o.entrega=fi;cambio=true;e._fiOriginal=fi;}
     if(!cambio)return;
     o.updated=Date.now();saveOrders();
     if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
@@ -5570,6 +5574,7 @@ function abrirInstEditor(id){
   INST_EDIT=r?JSON.parse(JSON.stringify(r)):{id:null,folio:'',obra:'',cliente:'',ubicacion:'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:'En proceso'};
   if(!Array.isArray(INST_EDIT.instaladores))INST_EDIT.instaladores=[];
   if(!INST_EDIT.asistencia||typeof INST_EDIT.asistencia!=='object')INST_EDIT.asistencia={};
+  INST_EDIT._fiOriginal=(''+(INST_EDIT.fecha_inicio||'')).slice(0,10);
   if(INST_EDIT.folio&&_instOrderFin(INST_EDIT.folio)&&!/termin/i.test(INST_EDIT.estatus||''))INST_EDIT.estatus='Terminada';
   // Snapshot de la cuadrilla ORIGINAL cargada de la nube: si el auto-save
   // se dispara antes de que el usuario toque la lista, no debemos pisarla
@@ -5592,7 +5597,7 @@ function _instModal(){
       '<div><button onclick="_instVerPedido(((document.getElementById(\'ie-folio\')||{}).value||INST_EDIT.folio||\'\').trim())" style="background:#eaf1fb;border:1px solid #cfe0f5;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:8px;width:100%">📋 Ver pedido · estimar tiempo e instalación</button></div>'+
       '<div id="ie-personal">'+_instPersonalHtml()+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Líder (opcional)</label><select id="ie-lider" onchange="INST_EDIT.lider=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"><option value="">—</option>'+e.instaladores.map(function(n){return '<option'+(e.lider===n?' selected':'')+'>'+_ie(n)+'</option>';}).join('')+'</select></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Estatus</label><select id="ie-estatus" onchange="INST_EDIT.estatus=this.value" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'+estOpts.map(function(s){return '<option'+(e.estatus===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'+
-      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha inicio</label><input type="date" id="ie-fi" value="'+(e.fecha_inicio?(''+e.fecha_inicio).slice(0,10):'')+'" onchange="INST_EDIT.fecha_inicio=this.value;_asisPintar()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div><div style="flex:1;min-width:140px"><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Fecha fin</label><input type="date" id="ie-ff" value="'+(e.fecha_fin?(''+e.fecha_fin).slice(0,10):'')+'" onchange="INST_EDIT.fecha_fin=this.value;_asisPintar()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box"></div></div>'+
       '<div id="ie-asis" style="border:1px solid #f0e2d8;border-radius:10px;padding:10px;background:#fffdfb">'+_asisHtml()+'</div>'+
       '<div><label style="font-size:11px;color:#666;font-weight:600;display:block;margin-bottom:3px">Notas</label><textarea id="ie-notas" rows="2" placeholder="Ej. faltó fulano, se terminó a medio día…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box">'+_ie(e.notas)+'</textarea></div>'+
       '<button onclick="_instPaquete()" style="width:100%;padding:11px;border:1px solid #DA6635;background:#fff5f0;color:#c2410c;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Paquete de documentos para llevar</button>'+
