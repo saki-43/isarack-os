@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.02';
+const APP_VERSION='2026.10.19.03';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -10093,8 +10093,12 @@ function _marcoDispDesdePiezas(p){
     : inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize+'"')&&(!color||u.includes(color));}).reduce((s,x)=>s+_dispPiezaReal(x),0);
   // Diagonales D/H del fondo (nombre real "D DIAGONAL <fondo>"); si no hay del color, usar neutras (picking).
   // En picking solo las DIAGONAL PICKING (su disponible ya suma lo que se corta de la de 42").
+  // Selectivo: igual que al vender (calcularPiezasMarco) — fondo 48" usa diagonal de 48",
+  // cualquier otro fondo (24", 36", 42") usa la de 42". Antes buscaba diagonal "de 24""
+  // que no existe y el MARCO 288" X 24" salia "Sin stock" aunque se pudiera armar.
+  const fondoDiag=esPicking?fondo:(fondo==='48'?'48':'42');
   const diag=(letra)=>{
-    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondo+'"')&&(!esPicking||u.includes('PICKING'));});
+    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondoDiag+'"')&&(!esPicking||u.includes('PICKING'));});
     const conColor=color?items.filter(x=>(x.producto||'').toUpperCase().includes(color)):[];
     const usar=conColor.length?conColor:items;
     return usar.reduce((s,x)=>s+_dispPiezaReal(x),0);
