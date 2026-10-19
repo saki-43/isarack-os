@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.01';
+const APP_VERSION='2026.10.19.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8919,28 +8919,7 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
   otrasPiezas.forEach(p=>{
     const comp=encontrarComponente(p.descBuscar,'VERDE');
     if(comp){
-      const idx=inventario.indexOf(comp);
-      const prev=inventario[idx].cantidad||0;
-      const deHijo=Math.min(Math.max(0,prev),p.cant);
-      let falta=p.cant-deHijo;
-      if(deHijo>0||falta===0){
-        inventario[idx].cantidad=prev-deHijo;
-        resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:deHijo,prev,nuevo:inventario[idx].cantidad,nota:p.nota||''});
-      }
-      const regla=(typeof _bomHijoPadre==='object'&&comp.sku)?_bomHijoPadre[comp.sku]:null;
-      const madre=regla?inventario.find(x=>x&&x.sku===regla.padre):null;
-      if(falta>0&&madre){
-        const x=regla.x||1;
-        const madresNec=Math.ceil(falta/x);
-        const prevM=madre.cantidad||0;
-        const usar=Math.min(Math.max(0,prevM),madresNec);
-        if(usar>0){
-          madre.cantidad=prevM-usar;
-          resultado.push({nombre:madre.producto,sku:madre.sku||'',cantidad:usar,prev:prevM,nuevo:madre.cantidad,nota:'cortada → '+Math.min(falta,usar*x)+' '+comp.producto});
-          falta=Math.max(0,falta-usar*x);
-        }
-      }
-      if(falta>0)resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:falta,faltante:true,nota:'⚠ Sin material disponible'});
+      _descontarConMadre(comp,p.cant,p.nota).forEach(r=>resultado.push(r));
     }else{
       resultado.push({nombre:p.desc,sku:'',cantidad:p.cant,faltante:true,nota:p.nota||''});
     }
@@ -9043,6 +9022,33 @@ function calcularPiezasMarco(marco,cantidadMarcos){
   ];
   return piezas;
 }
+// Descuenta `cant` de una pieza. Si la pieza no alcanza y tiene MADRE en bom_rules
+// (p.ej. diagonal 36"/24" que se corta de la de 42"), lo que falte se corta de la madre.
+// Lo que ni asi alcance sale como faltante. Selectivo y picking (Isaac, 19 oct 2026).
+function _descontarConMadre(comp,cant,nota){
+  const res=[];
+  const prev=comp.cantidad||0;
+  const deHijo=Math.min(Math.max(0,prev),cant);
+  let falta=cant-deHijo;
+  if(deHijo>0||falta===0){
+    comp.cantidad=prev-deHijo;
+    res.push({nombre:comp.producto,sku:comp.sku||'',cantidad:deHijo,prev,nuevo:comp.cantidad,nota:nota||''});
+  }
+  const regla=(typeof _bomHijoPadre==='object'&&comp.sku)?_bomHijoPadre[comp.sku]:null;
+  const madre=regla?inventario.find(x=>x&&x.sku===regla.padre):null;
+  if(falta>0&&madre){
+    const x=regla.x||1;
+    const prevM=madre.cantidad||0;
+    const usar=Math.min(Math.max(0,prevM),Math.ceil(falta/x));
+    if(usar>0){
+      madre.cantidad=prevM-usar;
+      res.push({nombre:madre.producto,sku:madre.sku||'',cantidad:usar,prev:prevM,nuevo:madre.cantidad,nota:'cortada → '+Math.min(falta,usar*x)+' '+comp.producto});
+      falta=Math.max(0,falta-usar*x);
+    }
+  }
+  if(falta>0)res.push({nombre:comp.producto,sku:comp.sku||'',cantidad:falta,faltante:true,nota:'⚠ Sin material disponible'});
+  return res;
+}
 function descontarMarcoBOM(marco,cantidadMarcos){
   const piezas=calcularPiezasMarco(marco,cantidadMarcos);
   const color=marco.color;
@@ -9050,10 +9056,7 @@ function descontarMarcoBOM(marco,cantidadMarcos){
   piezas.forEach(p=>{
     const comp=encontrarComponente(p.descBuscar,color);
     if(comp){
-      const idx=inventario.indexOf(comp);
-      const prev=inventario[idx].cantidad||0;
-      inventario[idx].cantidad=Math.max(0,prev-p.cant);
-      resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:p.cant,prev,nuevo:inventario[idx].cantidad,nota:p.nota||''});
+      _descontarConMadre(comp,p.cant,p.nota).forEach(r=>resultado.push(r));
     }else{
       resultado.push({nombre:p.desc+(color?' '+color:''),sku:'',cantidad:p.cant,faltante:true,nota:p.nota||''});
     }
