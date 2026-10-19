@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.06';
+const APP_VERSION='2026.10.19.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3020,6 +3020,7 @@ async function renderDashboard(){
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length)lineas=o.cotData.lineas;
     if(!lineas){const v=ventas.find(x=>x.num===o.num);if(v&&v.lineas&&v.lineas.length)lineas=v.lineas;}
     if(!lineas&&o.pdfsPresupuesto&&o.pdfsPresupuesto.length){
+      await _pedidoCompleto(o);
       for(const pdf of o.pdfsPresupuesto){if(pdf.data&&pdf.data.includes('application/pdf')){const ext=await extraerLineasDePDF(pdf.data);if(ext&&ext.length){lineas=ext;break;}}}
     }
     if(!lineas)continue;
@@ -3220,6 +3221,7 @@ async function calcularDeficit(){
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length)lineas=o.cotData.lineas;
     if(!lineas){const v=ventas.find(x=>x.num===o.num);if(v&&v.lineas&&v.lineas.length)lineas=v.lineas;}
     if(!lineas&&o.pdfsPresupuesto&&o.pdfsPresupuesto.length){
+      await _pedidoCompleto(o);
       for(const pdf of o.pdfsPresupuesto){if(pdf.data&&pdf.data.includes('application/pdf')){const ext=await extraerLineasDePDF(pdf.data);if(ext&&ext.length){lineas=ext;break;}}}
     }
     if(!lineas)continue;
@@ -3320,6 +3322,29 @@ function _pedidoLigero(o){
   // cotHTML puede ser enorme y se regenera desde cotData → no guardarlo localmente
   if(c.cotHTML&&c.cotData)delete c.cotHTML;
   return c;
+}
+// ── PEDIDOS LIGEROS (19 oct 2026) ──
+// ISA-OS baja los pedidos de la vista orders_ligeras: los archivos llegan sin su base64
+// ({name,data:'',_enNube:true}) y sin cotHTML cuando hay cotData. Antes bajaba la tabla
+// completa (5.7 MB, con 4 PDF web de 6.8 MB metidos) y con varios usuarios pasaba el
+// limite de 3 s de la base: "No se pudo refrescar orders". El contenido se trae aqui,
+// de UN pedido, solo cuando se necesita (ver PDF, abrir el pedido, sacar partidas).
+// La base (proteger_pedido v5) cambia cualquier cascaron que regrese por el archivo real.
+function _pedidoTieneCascarones(o){
+  if(!o)return false;
+  return _ARR_PESADOS_PED.concat(['fotosSurtido']).some(k=>Array.isArray(o[k])&&o[k].some(it=>it&&typeof it==='object'&&it._enNube&&!it.data&&!it.url&&!it.path&&!it.storagePath));
+}
+async function _pedidoCompleto(o){
+  try{
+    if(!o||!o.num||!_pedidoTieneCascarones(o))return o;
+    if(typeof supabaseClient==='undefined'||!supabaseClient)return o;
+    const {data,error}=await supabaseClient.from('orders').select('*').eq('num',o.num).limit(1);
+    if(error||!data||!data.length)return o;
+    const full=nubeToLocalOrder(data[0]);
+    _ARR_PESADOS_PED.concat(['fotosSurtido']).forEach(k=>{if(Array.isArray(full[k]))o[k]=full[k];});
+    if(full.cotHTML&&!o.cotHTML)o.cotHTML=full.cotHTML;
+  }catch(e){console.warn('_pedidoCompleto',e);}
+  return o;
 }
 function saveOrders(){
   try{
@@ -3813,7 +3838,8 @@ async function _refrescarPedidoModalDesdeNube(id,num,horaCargado){
     if(error||!data||!data.length)return;
     const r=data[0];
     // Solo si la nube es realmente más nueva que lo que tengo cargado
-    if(horaCargado&&r.updated_at){
+    const _cascaron=_pedidoTieneCascarones(orders.find(x=>x&&x.id===id));
+    if(!_cascaron&&horaCargado&&r.updated_at){
       const tL=new Date(horaCargado).getTime(),tR=new Date(r.updated_at).getTime();
       if(isNaN(tR)||(!isNaN(tL)&&tR<=tL))return;
     }
@@ -3984,6 +4010,7 @@ if(!f.data)return;
 if(f.data.startsWith('data:text/html')){try{const decoded=decodeURIComponent(escape(atob(f.data.split(',')[1])));openHTMLViewer(decoded,'Documento');}catch(e){showToast('Error al abrir','#c62828');}return;}if(f.data.includes('application/pdf')){openPDFData(f.data);return;}if(f.data.includes('image/')){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;flex-direction:column';ov.innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#fff;border-bottom:2px solid #D85A30"><button onclick="cerrarVisorOverlay(this)" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✕ Cerrar</button></div><div style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:center;padding:20px;background:#e8e8e5" onclick="cerrarVisorOverlay(this)"><img src="${f.data}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)"></div>`;document.body.appendChild(ov);}}
 function removeChip(t,i){var _a=(t==='presupuesto')?pdfPresupuesto:pdfRecepcion;_marcarBorradoModal(_a[i]);if(t==='presupuesto')pdfPresupuesto.splice(i,1);else pdfRecepcion.splice(i,1);renderChips(t);}
 function viewPDF(e,id,t){e.stopPropagation();const o=orders.find(x=>x.id==id);if(!o)return;
+if(_pedidoTieneCascarones(o)&&!o._hidratando){o._hidratando=true;showToast('⏳ Abriendo documento…','#185FA5');_pedidoCompleto(o).then(()=>{o._hidratando=false;viewPDF({stopPropagation:()=>{}},id,t);});return;}
 // v2026.09.01.08: TODO pedido con cotData/cotHTML usa el visor HTML (imagen 2 — mas
 // grande, limpio y con el mismo header en todo ISA-OS). Antes RW/GW/PW priorizaba
 // el PDF web (imagen 1) que se veia pequeno. Ahora el HTML es el default; solo si
@@ -6612,6 +6639,7 @@ async function repararMontos(){
     // Source 6 (last resort): extract lines from PDF and recalculate
     if(!monto&&o&&o.pdfsPresupuesto&&o.pdfsPresupuesto.length){
       diag.intentadoPDFLineas=true;
+      await _pedidoCompleto(o);
       for(const pdf of o.pdfsPresupuesto){
         if(pdf.data&&pdf.data.includes('application/pdf')){
           try{
@@ -9557,6 +9585,7 @@ async function cargarVentasReporte(){
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length)lineas=o.cotData.lineas;
     if(!lineas){const v=ventas.find(x=>x.num===o.num);if(v&&v.lineas&&v.lineas.length)lineas=v.lineas;}
     if(!lineas&&o.pdfsPresupuesto&&o.pdfsPresupuesto.length){
+      await _pedidoCompleto(o);
       for(const pdf of o.pdfsPresupuesto){if(pdf.data&&pdf.data.includes('application/pdf')){const ext=await extraerLineasDePDF(pdf.data);if(ext&&ext.length){lineas=ext;break;}}}
     }
     if(!lineas)continue;
@@ -12065,7 +12094,7 @@ async function sincronizarPedidosDesdePWA(){
   if(btn){btn.disabled=true;btn.innerHTML='⏳ Sincronizando...';}
   try{
     if(typeof cargarPedidosEliminadosNube==='function')await cargarPedidosEliminadosNube();
-    const od=await cloudFetchAll('orders');
+    const od=await cloudFetchAll('orders_ligeras');
     if(od){
       const antesContador=orders.length;
       orders=od.map(nubeToLocalOrder).filter(o=>!(typeof estaPedidoEliminado==='function'&&estaPedidoEliminado(o)));
@@ -12099,7 +12128,7 @@ function cloudSyncTodosLosPedidos(){
     let _nubeVerificada=false; // v2026.07.17.03: si no se pudo leer la nube, NO se sube nada
     try{
       if(supabaseClient&&cloudStatus==='online'){
-        const remote=await cloudFetchAll('orders');
+        const remote=await cloudFetchAll('orders_ligeras');
         if(remote){
           _nubeVerificada=true;
           remote.forEach(r=>{
@@ -12563,7 +12592,7 @@ async function bajarCambiosDeNube(){
     if(typeof cargarPedidosEliminadosNube==='function')await cargarPedidosEliminadosNube();
     if(!_ordersDeltaVisto){
       // Primera vez sin marca: bajada completa de orders una sola vez
-      const od=await cloudFetchAll('orders');
+      const od=await cloudFetchAll('orders_ligeras');
       if(od){
         orders=od.map(nubeToLocalOrder).filter(o=>!(typeof estaPedidoEliminado==='function'&&estaPedidoEliminado(o)));
         let mx=null;od.forEach(r=>{if(r.updated_at&&(!mx||r.updated_at>mx))mx=r.updated_at;});
@@ -12572,7 +12601,7 @@ async function bajarCambiosDeNube(){
       }
     }else{
       // DELTA: solo pedidos cambiados desde la última vista
-      const {data:od,error}=await supabaseClient.from('orders').select('*').gt('updated_at',_ordersDeltaVisto).order('updated_at',{ascending:true}).limit(10000);
+      const {data:od,error}=await supabaseClient.from('orders_ligeras').select('*').gt('updated_at',_ordersDeltaVisto).order('updated_at',{ascending:true}).limit(10000);
       if(error){console.warn('delta orders error:',error);}
       else window._ordersNubeOk=true;
       let mx=_ordersDeltaVisto,toco=false;
@@ -12673,7 +12702,7 @@ async function bajarTodoDeNube(silencioso){
     }
     // Pedidos (orders) — cargar lista de borrados ANTES, para filtrar los que ya se borraron
     if(typeof cargarPedidosEliminadosNube==='function')await cargarPedidosEliminadosNube();
-    const od=await cloudFetchAll('orders');
+    const od=await cloudFetchAll('orders_ligeras');
     if(od){
       window._ordersNubeOk=true;
       orders=od.map(nubeToLocalOrder).filter(o=>!(typeof estaPedidoEliminado==='function'&&estaPedidoEliminado(o)));
