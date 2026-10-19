@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.17.03';
+const APP_VERSION='2026.10.19.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -8882,7 +8882,7 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
       const idx=inventario.indexOf(fuente.producto);
       const prev=inventario[idx].cantidad;
       inventario[idx].cantidad=prev-1;
-      cortesInfo.push({tipo:'entero',producto:fuente.producto.producto,prev,nuevo:inventario[idx].cantidad});
+      cortesInfo.push({tipo:'entero',producto:fuente.producto.producto,sku:fuente.producto.sku||'',prev,nuevo:inventario[idx].cantidad});
     }
     // Caso 2: Es sobrante o poste largo - cortar
     else{
@@ -8894,7 +8894,7 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
       inventario[idx].cantidad=prev-1;
       // Si está partido a la mitad: 1 poste cortado da 2 piezas, así que la "merma" del segundo corte ya está
       // Pero por simplicidad: 1 corte = 1 pieza obtenida
-      cortesInfo.push({tipo:'cortado',fuente:fuente.producto.producto,prevFuente:prev,nuevoFuente:inventario[idx].cantidad,medCortada,medSobrante:medSobrante>0?medSobrante:0});
+      cortesInfo.push({tipo:'cortado',fuente:fuente.producto.producto,sku:fuente.producto.sku||'',prevFuente:prev,nuevoFuente:inventario[idx].cantidad,medCortada,medSobrante:medSobrante>0?medSobrante:0});
       if(medSobrante>0)agregarSobrante(medSobrante);
     }
   }
@@ -8905,19 +8905,42 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
   }
   cortesInfo.filter(c=>!c.faltante).forEach(c=>{
     if(c.tipo==='entero'){
-      resultado.push({nombre:c.producto,sku:'',cantidad:1,prev:c.prev,nuevo:c.nuevo,nota:''});
+      resultado.push({nombre:c.producto,sku:c.sku||'',cantidad:1,prev:c.prev,nuevo:c.nuevo,nota:''});
     }else{
-      resultado.push({nombre:c.fuente,sku:'',cantidad:1,prev:c.prevFuente,nuevo:c.nuevoFuente,nota:'cortado → sobrante '+c.medSobrante.toFixed(2)+'"'});
+      resultado.push({nombre:c.fuente,sku:c.sku||'',cantidad:1,prev:c.prevFuente,nuevo:c.nuevoFuente,nota:'cortado → sobrante '+c.medSobrante.toFixed(2)+'"'});
     }
   });
-  // Procesar otras piezas (diagonales, pies) - lógica simple
+  // Procesar otras piezas (diagonales, pies).
+  // Diagonales picking (Isaac, 19 oct 2026): las de 18"/24"/36" se FABRICAN cortando
+  // la diagonal de 42" (regla en bom_rules: hijo PIC-010x -> madre SEL-0397/0428).
+  // Antes, si la de 24" estaba en 0, quedaba en 0 y la madre nunca bajaba: el material
+  // salia del almacen sin descontarse. Ahora se usa primero la pieza ya cortada y lo
+  // que falte se corta de la madre.
   otrasPiezas.forEach(p=>{
     const comp=encontrarComponente(p.descBuscar,'VERDE');
     if(comp){
       const idx=inventario.indexOf(comp);
       const prev=inventario[idx].cantidad||0;
-      inventario[idx].cantidad=Math.max(0,prev-p.cant);
-      resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:p.cant,prev,nuevo:inventario[idx].cantidad,nota:p.nota||''});
+      const deHijo=Math.min(Math.max(0,prev),p.cant);
+      let falta=p.cant-deHijo;
+      if(deHijo>0||falta===0){
+        inventario[idx].cantidad=prev-deHijo;
+        resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:deHijo,prev,nuevo:inventario[idx].cantidad,nota:p.nota||''});
+      }
+      const regla=(typeof _bomHijoPadre==='object'&&comp.sku)?_bomHijoPadre[comp.sku]:null;
+      const madre=regla?inventario.find(x=>x&&x.sku===regla.padre):null;
+      if(falta>0&&madre){
+        const x=regla.x||1;
+        const madresNec=Math.ceil(falta/x);
+        const prevM=madre.cantidad||0;
+        const usar=Math.min(Math.max(0,prevM),madresNec);
+        if(usar>0){
+          madre.cantidad=prevM-usar;
+          resultado.push({nombre:madre.producto,sku:madre.sku||'',cantidad:usar,prev:prevM,nuevo:madre.cantidad,nota:'cortada → '+Math.min(falta,usar*x)+' '+comp.producto});
+          falta=Math.max(0,falta-usar*x);
+        }
+      }
+      if(falta>0)resultado.push({nombre:comp.producto,sku:comp.sku||'',cantidad:falta,faltante:true,nota:'⚠ Sin material disponible'});
     }else{
       resultado.push({nombre:p.desc,sku:'',cantidad:p.cant,faltante:true,nota:p.nota||''});
     }
@@ -10059,10 +10082,16 @@ function _marcoDispDesdePiezas(p){
   const color=cm?cm[0]:null;
   const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
   // Postes del tamaño (posteSize) y color del marco
-  const postes=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize+'"')&&(!color||u.includes(color));}).reduce((s,x)=>s+_dispPiezaReal(x),0);
-  // Diagonales D/H del fondo (nombre real "D DIAGONAL <fondo>"); si no hay del color, usar neutras (picking)
+  // Picking (19 oct 2026): sus postes se cortan del 254" (ver _piezasPosteDisponibles), asi
+  // que contar postes "de la medida" daba 0 y los marcos salian "Sin stock" aunque se
+  // pudieran armar.
+  const postes=(esPicking&&typeof _piezasPosteDisponibles==='function')
+    ? _piezasPosteDisponibles(bom.posteSize)
+    : inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize+'"')&&(!color||u.includes(color));}).reduce((s,x)=>s+_dispPiezaReal(x),0);
+  // Diagonales D/H del fondo (nombre real "D DIAGONAL <fondo>"); si no hay del color, usar neutras (picking).
+  // En picking solo las DIAGONAL PICKING (su disponible ya suma lo que se corta de la de 42").
   const diag=(letra)=>{
-    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondo+'"');});
+    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondo+'"')&&(!esPicking||u.includes('PICKING'));});
     const conColor=color?items.filter(x=>(x.producto||'').toUpperCase().includes(color)):[];
     const usar=conColor.length?conColor:items;
     return usar.reduce((s,x)=>s+_dispPiezaReal(x),0);
