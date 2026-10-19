@@ -1485,7 +1485,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.02';
+const APP_VERSION='2026.10.19.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5630,21 +5630,21 @@ function descontarInventarioPedido(orderObj,lineas){
       return;
     }
     // MARCO PICKING (revisar primero por especificidad)
-    const marcoPicking=typeof detectarMarcoPicking==='function'?detectarMarcoPicking(nombre):null;
+    const marcoPicking=(typeof detectarMarcoPicking==='function'&&!_marcoEsEspecial(nombre))?detectarMarcoPicking(nombre):null;
     if(marcoPicking){
       const piezas=descontarMarcoPickingBOM(marcoPicking,cant);
       bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': -'+p.cantidad);});
+      piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': '+(p.esSobrante?'+1 (sobrante)':'-'+p.cantidad));});
       l.bomPiezas=piezas;l.esMarco=true;l.esMarcoPicking=true;
       piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
       return;
     }
     // MARCO Selectivo
-    const marco=typeof detectarMarco==='function'?detectarMarco(nombre):null;
+    const marco=(typeof detectarMarco==='function'&&!_marcoEsEspecial(nombre))?detectarMarco(nombre):null;
     if(marco){
       const piezas=descontarMarcoBOM(marco,cant);
       bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': -'+p.cantidad);});
+      piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': '+(p.esSobrante?'+1 (sobrante)':'-'+p.cantidad));});
       l.bomPiezas=piezas;l.esMarco=true;
       piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
       return;
@@ -5666,7 +5666,7 @@ function descontarInventarioPedido(orderObj,lineas){
       if(panelInfo){
         const piezas=descontarPanelBOM(panelInfo,cant);
         bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-        piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': -'+p.cantidad);});
+        piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.nombre+': '+(p.esSobrante?'+1 (sobrante)':'-'+p.cantidad));});
         l.bomPiezas=piezas;l.esPanel=true;
         piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
         return;
@@ -5730,15 +5730,15 @@ function descontarAlEntregar(orderObj){
 // ── FUNCIÓN CENTRAL: Regresa inventario al cancelar/eliminar pedido ──
 function regresarInventarioPedido(orderObj,lineas){
   if(!lineas||!lineas.length)return{nodata:true};
-  let regresos=[];
+  let regresos=[];const _skusRegreso=[];
   lineas.forEach(l=>{
     if(typeof _esLineaServicio==='function'?_esLineaServicio(l):l.tipo)return;
     // Si es marco con BOM, regresar cada pieza
     if(l.bomPiezas&&l.bomPiezas.length){
       l.bomPiezas.forEach(p=>{
         if(p.faltante)return;
-        const idx=inventario.findIndex(x=>x.sku===p.sku||x.producto===p.nombre);
-        if(idx>=0){inventario[idx].cantidad+=parseFloat(p.cantidad)||0;regresos.push(p.nombre+': +'+p.cantidad);}
+        const idx=inventario.findIndex(x=>(p.sku&&x.sku===p.sku)||x.producto===p.nombre);
+        if(idx>=0){inventario[idx].cantidad+=parseFloat(p.cantidad)||0;regresos.push(p.nombre+': '+(p.cantidad<0?'':'+')+p.cantidad);if(inventario[idx].sku)_skusRegreso.push(inventario[idx].sku);}
       });
       return;
     }
@@ -5746,11 +5746,12 @@ function regresarInventarioPedido(orderObj,lineas){
     if(!cant)return;
     let idx=inventario.findIndex(p=>p.producto.toUpperCase()===(l.producto||'').toUpperCase());
     if(idx<0&&l.sku){idx=inventario.findIndex(p=>p.sku===l.sku);}
-    if(idx>=0){inventario[idx].cantidad+=cant;regresos.push(inventario[idx].producto+': +'+cant);}
+    if(idx>=0){inventario[idx].cantidad+=cant;regresos.push(inventario[idx].producto+': +'+cant);if(inventario[idx].sku)_skusRegreso.push(inventario[idx].sku);}
   });
   orderObj.inventarioDescontado=false;
   guardarLS('isarack_inventario_v4',inventario);
-  if(typeof cloudSyncInventarioTodo==='function')cloudSyncInventarioTodo(regresos.map(r=>r.sku).filter(Boolean));
+  // Antes mandaba regresos.map(r=>r.sku) — regresos son textos, asi que no subia nada.
+  if(typeof cloudSyncInventarioTodo==='function')cloudSyncInventarioTodo([...new Set(_skusRegreso)]);
   invalidarCacheDeficit();
   return{regresos,total:regresos.length};
 }
@@ -7988,7 +7989,7 @@ const MARCO_BOM={
   '360':{posteSize:'360',postePartes:1,diagonalD:14,diagonalH:3,pie:2}
 };
 const MARCO_COLORES=['AZUL','VERDE'];
-const MARCO_FONDOS=['36','42','48']; // pulgadas de fondo
+const MARCO_FONDOS=['24','36','42','48']; // pulgadas de fondo (24" se arma con diagonal de 42", 19 oct 2026)
 
 const GONDOLA_TIPOS=[
   {id:'141x100',label:'141 × 100',alt:'141',ancho:'100',niveles:4},
@@ -8079,30 +8080,124 @@ function _marcosPickingReales(){
   return out;
 }
 // Disponibilidad de un marco picking segun su BOM. Sin BOM devuelve 0 (no revienta).
-function _dispMarcoPicking(size,fondo){
-  const bom=MARCO_BOM_PICKING[size];
-  if(!bom)return{cant:0,marco:null,detalles:[],sinBom:true};
-  const marco={size:String(size),color:'VERDE',fondo:String(fondo),bom,sistema:'PICKING'};
-  const piezas=calcularPiezasMarcoPicking(marco,1);
-  let min=Infinity,falta=false;const detalles=[];
-  piezas.forEach((pz,iPz)=>{
-    // El poste (primera pieza) sale del 254" y sus sobrantes, no de un poste de su medida.
-    if(iPz===0){
-      const disp=_piezasPosteDisponibles(bom.posteSize);
-      const posibles=Math.floor(disp/pz.cant);
-      if(posibles<min)min=posibles;
-      detalles.push({n:'POSTE '+bom.posteSize+'" (del 254" y sobrantes)',cant:pz.cant,stock:disp,posibles,nota:pz.nota||''});
-      return;
-    }
-    const comp=(typeof encontrarComponente==='function')?encontrarComponente(pz.descBuscar,'VERDE'):null;
-    if(comp){
-      const posibles=Math.floor((comp.cantidad||0)/pz.cant);
-      if(posibles<min)min=posibles;
-      detalles.push({n:comp.producto,cant:pz.cant,stock:comp.cantidad,posibles,nota:pz.nota||''});
-    }else{falta=true;detalles.push({n:pz.desc,cant:pz.cant,stock:0,posibles:0,faltante:true,nota:pz.nota||''});}
+// ═══════════════════════════════════════════════════════════════════════════
+// MOTOR ÚNICO DE MARCOS (Isaac, 19 oct 2026)
+// Antes habia 6 calculos distintos de "cuantos marcos hay" (Inventario, Panel de
+// marcos, Ventas, kit BOM, picking, marcos 42") y ninguno coincidia del todo con
+// lo que se descontaba al vender. Ahora TODO sale de aqui: la receta dice que
+// piezas lleva un marco y en que ORDEN se toman; el disponible y el descuento usan
+// la misma receta.
+// Reglas de Isaac:
+//  · Color: primero el del marco; si se acaba, de OTRO color (se pinta); la
+//    GALVANIZADA al final, cuando ya no haya de color.
+//  · Diagonales selectivo: fondo 48" usa la de 48"; 24"/36"/42" usan la de 42".
+//    (Las de 36" en inventario no son reales: no se usan.)
+//  · Diagonales picking 18/24/36: primero la ya cortada; lo que falte se corta
+//    de la de 42" (bom_rules), y de ahi el mismo orden de colores.
+//  · Postes picking: del 254" y sobrantes (ver _piezasPosteDisponibles).
+//  · POSTE 3"X3" 336" CON PATA SOLDADA sirve como poste normal de 336".
+//  · Pie base picking: si hay, pero no esta contado → NO limita ni sale faltante.
+//  · Marcos especiales (DOBLE POSTE, BACKER, GA12, USADO...) no se arman: solo su
+//    stock fisico.
+// ═══════════════════════════════════════════════════════════════════════════
+function _mUp(p){return String((p&&p.producto)||'').toUpperCase();}
+function _mStock(p){return Math.max(0,Number((p&&p.cantidad)||0));}
+function _mColorDe(u){const m=String(u||'').match(/(VERDE|AZUL|ROJO|GALVANIZADO)/);return m?m[1]:null;}
+// Orden de uso: su color (0) → otros colores o sin color (1) → galvanizado (2)
+function _mOrdenColor(items,color){
+  const r=p=>{const c=_mColorDe(_mUp(p));if(c==='GALVANIZADO'&&color!=='GALVANIZADO')return 2;if(color&&c===color)return 0;return 1;};
+  return items.slice().sort((a,b)=>r(a)-r(b)||_mStock(b)-_mStock(a));
+}
+function _marcoEsEspecial(nombre){
+  const u=String(nombre||'').toUpperCase();
+  if(u.indexOf('MARCO')!==0)return false;
+  const resto=u.replace(/MARCO(\s+PICKING)?\s+\d+"?\s*X\s*\d+"?/,'').replace(/AZUL|VERDE|ROJO|GALVANIZADO/g,'').replace(/[^A-Z0-9]/g,'');
+  return resto.length>0;
+}
+function _mMedidaPoste3x3(u){const m=/POSTE 3"X3"\s*(?:(?:VERDE|AZUL|ROJO|GALVANIZADO)\s*)?([\d.]+)"/.exec(u);return m?m[1]:null;}
+// Receta de un marco por su nombre. null = no es marco armable.
+function _recetaMarco(nombre){
+  const u=String(nombre||'').toUpperCase().trim();
+  if(u.indexOf('MARCO')!==0||_marcoEsEspecial(u))return null;
+  const esPic=u.includes('PICKING');
+  const mm=u.match(/(\d+)"?\s*X\s*(\d+)/);if(!mm)return null;
+  const alto=mm[1],fondo=mm[2];
+  const color=esPic?'VERDE':_mColorDe(u);
+  const bom=esPic?(typeof MARCO_BOM_PICKING!=='undefined'?MARCO_BOM_PICKING[alto]:null):_bomDeAlto(alto);
+  const r={nombre:u,esPicking:esPic,alto,fondo,color,bom,comps:[]};
+  if(!bom){r.sinBom=true;return r;}
+  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
+  const porMarco=bom.postePartes===2?1:2;
+  if(esPic){
+    const _pre=(typeof POSTES_PRECORTADOS_PICKING!=='undefined')&&POSTES_PRECORTADOS_PICKING.includes(String(bom.posteSize));
+    r.comps.push({rol:'poste',label:'POSTE 2"X2" '+bom.posteSize+'" ('+(_pre?'ya cortados + ':'')+'del 254" y sobrantes)',cant:porMarco,medida:bom.posteSize,cortePicking:true,nota:bom.postePartes===2?'(partido a la mitad)':''});
+    ['D','H'].forEach(L=>{
+      const hijo=inv.find(p=>_mUp(p).replace(/\s+/g,' ').indexOf(L+' DIAGONAL PICKING '+fondo+'"')===0)||null;
+      const regla=(hijo&&typeof _bomHijoPadre==='object'&&hijo.sku)?_bomHijoPadre[hijo.sku]:null;
+      const x=(regla&&regla.x)||1;
+      // madres: la de la regla primero, luego cualquier otra diagonal de 42" por orden de color
+      let madres=inv.filter(p=>{const t=_mUp(p);return new RegExp('^'+L+' DIAGONAL\\s*42"').test(t)&&!t.includes('PICKING');});
+      madres=_mOrdenColor(madres,'VERDE');
+      if(regla){const m0=madres.find(p=>p.sku===regla.padre);if(m0)madres=[m0].concat(madres.filter(p=>p!==m0));}
+      r.comps.push({rol:L,label:L+' DIAGONAL PICKING '+fondo+'"',cant:L==='D'?bom.diagonalD:bom.diagonalH,items:hijo?[hijo]:[],madres,x});
+    });
+    r.comps.push({rol:'pie',label:'PIE BASE PICKING',cant:bom.pie,items:inv.filter(p=>/^PIE BASE PICKING/.test(_mUp(p))),noLimita:true});
+  }else{
+    const postes=inv.filter(p=>{const t=_mUp(p);return /^POSTE 3"X3"/.test(t)&&!t.includes('SOBRANTE')&&_mMedidaPoste3x3(t)===String(bom.posteSize);});
+    r.comps.push({rol:'poste',label:'POSTE 3"X3" '+bom.posteSize+'"',cant:porMarco,items:_mOrdenColor(postes,color),nota:bom.postePartes===2?'(partido a la mitad)':''});
+    const ds=fondo==='48'?'48':'42';
+    ['D','H'].forEach(L=>{
+      const its=inv.filter(p=>{const t=_mUp(p);return new RegExp('^'+L+' DIAGONAL\\s*'+ds+'"').test(t)&&!t.includes('PICKING');});
+      r.comps.push({rol:L,label:L+' DIAGONAL '+ds+'"',cant:L==='D'?bom.diagonalD:bom.diagonalH,items:_mOrdenColor(its,color),nota:fondo!==ds?'(de '+ds+'" para fondo '+fondo+'")':''});
+    });
+    const pies=inv.filter(p=>{const t=_mUp(p);return /^PIE BASE\b/.test(t)&&!t.includes('PICKING');});
+    r.comps.push({rol:'pie',label:'PIE BASE',cant:bom.pie,items:_mOrdenColor(pies,color)});
+  }
+  return r;
+}
+// Piezas disponibles de un componente (lo ya cortado + lo que se corta de la madre)
+function _mDispComp(c){
+  if(c.cortePicking)return (typeof _piezasPosteDisponibles==='function')?_piezasPosteDisponibles(c.medida):0;
+  let n=(c.items||[]).reduce((s,p)=>s+_mStock(p),0);
+  if(c.madres)n+=c.madres.reduce((s,p)=>s+_mStock(p),0)*(c.x||1);
+  return n;
+}
+// Cuantos marcos se pueden armar + el detalle para el panel
+function _dispReceta(r){
+  if(!r)return{cant:0,detalles:[],sinBom:false};
+  if(r.sinBom)return{cant:0,detalles:[{n:'Sin receta capturada para '+r.alto+'"',cant:0,stock:0,posibles:0,faltante:true,nota:''}],sinBom:true};
+  let min=Infinity;const detalles=[];
+  r.comps.forEach(c=>{
+    const disp=_mDispComp(c);
+    const posibles=c.cant>0?Math.floor(disp/c.cant):Infinity;
+    if(!c.noLimita&&posibles<min)min=posibles;
+    let nota=c.nota||'';
+    const fuentes=(c.items||[]).concat(c.madres||[]).filter(p=>_mStock(p)>0);
+    if(fuentes.length>1||c.madres)nota=(nota?nota+' ':'')+fuentes.map(p=>(_mColorDe(_mUp(p))||p.producto)+' '+_mStock(p)).join(' + ');
+    if(c.noLimita)nota=(nota?nota+' ':'')+'(no limita)';
+    detalles.push({n:c.label,cant:c.cant,stock:disp,posibles:posibles===Infinity?0:posibles,nota,faltante:disp<=0&&!c.noLimita});
   });
-  if(falta||min===Infinity)min=0;
-  return{cant:min,marco,detalles,sinBom:false};
+  return{cant:(min===Infinity?0:Math.max(0,min)),detalles,sinBom:false};
+}
+function _marcosArmables(nombre){return _dispReceta(_recetaMarco(nombre)).cant;}
+// Descuenta un componente (no postes picking) en el orden de la receta
+function _mDescontarComp(c,need){
+  const res=[];
+  const tomar=(p,cuantas,nota)=>{const prev=Number(p.cantidad||0);p.cantidad=prev-cuantas;res.push({nombre:p.producto,sku:p.sku||'',cantidad:cuantas,prev,nuevo:p.cantidad,nota:nota||c.nota||''});};
+  for(const p of (c.items||[])){if(need<=0)break;const t=Math.min(_mStock(p),need);if(t>0){tomar(p,t);need-=t;}}
+  if(need>0&&c.madres){
+    const x=c.x||1;
+    for(const m of c.madres){if(need<=0)break;const usar=Math.min(_mStock(m),Math.ceil(need/x));if(usar>0){tomar(m,usar,'cortada → '+Math.min(need,usar*x)+' '+c.label);need=Math.max(0,need-usar*x);}}
+  }
+  if(need>0&&!c.noLimita)res.push({nombre:c.label,sku:'',cantidad:need,faltante:true,nota:'⚠ Sin material disponible'});
+  return res;
+}
+
+function _dispMarcoPicking(size,fondo){
+  const r=_recetaMarco('MARCO PICKING '+size+'"X'+fondo+'"');
+  const d=_dispReceta(r);
+  const bom=MARCO_BOM_PICKING[size];
+  return{cant:d.cant,marco:bom?{size:String(size),color:'VERDE',fondo:String(fondo),bom,sistema:'PICKING'}:null,detalles:d.detalles,sinBom:!bom};
 }
 
 // ══ PANEL BOM ══
@@ -8796,8 +8891,13 @@ function _piezasPosteDisponibles(medida){
   const med=parseFloat(medida);if(!isFinite(med)||med<=0)return 0;
   if(POSTES_PRECORTADOS_PICKING.includes(String(medida))){
     const ex=inventario.filter(p=>{const t=(p.producto||'').toUpperCase();return t.includes('POSTE 2"X2"')&&t.includes('VERDE')&&!t.includes('SOBRANTE')&&_medidaPoste2x2(t)===med;});
-    return ex.reduce((s,p)=>s+Math.max(0,p.cantidad||0),0);
+    const _ent=ex.reduce((s,p)=>s+Math.max(0,p.cantidad||0),0);
+    return _ent+_piezasPosteCortables(med);
   }
+  return _piezasPosteCortables(med);
+}
+// Piezas de `med` que salen cortando el 254" y los sobrantes.
+function _piezasPosteCortables(med){
   const porPieza=med+MERMA_CORTE;
   let n=0;
   inventario.forEach(p=>{
@@ -8852,6 +8952,7 @@ function agregarSobrante(medida){
     inventario.push(_prodSob);
   }
   if(typeof cloudSyncInventario==='function')cloudSyncInventario(_prodSob); // SYNC: subir el sobrante
+  return _prodSob;
 }
 function descontarMarcoPickingBOM(marco,cantidadMarcos){
   // Marco sin receta capturada (108", 156"): no se sabe de qué poste sale, así que no se
@@ -8895,7 +8996,8 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
       // Si está partido a la mitad: 1 poste cortado da 2 piezas, así que la "merma" del segundo corte ya está
       // Pero por simplicidad: 1 corte = 1 pieza obtenida
       cortesInfo.push({tipo:'cortado',fuente:fuente.producto.producto,sku:fuente.producto.sku||'',prevFuente:prev,nuevoFuente:inventario[idx].cantidad,medCortada,medSobrante:medSobrante>0?medSobrante:0});
-      if(medSobrante>0)agregarSobrante(medSobrante);
+      const _sob=medSobrante>0?agregarSobrante(medSobrante):null;
+      if(_sob)cortesInfo[cortesInfo.length-1].sobrante=_sob;
     }
   }
   // Construir resultado para postes
@@ -8907,6 +9009,8 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
     if(c.tipo==='entero'){
       resultado.push({nombre:c.producto,sku:c.sku||'',cantidad:1,prev:c.prev,nuevo:c.nuevo,nota:''});
     }else{
+      // El sobrante que se creo va como pieza NEGATIVA: al regresar la venta se quita.
+      if(c.sobrante)resultado.push({nombre:c.sobrante.producto,sku:c.sobrante.sku||'',cantidad:-1,esSobrante:true,nota:'sobrante del corte'});
       resultado.push({nombre:c.fuente,sku:c.sku||'',cantidad:1,prev:c.prevFuente,nuevo:c.nuevoFuente,nota:'cortado → sobrante '+c.medSobrante.toFixed(2)+'"'});
     }
   });
@@ -8916,14 +9020,9 @@ function descontarMarcoPickingBOM(marco,cantidadMarcos){
   // Antes, si la de 24" estaba en 0, quedaba en 0 y la madre nunca bajaba: el material
   // salia del almacen sin descontarse. Ahora se usa primero la pieza ya cortada y lo
   // que falte se corta de la madre.
-  otrasPiezas.forEach(p=>{
-    const comp=encontrarComponente(p.descBuscar,'VERDE');
-    if(comp){
-      _descontarConMadre(comp,p.cant,p.nota).forEach(r=>resultado.push(r));
-    }else{
-      resultado.push({nombre:p.desc,sku:'',cantidad:p.cant,faltante:true,nota:p.nota||''});
-    }
-  });
+  // Diagonales y pie con el motor unico (_recetaMarco): pieza cortada → madre 42" → otros colores → galvanizada.
+  const _rp=_recetaMarco('MARCO PICKING '+marco.size+'"X'+marco.fondo+'"');
+  if(_rp&&!_rp.sinBom)_rp.comps.filter(c=>c.rol!=='poste').forEach(c=>{_mDescontarComp(c,c.cant*cantidadMarcos).forEach(x=>resultado.push(x));});
   return resultado;
 }
 // Helper: detect if a sale line is a MARCO and extract size+color
@@ -9050,17 +9149,11 @@ function _descontarConMadre(comp,cant,nota){
   return res;
 }
 function descontarMarcoBOM(marco,cantidadMarcos){
-  const piezas=calcularPiezasMarco(marco,cantidadMarcos);
-  const color=marco.color;
+  // Motor unico (_recetaMarco): mismo orden de piezas que el disponible.
+  const r=_recetaMarco('MARCO '+marco.size+'" X '+(marco.fondo||'42')+'" '+(marco.color||''));
+  if(!r||r.sinBom)return [{nombre:'MARCO '+marco.size+'" X '+(marco.fondo||'?')+'" — sin receta de piezas, descuéntalo a mano en Kardex',cantidad:cantidadMarcos,faltante:true}];
   const resultado=[];
-  piezas.forEach(p=>{
-    const comp=encontrarComponente(p.descBuscar,color);
-    if(comp){
-      _descontarConMadre(comp,p.cant,p.nota).forEach(r=>resultado.push(r));
-    }else{
-      resultado.push({nombre:p.desc+(color?' '+color:''),sku:'',cantidad:p.cant,faltante:true,nota:p.nota||''});
-    }
-  });
+  r.comps.forEach(c=>{_mDescontarComp(c,c.cant*cantidadMarcos).forEach(x=>resultado.push(x));});
   return resultado;
 }
 function saveInv(){guardarLS(INV_KEY,inventario);}
@@ -9714,18 +9807,9 @@ function abrirPanelMarcos(fondoSel){
   }else{
     sizes.forEach(size=>{
       MARCO_COLORES.forEach(color=>{
-        const marco={size,color,fondo:fondoSel,bom:MARCO_BOM[size]};
-        const piezas=calcularPiezasMarco(marco,1);
-        let minMarcos=Infinity;let detallesPiezas=[];let algunFaltante=false;
-        piezas.forEach(p=>{
-          const comp=encontrarComponente(p.descBuscar,color);
-          if(comp){
-            const posibles=Math.floor((comp.cantidad||0)/p.cant);
-            if(posibles<minMarcos)minMarcos=posibles;
-            detallesPiezas.push({n:comp.producto,cant:p.cant,stock:comp.cantidad,posibles,nota:p.nota||''});
-          }else{algunFaltante=true;detallesPiezas.push({n:p.desc+' '+color,cant:p.cant,stock:0,posibles:0,faltante:true,nota:p.nota||''});}
-        });
-        if(algunFaltante)minMarcos=0;
+        // Motor unico (_recetaMarco): mismo calculo que Inventario, Ventas y el descuento.
+        const _dm=_dispReceta(_recetaMarco('MARCO '+size+'" X '+fondoSel+'" '+color));
+        let minMarcos=_dm.cant;const detallesPiezas=_dm.detalles;
         const precio=buscarPrecio(size,color,fondoSel);
         const colorDot=color==='AZUL'?'#185FA5':'#3B6D11';
         const stockColor=minMarcos===0?'#c62828':minMarcos<5?'#BA7517':'#3B6D11';
@@ -10067,43 +10151,8 @@ function _dispPiezaReal(x){
 // si hay poste y diagonales del color/tamaño correcto, el marco cuenta como existente.
 function _marcoDispDesdePiezas(p){
   if(!p)return 0;
-  const nombre=(p.producto||'').toUpperCase();
-  if(nombre.indexOf('MARCO')!==0)return 0;
-  const esPicking=nombre.includes('PICKING');
-  const mm=nombre.match(/(\d+)"?\s*X\s*(\d+)/); // "MARCO 312" X 42""
-  if(!mm)return 0;
-  const alto=mm[1],fondo=mm[2];
-  const BOM=esPicking?(typeof MARCO_BOM_PICKING!=='undefined'?MARCO_BOM_PICKING:{}):(typeof MARCO_BOM!=='undefined'?MARCO_BOM:{});
-  const bom=BOM[alto];
-  if(!bom||!bom.posteSize)return 0;
-  // Solo el marco ESTÁNDAR (MARCO N" X N" [color]) se arma de los postes normales.
-  // Las variantes que describen una característica especial (DOBLE POSTE, DOUBLE DEEP,
-  // GA12/GA13, SISMO, USADO, BACKER, PSA, poste 5"…) NO: quedan con su stock real (0).
-  const _resto=nombre.replace(/MARCO(\s+PICKING)?\s+\d+"?\s*X\s*\d+"?/,'').replace(/AZUL|VERDE|ROJO/g,'').replace(/[^A-Z0-9]/g,'');
-  if(_resto.length>0)return 0;
-  const cm=nombre.match(/AZUL|VERDE|ROJO/);
-  const color=cm?cm[0]:null;
-  const inv=(typeof inventario!=='undefined'&&Array.isArray(inventario))?inventario:[];
-  // Postes del tamaño (posteSize) y color del marco
-  // Picking (19 oct 2026): sus postes se cortan del 254" (ver _piezasPosteDisponibles), asi
-  // que contar postes "de la medida" daba 0 y los marcos salian "Sin stock" aunque se
-  // pudieran armar.
-  const postes=(esPicking&&typeof _piezasPosteDisponibles==='function')
-    ? _piezasPosteDisponibles(bom.posteSize)
-    : inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize+'"')&&(!color||u.includes(color));}).reduce((s,x)=>s+_dispPiezaReal(x),0);
-  // Diagonales D/H del fondo (nombre real "D DIAGONAL <fondo>"); si no hay del color, usar neutras (picking).
-  // En picking solo las DIAGONAL PICKING (su disponible ya suma lo que se corta de la de 42").
-  const diag=(letra)=>{
-    const items=inv.filter(x=>{const u=(x.producto||'').toUpperCase();return u.includes(letra+' DIAGONAL')&&u.includes(fondo+'"')&&(!esPicking||u.includes('PICKING'));});
-    const conColor=color?items.filter(x=>(x.producto||'').toUpperCase().includes(color)):[];
-    const usar=conColor.length?conColor:items;
-    return usar.reduce((s,x)=>s+_dispPiezaReal(x),0);
-  };
-  const diagD=diag('D'),diagH=diag('H');
-  const maxPostes=Math.floor((postes*(bom.postePartes||1))/2); // 2 postes por marco
-  const maxDiagD=bom.diagonalD>0?Math.floor(diagD/bom.diagonalD):Infinity;
-  const maxDiagH=bom.diagonalH>0?Math.floor(diagH/bom.diagonalH):Infinity;
-  return Math.max(0,Math.min(maxPostes,maxDiagD,maxDiagH));
+  // Motor unico: misma receta y mismo orden de piezas que al vender (ver _recetaMarco).
+  try{return _marcosArmables(p.producto);}catch(e){return 0;}
 }
 // Disponible derivado de un producto: marco desde piezas, corte desde la madre
 // (diagonales, bom_rules), o paneles beige chicos cortados del grande.
@@ -14255,40 +14304,10 @@ function calcularDisponiblesFabricables(producto){
       return {real,fabricable,total:real+fabricable,fuente:grande?grande.producto:info.bom.panelGrandeNombre,porCorte:info.bom.panelesPorCorte};
     }
   }
-  // ── MARCOS chicos 42" (se fabrican del 96" SELECTIVO o del 84" PICKING) ──
-  if((nombre.startsWith('MARCO 42"')||nombre.startsWith('MARCO 42 ')||nombre.startsWith('MARCO PICKING 42"')||nombre.startsWith('MARCO PICKING 42 '))){
-    const esPicking=nombre.includes('PICKING');
-    const bom=esPicking?(typeof MARCO_BOM_PICKING!=='undefined'?MARCO_BOM_PICKING['42']:null):(typeof MARCO_BOM!=='undefined'?MARCO_BOM['42']:null);
-    if(bom&&bom.posteSize){
-      // Para marcos hay 4 componentes: postes, diagonales D, diagonales H, pies. El cuello de botella es el menor.
-      const colorMatch=nombre.match(/AZUL|VERDE|ROJO/);
-      const color=colorMatch?colorMatch[0]:null;
-      // Buscar poste del color y tamaño correspondientes
-      const buscarPieza=(nombreBase)=>{
-        if(color){
-          const conColor=inventario.find(p=>{const pn=(p.producto||'').toUpperCase();return pn.includes(nombreBase)&&pn.includes(color);});
-          if(conColor)return Math.max(0,Number(conColor.cantidad||0));
-        }
-        // Sin color o no encontrado: tomar la suma de todos los colores
-        const todos=inventario.filter(p=>(p.producto||'').toUpperCase().includes(nombreBase));
-        return todos.reduce((s,p)=>s+Math.max(0,Number(p.cantidad||0)),0);
-      };
-      const postes=buscarPieza('POSTE')&&inventario.find(p=>(p.producto||'').toUpperCase().includes('POSTE')&&(p.producto||'').toUpperCase().includes(bom.posteSize+'"'))?
-        (function(){
-          const pn=inventario.filter(p=>{const u=(p.producto||'').toUpperCase();return u.includes('POSTE')&&u.includes(bom.posteSize)&&(!color||u.includes(color));});
-          return pn.reduce((s,p)=>s+Math.max(0,Number(p.cantidad||0)),0);
-        })():0;
-      const diagD=buscarPieza('DIAGONAL D');
-      const diagH=buscarPieza('DIAGONAL H');
-      const pies=buscarPieza('PIE BASE')||buscarPieza('PIE ');
-      // Cuántos marcos puedes hacer con cada componente
-      const maxPostes=Math.floor((postes*bom.postePartes)/1);
-      const maxDiagD=bom.diagonalD>0?Math.floor(diagD/bom.diagonalD):Infinity;
-      const maxDiagH=bom.diagonalH>0?Math.floor(diagH/bom.diagonalH):Infinity;
-      const maxPies=bom.pie>0?Math.floor(pies/bom.pie):Infinity;
-      const fabricable=Math.max(0,Math.min(maxPostes,maxDiagD,maxDiagH,maxPies));
-      return {real,fabricable,total:real+fabricable,fuente:'componentes BOM',porCorte:null};
-    }
+  // ── MARCOS (todos): motor unico _recetaMarco, mismo calculo que Inventario y el descuento ──
+  if(nombre.indexOf('MARCO')===0&&typeof _recetaMarco==='function'){
+    const r=_recetaMarco(nombre);
+    if(r&&!r.sinBom){const fabricable=_dispReceta(r).cant;return {real,fabricable,total:real+fabricable,fuente:'piezas (receta del marco)',porCorte:null};}
   }
   return null; // No es producto fabricable
 }
@@ -14394,11 +14413,7 @@ function obtenerMarcosVirtuales(fondoFiltro){
     fondosToUse.forEach(fondo=>{
       MARCO_COLORES.forEach(color=>{
         const marco={size,color,fondo,bom:MARCO_BOM[size]};
-        const piezas=calcularPiezasMarco(marco,1);
-        let minMarcos=Infinity;let algunFaltante=false;
-        piezas.forEach(p=>{const comp=encontrarComponente(p.descBuscar,color);if(comp){const posibles=Math.floor((comp.cantidad||0)/p.cant);if(posibles<minMarcos)minMarcos=posibles;}else{algunFaltante=true;}});
-        if(algunFaltante)minMarcos=0;
-        if(minMarcos===Infinity)minMarcos=0;
+        const minMarcos=_marcosArmables('MARCO '+size+'" X '+fondo+'" '+color);   // motor unico
         const precio=buscarPrecioMarco(size,color,fondo);
         marcosVirt.push({producto:'MARCO '+size+'" X '+fondo+'" '+color,sku:'MARCO-'+size+'-'+fondo+'-'+color.slice(0,3),sistema:'SELECTIVO',precio,cantidad:minMarcos,medida:size+'"x'+fondo+'"',esVirtual:true,marco});
       });
@@ -14454,7 +14469,7 @@ function acSelect(lineIdx,invIdx){
   const _esServ=!!(p&&p.esServicio);
   // Verificar disponibilidad
   const _comp=(!_esServ&&typeof _comprometidoSKU==='function'&&p.sku)?_comprometidoSKU(p.sku):0;
-  const _fab=(!_esServ&&typeof _fabricableDesdePadre==='function')?_fabricableDesdePadre(p.sku):0;
+  const _fab=(!_esServ&&typeof _dispDerivadaDe==='function')?_dispDerivadaDe(p):0;   // marcos: motor unico
   const _disp=_esServ?1:((Number(p.cantidad||0)-_comp)+_fab);
   if(!_esServ&&_disp<=0){
     const seguir=confirm(`⚠ SIN DISPONIBLE\n\n${p.producto}\nFísico: ${p.cantidad}\nApartado: ${_comp}\nDisponible: ${_disp}${_fab>0?'\nFabricable: '+_fab:''}\n\nEste producto ya está apartado en otras ventas.\n\n¿Aún así agregarlo? (se generará sobreventa)`);
@@ -14539,23 +14554,15 @@ function _notaAuto(el){ if(!el)return; el.style.height='auto'; el.style.height=(
 function _notasAutoTodas(){ try{ document.querySelectorAll('textarea.nota-linea').forEach(_notaAuto); }catch(e){} }
 function renderLineas(){if(typeof sincronizarFleteVenta==='function')sincronizarFleteVenta();if(typeof sincronizarInstalacionVenta==='function')sincronizarInstalacionVenta();if(!_vtaColapManual)colapsarDatosVenta(vtaLineas.length>0);const tb=document.getElementById('vta-lineas');if(!vtaLineas.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin productos — usa los botones de abajo para agregar</td></tr>';calcTotales();return;}
 tb.innerHTML=vtaLineas.map((l,i)=>{if(l.tipo==='seccion')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})" style="background:#f0f0ee"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7"><textarea rows="1" class="nota-linea" oninput="vtaLineas[${i}].texto=this.value;_notaAuto(this)" style="border:none;background:transparent;font-size:14px;font-weight:700;width:100%;outline:none;padding:4px 0;resize:none;overflow:hidden;font-family:inherit;line-height:1.45;display:inline-block;vertical-align:top;min-height:24px">${_ie(l.texto||'')}</textarea></td></tr>`;if(l.tipo==='nota')return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td colspan="7">${l._interna?'<span style="display:inline-block;background:#eef3fb;color:#185FA5;border:1px solid #d0e2f3;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:6px;vertical-align:middle">🔒 INTERNA · no se imprime</span>':''}<textarea rows="1" class="nota-linea" oninput="vtaLineas[${i}].texto=this.value;_notaAuto(this)" placeholder="Nota..." style="border:none;background:transparent;font-size:13px;font-style:italic;color:#888;width:${l._interna?'65%':'100%'};outline:none;padding:4px 0;resize:none;overflow:hidden;font-family:inherit;line-height:1.45;display:inline-block;vertical-align:top;min-height:22px">${_ie(l.texto||'')}</textarea></td></tr>`;const imp=((l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100));
-const marcoPicking=detectarMarcoPicking(l.producto);
-const marco=marcoPicking||detectarMarco(l.producto);
+// Vista previa de piezas con el motor unico (_recetaMarco): lo mismo que se descontara.
+const _rcp=(typeof _recetaMarco==='function'&&l.cantidad>0)?_recetaMarco(l.producto):null;
 let bomRow='';
-if(marcoPicking&&l.cantidad>0){
+if(_rcp){
   const cant=parseFloat(l.cantidad)||0;
-  const piezas=calcularPiezasMarcoPicking(marcoPicking,cant);
-  const fondoTxt=marcoPicking.fondo?' X '+marcoPicking.fondo+'"':'';
-  bomRow=`<tr style="background:#e3f2fd"><td></td><td colspan="7" style="padding:8px 12px;border-left:3px solid #185FA5;font-size:11px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="color:#185FA5">🔧 BOM Marco PICKING ${marcoPicking.size}"${fondoTxt} VERDE:</strong>${piezas.map(p=>{const comp=encontrarComponente(p.descBuscar,'VERDE');const stockOK=comp&&comp.cantidad>=p.cant;const stockBadge=comp?(stockOK?'<span style="color:#3B6D11">✓ stock '+comp.cantidad+'</span>':'<span style="color:#c62828">⚠ stock '+comp.cantidad+'</span>'):'<span style="color:#c62828">⚠ no encontrado</span>';return`<span style="background:#fff;padding:3px 8px;border-radius:4px;border:1px solid #ddd"><strong>${p.desc}</strong> ×${p.cant}${p.nota?' <em style="color:#888">'+p.nota+'</em>':''} ${stockBadge}</span>`;}).join(' ')}</div></td></tr>`;
-}else if(marco&&l.cantidad>0){
-  const cant=parseFloat(l.cantidad)||0;
-  if(!marco.color){
-    // No color detected — show warning with helpful message
-    bomRow=`<tr style="background:#fff3cd"><td></td><td colspan="7" style="padding:10px 14px;border-left:3px solid #BA7517;font-size:12px;color:#664d03"><strong>⚠ Marco ${marco.size}" sin color especificado</strong> — agrega <strong>AZUL</strong> o <strong>VERDE</strong> al nombre para que se descuenten automáticamente las piezas del inventario. Ej: <em>"MARCO ${marco.size}" X 42" AZUL"</em> o selecciónalo del catálogo predictivo.</td></tr>`;
-  }else{
-    const piezas=calcularPiezasMarco(marco,cant);
-    bomRow=`<tr style="background:#e8f5e9"><td></td><td colspan="7" style="padding:8px 12px;border-left:3px solid #3B6D11;font-size:11px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="color:#3B6D11">📐 BOM Marco ${marco.size}" ${marco.color}:</strong>${piezas.map(p=>{const comp=encontrarComponente(p.descBuscar,marco.color);const stockOK=comp&&comp.cantidad>=p.cant;const stockBadge=comp?(stockOK?'<span style="color:#3B6D11">✓ stock '+comp.cantidad+'</span>':'<span style="color:#c62828">⚠ stock '+comp.cantidad+'</span>'):'<span style="color:#c62828">⚠ no encontrado</span>';return`<span style="background:#fff;padding:3px 8px;border-radius:4px;border:1px solid #ddd"><strong>${p.desc}</strong> ×${p.cant}${p.nota?' <em style="color:#888">'+p.nota+'</em>':''} ${stockBadge}</span>`;}).join(' ')}</div></td></tr>`;
-  }
+  const _azul=_rcp.esPicking;
+  const _tit=_rcp.esPicking?('🔧 BOM Marco PICKING '+_rcp.alto+'" X '+_rcp.fondo+'"'):('📐 BOM Marco '+_rcp.alto+'" X '+_rcp.fondo+'"'+(_rcp.color?' '+_rcp.color:''));
+  const _chips=_rcp.sinBom?'<span style="color:#c62828">sin receta de piezas — se descuenta a mano en Kardex</span>':_dispReceta(_rcp).detalles.map((d,k)=>{const c=_rcp.comps[k];const nec=c.cant*cant;const ok=c.noLimita||d.stock>=nec;return '<span style="padding:2px 8px;border-radius:10px;background:'+(ok?'#fff':'#fdecea')+';border:1px solid '+(ok?'#cfd8dc':'#f5c2c0')+';color:'+(ok?'#333':'#c62828')+'">'+d.n+': <b>'+nec+'</b> · hay '+d.stock+(c.noLimita?' (no limita)':'')+(ok?'':' ⚠')+'</span>';}).join(' ');
+  bomRow=`<tr style="background:${_azul?'#e3f2fd':'#e8f5e9'}"><td></td><td colspan="7" style="padding:8px 12px;border-left:3px solid ${_azul?'#185FA5':'#3B6D11'};font-size:11px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><strong style="color:${_azul?'#185FA5':'#3B6D11'}">${_tit}:</strong>${_chips}<span style="color:#888">· si falta un color se toma de otro y la galvanizada al final</span></div></td></tr>`;
 }
 return`<tr data-idx="${i}" draggable="false" ondragstart="_onDragStartLinea(event,${i})" ondragend="_onDragEndLinea(event)" ondragover="_onDragOverLinea(event)" ondragenter="_onDragEnterLinea(event)" ondragleave="_onDragLeaveLinea(event)" ondrop="_onDropLinea(event,${i})"><td><span class="drag-handle" title="Arrastra desde aquí para mover" onmousedown="this.closest('tr').setAttribute('draggable','true')" style="cursor:grab">⋮⋮</span> <button onclick="removeLinea(${i})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px">✕</button></td><td><input class="ac-input" value="${l.producto||''}" oninput="updateLinea(${i},'producto',this.value);acShow(this,${i})" onblur="setTimeout(acHide,200)" onfocus="acShow(this,${i})" placeholder="Producto" autocomplete="off"></td><td><input value="${l.desc||''}" onchange="updateLinea(${i},'desc',this.value)" placeholder="Descripción" style="font-size:12px;color:#888"></td><td><input type="number" value="${l.cantidad||0}" onchange="updateLinea(${i},'cantidad',this.value)" min="0" step="0.01"></td><td style="position:relative"><input type="number" value="${l.precio||0}" onchange="updateLinea(${i},'precio',this.value)" min="0" step="0.01" style="${(l._fleteAuto||l._instAuto)?(l._precioManual?'border:1.5px solid #EF9F27;background:#FEF9EF':'background:#F1EFE8;color:#5F5E5A'):''}">${(l._fleteAuto||l._instAuto)&&l._precioManual?`<button onclick="resetPrecioServicio(${i})" title="Volver al precio automático" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:#EF9F27;border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;padding:0;line-height:1">↺</button>`:''}</td><td><select onchange="updateLinea(${i},'impuesto',this.value)"><option value="8" ${l.impuesto==8?'selected':''}>IVA 8%</option><option value="16" ${l.impuesto==16?'selected':''}>IVA 16%</option><option value="0" ${l.impuesto==0?'selected':''}>Exento</option></select></td><td><input type="number" value="${l.descuento||0}" onchange="updateLinea(${i},'descuento',this.value)" min="0" max="100" step="0.5"></td><td style="text-align:right;font-weight:600">${money(imp)}</td></tr>`+bomRow}).join('');_notasAutoTodas();calcTotales();}
 function calcTotales(){let sub=0,iva=0;vtaLineas.forEach(l=>{if(l.tipo)return;const base=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);sub+=base;iva+=base*(l.impuesto||0)/100;});document.getElementById('vta-subtotal').textContent=money(sub);document.getElementById('vta-iva').textContent=money(iva);document.getElementById('vta-total-form').textContent=money(sub+iva);}
@@ -14954,7 +14961,7 @@ async function confirmarComoVenta(){
         // Stock insuficiente → fabricar cortando del padre
         const piezas=descontarReglaBomCustom(reglaCustom,cant);
         bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
         piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
         l.bomPiezas=piezas;l.esBomCustom=true;
         return;
@@ -14979,28 +14986,28 @@ async function confirmarComoVenta(){
       if(panelInfo){
         const piezas=descontarPanelBOM(panelInfo,cant);
         bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
         piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
         l.bomPiezas=piezas;l.esPanel=true;
         return;
       }
     }
     // Check if it's a MARCO PICKING first (more specific)
-    const marcoPicking=detectarMarcoPicking(nombre);
+    const marcoPicking=_marcoEsEspecial(nombre)?null:detectarMarcoPicking(nombre);   // especiales: solo su stock
     if(marcoPicking){
       const piezas=descontarMarcoPickingBOM(marcoPicking,cant);
       bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
       l.bomPiezas=piezas;l.esMarco=true;l.esMarcoPicking=true;
       piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);});
       return;
     }
     // Check if it's a MARCO Selectivo → use BOM
-    const marco=detectarMarco(nombre);
+    const marco=_marcoEsEspecial(nombre)?null:detectarMarco(nombre);
     if(marco){
       const piezas=descontarMarcoBOM(marco,cant);
       bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')');});
+      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
       // Enrich line with BOM info
       l.bomPiezas=piezas;l.esMarco=true;
       piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);});
