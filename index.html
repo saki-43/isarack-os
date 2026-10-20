@@ -692,7 +692,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
         <select id="inv-filtro-estado" class="sbx" style="width:auto;border-radius:8px" onchange="renderInventario()"><option value="">Todos</option><option value="ok">Con stock</option><option value="bajo">Stock bajo</option><option value="cero">Sin stock</option><option value="deficit">⚠ Solo en déficit</option></select><div id="inv-admin-buttons" style="display:none;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;position:relative"><button onclick="abrirNuevoProducto()" style="padding:6px 14px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ Nuevo Producto</button><button onclick="toggleMenuOpcionesInv(event)" style="padding:6px 14px;background:#444;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⚙ Más opciones ▾</button><div id="menu-opciones-inv" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);min-width:240px;z-index:200;overflow:hidden"><button onclick="cerrarMenuOpcionesInv();abrirPanelDeficit()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">⚠ <span style="margin-left:4px;color:#c62828;font-weight:600">Déficit</span></button><button onclick="cerrarMenuOpcionesInv();abrirReporteVentas()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">📊 <span style="margin-left:4px;color:#3B6D11;font-weight:600">Reporte de ventas</span></button><button onclick="cerrarMenuOpcionesInv();abrirPanelMarcos()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#e8f2fc'" onmouseout="this.style.background='transparent'">📐 <span style="margin-left:4px;color:#185FA5;font-weight:600">Marcos disponibles</span></button><button onclick="cerrarMenuOpcionesInv();abrirPanelGondolas()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">🏬 <span style="margin-left:4px;color:#3B6D11;font-weight:600">Góndolas disponibles</span></button><button onclick="cerrarMenuOpcionesInv();abrirModalReglasBom()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">🔧 <span style="margin-left:4px;color:#D85A30;font-weight:600">Reglas BOM</span></button><button onclick="cerrarMenuOpcionesInv();abrirModalModulos()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">📦 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Módulos</span></button><button onclick="cerrarMenuOpcionesInv();exportarInventarioExcel()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#eef7e6'" onmouseout="this.style.background='transparent'">📊 <span style="margin-left:4px;color:#1F6B3F;font-weight:600">Exportar Excel</span></button><button onclick="cerrarMenuOpcionesInv();reconciliarInventarioMasivo()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='transparent'">🔁 <span style="margin-left:4px;color:#c62828;font-weight:600">Reconciliar inventario</span></button><button onclick="cerrarMenuOpcionesInv();limpiarHistoricasEnSeguimiento()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">🕓 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Limpiar históricas en seguimiento</span></button><button onclick="cerrarMenuOpcionesInv();abrirCierreMes()" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#333" onmouseover="this.style.background='#f3eef8'" onmouseout="this.style.background='transparent'">📅 <span style="margin-left:4px;color:#7c5cbf;font-weight:600">Cierre de mes</span></button></div></div>
       </div>
       <div class="card">
-        <div class="card-wrap"><table><thead><tr><th>SKU</th><th style="text-align:center">Foto</th><th>Sistema</th><th>Producto</th><th style="text-align:right">Precio USD</th><th style="text-align:right">Peso (kg)</th><th style="text-align:right">Físico</th><th style="text-align:right">Comprometido</th><th style="text-align:right">Disponible</th><th style="text-align:center">Estado</th><th></th></tr></thead><tbody id="tbody-inv"></tbody></table></div>
+        <div class="card-wrap"><table><thead><tr><th>SKU</th><th style="text-align:center">Foto</th><th>Sistema</th><th>Producto</th><th style="text-align:right">Precio USD</th><th style="text-align:right">Peso (kg)</th><th style="text-align:right">Físico</th><th style="text-align:right" title="Lo que pedidos sin entregar vendieron y NO alcanzó a descontarse (no había existencia). Lo ya descontado no se vuelve a restar.">Por comprar</th><th style="text-align:right">Disponible</th><th style="text-align:center">Estado</th><th></th></tr></thead><tbody id="tbody-inv"></tbody></table></div>
       </div>
     </div>
   </div>
@@ -1486,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.01';
+const APP_VERSION='2026.10.20.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3227,11 +3227,16 @@ async function calcularDeficit(){
       for(const pdf of o.pdfsPresupuesto){if(pdf.data&&pdf.data.includes('application/pdf')){const ext=await extraerLineasDePDF(pdf.data);if(ext&&ext.length){lineas=ext;break;}}}
     }
     if(!lineas)continue;
-    lineas.forEach(l=>{
+    // Pedido ya descontado: su material YA salio de la existencia; solo cuenta lo que
+    // no alcanzo a descontarse (antes se restaba otra vez completo).
+    const _desc=o.inventarioDescontado===true;
+    const _falt=_desc?_faltantesDeLineas(o.num,lineas):null;
+    lineas.forEach((l,_li)=>{
       if(l.tipo||!l.producto||!l.cantidad)return;
-      const cant=parseFloat(l.cantidad)||0;if(!cant)return;
+      const cant=_desc?(_falt[_li]||0):(parseFloat(l.cantidad)||0);if(!cant)return;
       // For MARCO with BOM, register each component
       if(l.bomPiezas&&l.bomPiezas.length){
+        if(_desc)return; // sus piezas ya se descontaron
         l.bomPiezas.forEach(p=>{if(p.faltante)return;const key=p.sku||p.nombre;if(!compromisos[key])compromisos[key]={nombre:p.nombre,sku:p.sku||'',vendido:0,pedidos:[]};compromisos[key].vendido+=parseFloat(p.cantidad)||0;compromisos[key].pedidos.push({num:o.num,cliente:o.cliente||'—',cantidad:p.cantidad,fecha:o.fecha,entrega:o.fechaEntrega||'',estatus:o.estatus||'Pendiente'});});
         return;
       }
@@ -3687,14 +3692,16 @@ async function renderCuadrillaPedido(folio){
   const cont=document.getElementById('cuadrilla-chips');
   if(!cont)return;
   if(!folio){cont.innerHTML='<div style="font-size:11px;color:#9aabbd">Guarda el pedido con su número para poder asignar cuadrilla.</div>';return;}
-  let r=(typeof INST!=='undefined'&&INST.rows)?INST.rows.find(x=>x&&x.folio===folio):null;
+  let r=(typeof _instFilaDeFolio==='function')?_instFilaDeFolio(folio):null;
   if(!r){
     cont.innerHTML='<div style="font-size:11px;color:#9aabbd">Buscando…</div>';
     try{
-      const res=await supabaseClient.from('instalaciones_activas').select('*').eq('folio',folio).maybeSingle();
-      r=(res&&res.data)||null;
-      // Se guarda en la caché para que Instalaciones no lo vuelva a pedir.
-      if(r&&typeof INST!=='undefined'&&Array.isArray(INST.rows)&&!INST.rows.some(x=>x&&x.id===r.id))INST.rows.push(r);
+      // Puede haber varios registros del mismo folio: se traen todos y se usa el mejor.
+      const res=await supabaseClient.from('instalaciones_activas').select('*').eq('folio',folio);
+      const filas=(res&&Array.isArray(res.data))?res.data:[];
+      // Se guardan en la caché para que Instalaciones no los vuelva a pedir.
+      if(typeof INST!=='undefined'&&Array.isArray(INST.rows))filas.forEach(x=>{if(!INST.rows.some(y=>y&&y.id===x.id))INST.rows.push(x);});
+      r=(typeof _instMejorFila==='function')?_instMejorFila(filas):(filas[0]||null);
     }catch(e){console.warn('cuadrilla del pedido:',e);}
   }
   if(_cuadrillaFolio!==folio)return;   // se cambió de pedido mientras buscaba
@@ -3715,11 +3722,11 @@ async function renderCuadrillaPedido(folio){
 }
 // Abre el editor de cuadrilla de Instalaciones para este folio y, al cerrarlo,
 // refresca los chips sin tener que reabrir el pedido.
-function abrirCuadrillaDesdePedido(){
+async function abrirCuadrillaDesdePedido(){
   const folio=(document.getElementById('f-num')||{}).value;
   if(!folio||!folio.trim()){showToast('El pedido necesita número','#BA7517');return;}
   if(typeof _instObra!=='function'){showToast('Abre la pestaña Instalaciones primero','#BA7517');return;}
-  _instObra(folio.trim());
+  await _instObra(folio.trim());
   const esperar=setInterval(()=>{
     if(!document.getElementById('inst-modal')){clearInterval(esperar);renderCuadrillaPedido(folio.trim());}
   },600);
@@ -5058,6 +5065,19 @@ function _instOrderFin(folio){
   var o=orders.find(function(x){return x&&x.num===folio;});
   return !!(o&&/complet|termin/i.test(o.estatus||''));
 }
+// Un folio puede tener varios registros de obra (fases, o uno vacio que se creo de
+// mas). Siempre se usa el mejor: el que no esta terminado, con mas gente/asistencia
+// y el mas reciente. Antes ganaba el ultimo de la lista y TCL salia "Sin cuadrilla".
+function _instMejorFila(rows){
+  var pts=function(r){var a=(r&&r.asistencia&&typeof r.asistencia==='object')?Object.keys(r.asistencia).length:0;return ((r&&Array.isArray(r.instaladores))?r.instaladores.length:0)+a;};
+  return (rows||[]).filter(Boolean).slice().sort(function(a,b){
+    var fa=/termin|complet/i.test(a.estatus||'')?1:0,fb=/termin|complet/i.test(b.estatus||'')?1:0;
+    if(fa!==fb)return fa-fb;
+    var pa=pts(a)>0?1:0,pb=pts(b)>0?1:0;if(pa!==pb)return pb-pa;
+    return String(b.updated_at||'').localeCompare(String(a.updated_at||''));
+  })[0]||null;
+}
+function _instFilaDeFolio(folio){return folio?_instMejorFila(INST.rows.filter(function(r){return r&&r.folio===folio;})):null;}
 function _instEsFin(r){return /termin|complet/i.test((r&&r.estatus)||'')||_instOrderFin(r&&r.folio);}
 function _instTerminadas(){
   var arr=INST.rows.filter(_instEsFin).slice().sort(function(a,b){return (''+(b.fecha_fin||b.fecha_inicio||'')).localeCompare(''+(a.fecha_fin||a.fecha_inicio||''));});
@@ -5065,7 +5085,7 @@ function _instTerminadas(){
   return '<div style="font-size:12px;color:#666;margin-bottom:8px">'+arr.length+' obra(s) terminada(s) · siguen en el historial REPSE</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instCard).join('')+'</div>';
 }
 function _instBoardPedidos(){
-  var byFolio={};INST.rows.forEach(function(r){if(r.folio)byFolio[r.folio]=r;});
+  var byFolio={};INST.rows.forEach(function(r){if(r.folio&&!byFolio[r.folio])byFolio[r.folio]=_instFilaDeFolio(r.folio);});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
   var enP=[],pend=[];
   // Misma regla que Seguimiento (_pedidosVisibles): un pedido solo cuenta como
@@ -5088,8 +5108,15 @@ function _instOrdCard(x){
 }
 // Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
 // prellenado con los datos del pedido.
-function _instObra(folio){
-  var r=INST.rows.find(function(x){return x.folio===folio;});
+async function _instObra(folio){
+  var r=_instFilaDeFolio(folio);
+  // Si Instalaciones aun no cargo (se abrio desde el pedido), buscar en la nube
+  // antes de crear otra obra: asi se duplico S07472 TCL con un registro vacio.
+  if(!r&&folio&&typeof supabaseClient!=='undefined'&&supabaseClient){
+    try{var q=await supabaseClient.from('instalaciones_activas').select('*').eq('folio',folio);
+      if(q&&!q.error&&Array.isArray(q.data)&&q.data.length){q.data.forEach(function(x){if(!INST.rows.some(function(y){return y&&y.id===x.id;}))INST.rows.push(x);});r=_instFilaDeFolio(folio);}
+    }catch(e){console.warn('_instObra',e);}
+  }
   if(r){abrirInstEditor(r.id);return;}
   var o=(typeof orders!=='undefined'&&Array.isArray(orders))?orders.find(function(x){return x&&x.num===folio;}):null;
   INST_EDIT={id:null,folio:folio,obra:(o&&o.cliente)||'',cliente:(o&&o.cliente)||'',ubicacion:(o&&o.ubicacion)||'',instaladores:[],lider:'',fecha_inicio:'',fecha_fin:'',notas:'',estatus:(o&&o.estatus)||'En proceso'};
@@ -5803,6 +5830,9 @@ async function _instSaveCore(){
   _instSyncEditor();
   var e=INST_EDIT;
   if(!(e.obra||e.folio||(e.instaladores&&e.instaladores.length))){_instSaveIndicador('');return;} // no guardar vacíos
+  // Una obra NUEVA no se crea hasta que tenga algo propio (gente, lista, fecha o nota):
+  // abrir y cerrar sin capturar nada dejaba registros vacios que tapaban al bueno.
+  if(!e.id&&!((e.instaladores&&e.instaladores.length)||Object.keys(e.asistencia||{}).length||e.fecha_inicio||e.notas)){_instSaveIndicador('');return;}
   _instSaving=true;_instDirty=false;_instSaveIndicador('…');
   var payload={folio:e.folio||'',obra:e.obra||'',cliente:e.obra||null,ubicacion:e.ubicacion||null,instaladores:e.instaladores||[],lider:e.lider||null,fecha_inicio:e.fecha_inicio||null,fecha_fin:e.fecha_fin||null,notas:e.notas||null,estatus:e.estatus||'En proceso',asistencia:e.asistencia||{},updated_at:new Date().toISOString()};
   // PROTECCION: si el editor no cargo bien la cuadrilla (INST_EDIT.instaladores
@@ -5850,6 +5880,7 @@ function descontarInventarioPedido(orderObj,lineas){
     const nombre=(l.producto||'').trim().toUpperCase();
     const cant=parseFloat(l.cantidad)||0;
     if(!nombre||cant<=0)return;
+    l.faltanteInv=0; // lo que no alcance a descontarse (ver _faltantesDeLineas)
     // ── MÓDULO PREARMADO: descontar cada componente ──
     if(l.esModulo&&l.moduloComponentes&&l.moduloComponentes.length){
       const piezas=[];
@@ -5948,6 +5979,7 @@ function descontarInventarioPedido(orderObj,lineas){
     if(idx>=0){
       const prev=inventario[idx].cantidad;
       inventario[idx].cantidad=Math.max(0,prev-cant);
+      l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
       l.sku=inventario[idx].sku||l.sku||'';
       l.producto=inventario[idx].producto;
       _skusTocados.push(inventario[idx].sku);
@@ -6000,7 +6032,8 @@ function descontarAlEntregar(orderObj){
 function regresarInventarioPedido(orderObj,lineas){
   if(!lineas||!lineas.length)return{nodata:true};
   let regresos=[];const _skusRegreso=[];
-  lineas.forEach(l=>{
+  const _falt=_faltantesDeLineas(orderObj&&orderObj.num,lineas);
+  lineas.forEach((l,_li)=>{
     if(typeof _esLineaServicio==='function'?_esLineaServicio(l):l.tipo)return;
     // Si es marco con BOM, regresar cada pieza
     if(l.bomPiezas&&l.bomPiezas.length){
@@ -6011,8 +6044,9 @@ function regresarInventarioPedido(orderObj,lineas){
       });
       return;
     }
-    const cant=parseFloat(l.cantidad)||0;
-    if(!cant)return;
+    // Solo regresa lo que de verdad se desconto (el faltante nunca salio del inventario).
+    const cant=(parseFloat(l.cantidad)||0)-(_falt[_li]||0);
+    if(cant<=0)return;
     let idx=inventario.findIndex(p=>p.producto.toUpperCase()===(l.producto||'').toUpperCase());
     if(idx<0&&l.sku){idx=inventario.findIndex(p=>p.sku===l.sku);}
     if(idx>=0){inventario[idx].cantidad+=cant;regresos.push(inventario[idx].producto+': +'+cant);if(inventario[idx].sku)_skusRegreso.push(inventario[idx].sku);}
@@ -10615,6 +10649,36 @@ async function _kxlCargar(){
 }
 
 function _kardexRegistrarLote(movs){try{(movs||[]).forEach(m=>_kardexRegistrar(m));}catch(e){}}
+// ── Faltante de un pedido ya descontado (20 oct 2026) ──
+// Al confirmar, el pedido descuenta del inventario (nunca abajo de 0) y queda
+// inventarioDescontado:true. Lo que NO alcanzo a descontarse se guarda en cada
+// renglon como l.faltanteInv: eso es lo unico que sigue "debiendose". Antes el
+// comprometido volvia a restar el pedido completo (doble resta: SEL-0326 tenia 68
+// y salia -36 "Sobreventa"). Pedidos descontados antes de este cambio: su faltante
+// se saco del kardex (saldo antes/despues de la venta) y vive en _FALT_LEGACY.
+const _FALT_LEGACY={'S07350|SEL-0001':144,'S07472|SEL-0078':100,'S07536|PIC-0108':96,'S07163|SEL-0001':80,'S07306|SEL-0001':72,'S07472|SEL-0343':66,'S07350|SEL-0360':62,'S07350|SEL-0454':52,'S07335|SEL-0001':48,'S07306|SEL-0326':36,'S07379|SEL-0001':32,'S07379|SEL-0325':32,'S07253|PIC-0082':24,'S07350|SEL-0239':24,'S07335|CAN-0002':16,'S07551|SEL-0340':14,'S07551|SEL-0345':14,'S07335|CAN-0003':12,'S07350|SEL-0008':12,'S07488|SEL-0001':8,'S07438|SEL-0248':4,'S07472|SEL-0250':4,'S07483|SEL-0001':4,'S07350|SEL-0079':1,'S07350|SEL-0054':1};
+// Pedidos marcados como descontados que en realidad NO descontaron nada: RW-74639 se
+// regreso a Presupuesto el 2 sep 2026 (el kardex muestra el reintegro) y nunca se volvio
+// a descontar, pero quedo con inventarioDescontado:true. Todo su material se debe.
+const _PED_SIN_DESCONTAR={'RW-74639':1};
+// Faltante por renglon (mismo orden que lineas). Marcos/modulos con BOM: 0 (sus piezas
+// llevan su propio p.faltante). El legado se reparte entre renglones del mismo SKU.
+function _faltantesDeLineas(num,lineas){
+  const pend={};
+  return (lineas||[]).map(l=>{
+    if(!l)return 0;
+    const cant=parseFloat(l.cantidad)||0;if(cant<=0)return 0;
+    if(l.faltanteInv!=null&&l.faltanteInv!==''&&!isNaN(l.faltanteInv))return Math.min(cant,Math.max(0,Number(l.faltanteInv)));
+    if((l.bomPiezas&&l.bomPiezas.length)||l.esModulo)return 0;
+    if(_PED_SIN_DESCONTAR[num])return cant;
+    if(!l.sku)return 0;
+    const k=(num||'')+'|'+l.sku;
+    if(!(k in pend))pend[k]=_FALT_LEGACY[k]||0;
+    const f=Math.min(cant,pend[k]);pend[k]-=f;return f;
+  });
+}
+// "Por comprar": lo que los pedidos sin entregar NO alcanzaron a descontar.
+// (Se llama _comprometidoSKU por compatibilidad; ya NO cuenta lo descontado.)
 function _comprometidoSKU(sku){
   try{
     if(!sku)return 0;
@@ -10630,11 +10694,12 @@ function _comprometidoSKU(sku){
       const ent=((o.entregado||'')+'').toLowerCase();
       if(ent==='si')return;
       const lin=(o.cotData&&o.cotData.lineas)||[];
-      lin.forEach(l=>{
+      const falt=_faltantesDeLineas(o.num,lin);
+      lin.forEach((l,i)=>{
         if(!l||l.tipo)return;
-        const cnt=Number(l.cantidad||0); if(!cnt)return;
-        if(l.sku===sku){c+=cnt;return;}
-        if(_nombre&&l.producto&&((''+l.producto).toLowerCase().trim())===_nombre){c+=cnt;}
+        const f=falt[i]; if(!f)return;
+        if(l.sku===sku){c+=f;return;}
+        if(_nombre&&l.producto&&((''+l.producto).toLowerCase().trim())===_nombre){c+=f;}
       });
     });
     return c;
@@ -10658,7 +10723,7 @@ async function abrirKardex(sku){
       <div style="padding:16px 18px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
           <div style="background:#EAF3DE;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#3B6D11">Físico</div><div style="font-size:22px;font-weight:700;color:#173404">${fis.toLocaleString()}</div></div>
-          <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#854F0B">Comprometido</div><div style="font-size:22px;font-weight:700;color:#412402">${comp.toLocaleString()}</div></div>
+          <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#854F0B" title="Vendido en pedidos sin entregar que no alcanzó a descontarse">Por comprar</div><div style="font-size:22px;font-weight:700;color:#412402">${comp.toLocaleString()}</div></div>
           <div style="background:${dispBg};border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:${dispCol}">Disponible</div><div style="font-size:22px;font-weight:700;color:${dispCol}">${esServ?'Servicio':disp.toLocaleString()}</div>${(!esServ&&disp<0)?'<div style="font-size:10px;color:#A32D2D">⚠ Sobreventa</div>':''}</div>
           <div style="background:#E6F1FB;border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:#185FA5">Mínimo</div><div style="font-size:22px;font-weight:700;color:#042C53">${min.toLocaleString()}</div></div>
         </div>
@@ -13797,6 +13862,7 @@ function restaurarInventarioDeLineas(lineas, refNum){
   const noEncontrados=[];
   const detalles=[];
   if(!Array.isArray(lineas))return {restaurados,noEncontrados,detalles};
+  const _falt=_faltantesDeLineas(refNum,lineas);
   const _buscaProd=(sku,nombre)=>{
     let p=null;
     if(sku)p=inventario.find(x=>x.sku&&x.sku===sku);
@@ -13804,7 +13870,7 @@ function restaurarInventarioDeLineas(lineas, refNum){
     if(!p&&nombre){const ln=String(nombre).toLowerCase().trim();p=inventario.find(x=>x.producto&&x.producto.toLowerCase().trim()===ln);}
     return p;
   };
-  lineas.forEach(l=>{
+  lineas.forEach((l,_li)=>{
     if(_esLineaServicio(l))return;
     const cant=parseFloat(l.cantidad)||0;
     if(!cant||!l.producto)return;
@@ -13827,13 +13893,15 @@ function restaurarInventarioDeLineas(lineas, refNum){
       });
       return;
     }
-    // Producto directo
+    // Producto directo: solo regresa lo que se desconto (el faltante nunca salio)
+    const _cantReg=cant-(_falt[_li]||0);
+    if(_cantReg<=0)return;
     const prod=_buscaProd(l.sku,l.producto);
     if(prod){
       const prev=prod.cantidad||0;
-      prod.cantidad=prev+cant;
+      prod.cantidad=prev+_cantReg;
       if(typeof cloudSyncInventario==='function')cloudSyncInventario(prod);
-      try{_kardexRegistrar({sku:prod.sku,producto:prod.producto,tipo:'reintegro',cantidad:cant,ref_tipo:'venta',ref_num:refNum||null,nota:'Reversa a Presupuesto'});}catch(_ke){}
+      try{_kardexRegistrar({sku:prod.sku,producto:prod.producto,tipo:'reintegro',cantidad:_cantReg,ref_tipo:'venta',ref_num:refNum||null,nota:'Reversa a Presupuesto'});}catch(_ke){}
       restaurados++;
       detalles.push(prod.producto+': '+prev+' → '+prod.cantidad);
     }else{
@@ -15197,6 +15265,7 @@ async function confirmarComoVenta(){
     const nombre=(l.producto||'').trim().toUpperCase();
     const cant=l.cantidad||0;
     if(!nombre||cant<=0)return;
+    l.faltanteInv=0; // lo que no alcance a descontarse (ver _faltantesDeLineas)
     // ── LÓGICA MIXTA: si el producto tiene SKU real con stock suficiente, usarlo directo ──
     // Sólo aplica a marcos chicos 42" (que son MIXTOS por diseño). Marcos grandes siguen usando BOM siempre.
     const esMarcoChicoMixto=nombre.startsWith('MARCO 42"')||nombre.startsWith('MARCO 42 ')||nombre.startsWith('MARCO PICKING 42"')||nombre.startsWith('MARCO PICKING 42 ');
@@ -15206,6 +15275,7 @@ async function confirmarComoVenta(){
         // Hay stock suficiente: descuento directo del SKU
         const prev=inventario[idx].cantidad;
         inventario[idx].cantidad=Math.max(0,prev-cant);
+        l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
         l.sku=inventario[idx].sku||l.sku||'';
         l.producto=inventario[idx].producto;
         descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
@@ -15225,6 +15295,7 @@ async function confirmarComoVenta(){
           // Hay stock del hijo: descuento directo
           const prev=inventario[idx].cantidad;
           inventario[idx].cantidad=Math.max(0,prev-cant);
+          l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
           descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
           _skusTocadosCCV.push(inventario[idx].sku); // SYNC
           return;
@@ -15246,6 +15317,7 @@ async function confirmarComoVenta(){
         // Hay stock del panel chico ya cortado: descuento directo
         const prev=inventario[idx].cantidad;
         inventario[idx].cantidad=Math.max(0,prev-cant);
+        l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
         l.sku=inventario[idx].sku||l.sku||'';
         l.producto=inventario[idx].producto;
         descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
@@ -15289,6 +15361,7 @@ async function confirmarComoVenta(){
     if(idx>=0){
       const prev=inventario[idx].cantidad;
       inventario[idx].cantidad=Math.max(0,prev-cant);
+      l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
       l.sku=inventario[idx].sku||l.sku||'';
       l.producto=inventario[idx].producto;
       _skusTocadosCCV.push(inventario[idx].sku);
