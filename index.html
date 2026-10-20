@@ -1486,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.04';
+const APP_VERSION='2026.10.20.05';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5628,7 +5628,7 @@ function _repDatos(){
   });
   Object.keys(per).forEach(function(n){per[n].dias.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0;});});
   var nombres=Object.keys(per).sort(function(a,b){return per[b].tot-per[a].tot||a.localeCompare(b);});
-  return {f:f,per:per,nombres:nombres,obras:Object.keys(obras),clis:Object.keys(clisM),nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
+  return {f:f,per:per,nombres:nombres,fechas:Object.keys(fechas).sort(),obras:Object.keys(obras),clis:Object.keys(clisM),nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
 }
 function _repNorm(t){return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
 function _repSet(k,v){var f=_repFiltro();v=String(v||'').trim();if(f[k]===v)return;f[k]=v;if(k==='cli')f.obra='';_instPintar();}
@@ -5647,7 +5647,10 @@ function _repHoja(R){
   // Un renglon por obra dentro de cada persona: cada fecha queda junto a SU obra
   // (antes se juntaban todas y no se sabia que dia fue en cual obra).
   var td='padding:7px;border-bottom:1px solid #f0eeeb;vertical-align:top';
-  var chip=function(x){var c=x.v>=1;return '<span style="display:inline-block;padding:2px 7px;border-radius:6px;margin:2px;font-size:11.5px;background:'+(c?'#e5f1dd':'#fbeec8')+';color:'+(c?'#2f6b1a':'#8a6200')+'">'+(c?'✓':'½')+' '+_repDiaCorto(x.d)+'</span>';};
+  // Cada fecha del reporte tiene su lugar fijo (rejilla de ancho fijo): el 20 de uno
+  // queda debajo del 20 de los demas; si no fue ese dia queda el hueco.
+  var chip=function(x){var c=x.v>=1;return '<span style="display:block;text-align:center;padding:2px 0;border-radius:6px;font-size:11.5px;white-space:nowrap;background:'+(c?'#e5f1dd':'#fbeec8')+';color:'+(c?'#2f6b1a':'#8a6200')+'">'+(c?'✓':'½')+' '+_repDiaCorto(x.d)+'</span>';};
+  var rejilla=function(ds){var m={};ds.forEach(function(x){m[x.d]=x;});return '<div style="display:grid;grid-template-columns:repeat(auto-fill,66px);gap:4px">'+R.fechas.map(function(d){return m[d]?chip(m[d]):'<span></span>';}).join('')+'</div>';};
   var filas=R.nombres.map(function(n){var p=R.per[n];
     var obs=[];p.dias.forEach(function(x){if(obs.indexOf(x.obra)<0)obs.push(x.obra);});
     var rs=obs.length,multi=rs>1;
@@ -5658,7 +5661,7 @@ function _repHoja(R){
       return '<tr>'+
         (k===0?'<td rowspan="'+rs+'" style="'+td+'"><b>'+_ie(n.toUpperCase())+'</b></td>':'')+
         '<td style="'+td+bb+';font-size:12px">'+_ie(ob)+(p.lideres[ob]?'<br><span style="color:#999;font-size:11px">Encargado ★</span>':'')+'</td>'+
-        '<td style="'+td.replace('7px','5px 7px')+bb+'">'+ds.map(chip).join('')+(multi?' <span style="font-size:11px;color:#888;margin-left:4px">'+sub+'</span>':'')+'</td>'+
+        '<td style="'+td.replace('7px','5px 7px')+bb+'">'+rejilla(ds)+(multi?'<div style="font-size:10.5px;color:#888;margin-top:2px">'+sub+' en esta obra</div>':'')+'</td>'+
         (k===0?'<td rowspan="'+rs+'" style="'+td+';text-align:center;font-weight:700;color:#DA6635;font-size:15px">'+p.tot+'</td>':'')+
       '</tr>';}).join('');}).join('');
   var th=function(t,w,al){return '<th style="font-size:11px;color:#888;text-align:'+(al||'left')+';padding:7px;border-bottom:1px solid #eee;text-transform:uppercase'+(w?';width:'+w:'')+'">'+t+'</th>';};
