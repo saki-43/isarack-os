@@ -1030,6 +1030,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
             <button class="pap-f" data-t="ventas" onclick="filtrarPapelera('ventas',this)" style="padding:5px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer">Ventas</button>
             <button class="pap-f" data-t="inventario" onclick="filtrarPapelera('inventario',this)" style="padding:5px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer">Inventario</button>
             <button class="pap-f" data-t="contactos" onclick="filtrarPapelera('contactos',this)" style="padding:5px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer">Contactos</button>
+            <button class="pap-f" data-t="instalaciones_activas" onclick="filtrarPapelera('instalaciones_activas',this)" style="padding:5px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer">Obras</button>
             <input id="pap-buscar" oninput="renderPapelera()" placeholder="🔍 Buscar folio o cliente" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px">
           </div>
           <div id="pap-lista"><div style="text-align:center;padding:22px;color:#999;font-size:13px">Dale a ↻ Actualizar para ver lo eliminado</div></div>
@@ -1485,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.19.07';
+const APP_VERSION='2026.10.20.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -2890,7 +2891,7 @@ function money(v){return'$'+v.toLocaleString('es-MX',{minimumFractionDigits:2,ma
 let _papItems=[], _papFiltro='';
 const _PAP_TIPOS={orders:{et:'Pedido',bg:'#E6F1FB',fg:'#0C447C'},facturas:{et:'Factura',bg:'#FAEEDA',fg:'#633806'},
   ventas:{et:'Venta',bg:'#EEEDFE',fg:'#3C3489'},inventario:{et:'Inventario',bg:'#EAF3DE',fg:'#27500A'},
-  contactos:{et:'Contacto',bg:'#FBEAF0',fg:'#72243E'}};
+  contactos:{et:'Contacto',bg:'#FBEAF0',fg:'#72243E'},instalaciones_activas:{et:'Obra',bg:'#EAF3DE',fg:'#27500A'}};
 
 async function cargarPapelera(){
   const cont=document.getElementById('pap-lista');
@@ -2928,6 +2929,7 @@ function _papResumen(it){
   if(it.tabla==='ventas')return (c.cliente||'')+' · '+(Array.isArray(c.lineas)?c.lineas.length+' partidas':'')+(c.total>0?' · $'+Number(c.total).toLocaleString('es-MX',{maximumFractionDigits:0}):'');
   if(it.tabla==='inventario')return (c.producto||'')+' · existencia '+(c.cantidad!=null?c.cantidad:'—');
   if(it.tabla==='contactos')return (c.empresa||c.rfc||'')+(c.csf?' · con CSF':'');
+  if(it.tabla==='instalaciones_activas'){const dd=Object.keys(c.asistencia||{}).length;return (c.obra||c.cliente||'')+' · '+((c.instaladores||[]).length)+' persona(s)'+(dd?' · '+dd+' día(s) de asistencia':'');}
   return '';
 }
 function renderPapelera(){
@@ -5037,7 +5039,7 @@ function _instPintar(){
   if(INST.modo==='persona')body=_instPorPersona();
   else if(INST.modo==='obra')body=_instPorObra();
   else if(INST.modo==='docs')body=_instDocsView();
-  else if(INST.modo==='asis')body=_asisSemanaView();
+  else if(INST.modo==='asis')body=_asisVistaAsis();
   else if(INST.modo==='fin')body=_instTerminadas();
   else body=_instBoardPedidos();
   root.innerHTML=head+body;
@@ -5538,8 +5540,9 @@ function _asisSemanaDatos(){
   INST.rows.forEach(function(r){
     var a=(r.asistencia&&typeof r.asistencia==='object')?r.asistencia:{};
     var etq=((r.folio||'')+' '+(r.obra||r.cliente||'')).trim();
-    dias.forEach(function(d){var x=a[d];if(!x)return;Object.keys(x).forEach(function(n){var v=Number(x[n]);var p=per[n]||(per[n]={dias:{},obras:{},tot:0});
-      var c=p.dias[d]||(p.dias[d]={v:0,obras:[],falta:false});if(v>0){c.v+=v;c.obras.push(etq);p.tot+=v;p.obras[etq]=(p.obras[etq]||0)+v;}else c.falta=true;});});
+    dias.forEach(function(d){var x=a[d];if(!x)return;Object.keys(x).forEach(function(n0){var v=Number(x[n0]);var n=(typeof _personaCanonica==='function')?_personaCanonica(n0):n0;var p=per[n]||(per[n]={dias:{},obras:{},tot:0});
+      var c=p.dias[d]||(p.dias[d]={v:0,obras:[],falta:false,_k:{}});
+      if(v>0){var pv=c._k[r.id]||0;if(v<=pv)return;var dv=v-pv;c._k[r.id]=v;c.v+=dv;if(c.obras.indexOf(etq)<0)c.obras.push(etq);p.tot+=dv;p.obras[etq]=(p.obras[etq]||0)+dv;}else c.falta=true;});});
   });
   return {lun,dias,per};
 }
@@ -5551,10 +5554,10 @@ function _asisSemanaView(){
   if(!nombres.length)return nav+'<div style="padding:30px;text-align:center;color:#999">Sin lista pasada esta semana. Abre una obra y usa <b>Pasar lista hoy</b>.</div>';
   var th=s.dias.map(function(d){return '<th style="font-size:10px;color:#888;padding:6px 4px">'+_asisEtq(d)+'</th>';}).join('');
   var filas=nombres.map(function(n){var p=s.per[n];
-    var tds=s.dias.map(function(d){var c=p.dias[d];var v=c?(c.v>0?(c.v>=1?1:0.5):(c.falta?0:undefined)):undefined;return '<td style="text-align:center;padding:4px">'+_asisCelda(v)+(c&&c.obras.length?'<div style="font-size:9.5px;color:#666;margin-top:1px">'+_ie(c.obras.join(' / '))+'</div>':'')+'</td>';}).join('');
+    var tds=s.dias.map(function(d){var c=p.dias[d];var v=c?(c.v>0?(c.v>=1?1:0.5):(c.falta?0:undefined)):undefined;return '<td style="text-align:center;padding:4px">'+_asisCelda(v)+(c&&c.obras.length?'<div title="'+_ie(c.obras.join(' / '))+'" style="font-size:9.5px;color:#666;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_ie(c.obras.join(' / '))+'</div>':'')+'</td>';}).join('');
     var desg=Object.keys(p.obras).map(function(o){return _ie(o)+' '+p.obras[o];}).join(' · ');
     return '<tr style="border-bottom:1px solid #f0eee8"><td style="font-weight:700;font-size:12px;white-space:nowrap;padding:4px 8px 4px 0">'+_instMay(n)+'</td>'+tds+'<td style="text-align:center;font-weight:800;color:#DA6635">'+p.tot+'</td><td style="font-size:10.5px;color:#555">'+desg+'</td></tr>';}).join('');
-  return nav+'<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:10px;overflow-x:auto"><table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left;font-size:10px;color:#888">Persona</th>'+th+'<th style="font-size:10px;color:#888">Días</th><th style="text-align:left;font-size:10px;color:#888">Obras</th></tr>'+filas+'</table></div>';
+  return nav+'<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:10px;overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:760px;table-layout:fixed"><tr><th style="text-align:left;font-size:10px;color:#888;width:170px">Persona</th>'+th+'<th style="font-size:10px;color:#888;width:50px">Días</th><th style="text-align:left;font-size:10px;color:#888;width:24%">Obras</th></tr>'+filas+'</table></div>';
 }
 function _asisExportar(){
   var s=_asisSemanaDatos();
@@ -5565,6 +5568,107 @@ function _asisExportar(){
   var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Asistencia_'+s.lun+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},100);
   showToast('Asistencia exportada','#3B6D11');
+}
+// ── Reporte REPSE: quién fue a las obras de un cliente en un periodo ──
+// Solo cuenta días con asistencia (1 o ½); las faltas no salen en el reporte.
+function _repFiltro(){
+  if(!INST.rep){var h=_asisHoy();INST.rep={cli:'',obra:'',per:'',desde:h.slice(0,4)+'-01-01',hasta:h};}
+  return INST.rep;
+}
+function _repCli(r){return String(r.cliente||r.obra||'').trim();}
+function _repEtqObra(r){return ((r.folio||'')+' '+(r.obra||r.cliente||'')).trim();}
+function _repNom(n){return (typeof _personaCanonica==='function')?_personaCanonica(n):n;}
+function _repDatos(){
+  var f=_repFiltro(),per={},obras={},fechas={},jornadas=0;
+  INST.rows.forEach(function(r){
+    if(f.cli&&_repCli(r)!==f.cli)return;
+    if(f.obra&&String(r.id)!==String(f.obra))return;
+    var a=(r.asistencia&&typeof r.asistencia==='object')?r.asistencia:{},etq=_repEtqObra(r);
+    Object.keys(a).forEach(function(d){
+      if((f.desde&&d<f.desde)||(f.hasta&&d>f.hasta))return;
+      Object.keys(a[d]||{}).forEach(function(n0){
+        var v=Number(a[d][n0]);if(!(v>0))return;
+        var n=_repNom(n0);if(f.per&&n!==f.per)return;
+        var p=per[n]||(per[n]={dias:[],obras:{},tot:0,lider:false,_k:{}});
+        // mismo dia y misma obra con el nombre viejo y el nuevo: cuenta una vez
+        var kk=d+'|'+r.id,prev=p._k[kk];
+        if(prev){if(v>prev.v){p.tot+=v-prev.v;jornadas+=v-prev.v;prev.v=v;}return;}
+        prev={d:d,v:v,obra:etq};p._k[kk]=prev;p.dias.push(prev);p.obras[etq]=1;p.tot+=v;
+        if(r.lider&&_repNom(r.lider)===n)p.lider=true;
+        obras[etq]=1;fechas[d]=1;jornadas+=v;
+      });
+    });
+  });
+  Object.keys(per).forEach(function(n){per[n].dias.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0;});});
+  var nombres=Object.keys(per).sort(function(a,b){return per[b].tot-per[a].tot||a.localeCompare(b);});
+  return {f:f,per:per,nombres:nombres,nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
+}
+function _repSet(k,v){var f=_repFiltro();f[k]=v;if(k==='cli')f.obra='';_instPintar();}
+function _repDiaCorto(iso){var p=iso.split('-'),M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return p[2]+' '+M[(+p[1])-1]+(p[0]!==_asisHoy().slice(0,4)?' '+p[0].slice(2):'');}
+function _repHoja(R){
+  var f=R.f;
+  var cli=f.cli||'Todos los clientes';
+  var ob=f.obra?(INST.rows.find(function(r){return String(r.id)===String(f.obra);})||null):null;
+  var hdr='<div class="rp-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:3px solid #DA6635;padding-bottom:10px;margin-bottom:12px;flex-wrap:wrap">'+
+    '<div><div style="font-size:22px;font-weight:800;color:#DA6635;letter-spacing:1px">ISARACK</div><div style="color:#666;font-size:12px">Registro de asistencia de personal en sitio</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b>Cliente: '+_ie(cli)+'</b>'+(ob?'<br>Obra: '+_ie(_repEtqObra(ob)):'')+'<br>Periodo: '+_fmtF(f.desde)+' al '+_fmtF(f.hasta)+(f.per?'<br>Persona: '+_ie(f.per.toUpperCase()):'')+'<br><span style="color:#888">Generado '+_fmtF(_asisHoy())+'</span></div></div>';
+  var k=function(n,t){return '<div style="flex:1;min-width:110px;background:#faf7f4;border-radius:9px;padding:9px 11px;font-size:12px"><b style="display:block;font-size:19px;color:#DA6635">'+n+'</b>'+t+'</div>';};
+  var kpis='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+k(R.nObras,'Obras')+k(R.nombres.length,'Personas')+k(R.jornadas,'Jornadas')+k(R.nDias,'Días con personal')+'</div>';
+  if(!R.nombres.length)return hdr+kpis+'<div style="padding:24px;text-align:center;color:#999">Sin asistencia capturada con esos filtros.</div>';
+  var filas=R.nombres.map(function(n){var p=R.per[n];
+    var dias=p.dias.map(function(x){var c=x.v>=1;return '<span title="'+_ie(x.obra)+'" style="display:inline-block;padding:2px 7px;border-radius:6px;margin:2px;font-size:11.5px;background:'+(c?'#e5f1dd':'#fbeec8')+';color:'+(c?'#2f6b1a':'#8a6200')+'">'+(c?'✓':'½')+' '+_repDiaCorto(x.d)+'</span>';}).join('');
+    return '<tr><td style="padding:8px 7px;border-bottom:1px solid #f0eeeb;vertical-align:top"><b>'+_ie(n.toUpperCase())+'</b>'+(p.lider?'<br><span style="color:#999;font-size:11px">Encargado ★</span>':'')+'</td>'+
+      '<td style="padding:8px 7px;border-bottom:1px solid #f0eeeb;vertical-align:top;font-size:12px">'+Object.keys(p.obras).map(_ie).join('<br>')+'</td>'+
+      '<td style="padding:6px 7px;border-bottom:1px solid #f0eeeb;vertical-align:top">'+dias+'</td>'+
+      '<td style="padding:8px 7px;border-bottom:1px solid #f0eeeb;vertical-align:top;text-align:center;font-weight:700;color:#DA6635;font-size:15px">'+p.tot+'</td></tr>';}).join('');
+  var th=function(t,w,al){return '<th style="font-size:11px;color:#888;text-align:'+(al||'left')+';padding:7px;border-bottom:1px solid #eee;text-transform:uppercase'+(w?';width:'+w:'')+'">'+t+'</th>';};
+  return hdr+kpis+'<table style="width:100%;border-collapse:collapse">'+'<tr>'+th('Persona','17%')+th('Obra','18%')+th('Días asistidos')+th('Jornadas','8%','center')+'</tr>'+filas+'</table>'+
+    '<div style="font-size:11px;color:#888;margin-top:10px">✓ jornada completa · ½ medio día. Solo aparecen los días que la persona asistió.</div>'+
+    '<div style="display:flex;gap:60px;margin-top:40px"><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Elaboró — ISARACK</div><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Recibió — '+_ie(f.cli||'Cliente')+'</div></div>';
+}
+function _repView(){
+  var f=_repFiltro(),R=_repDatos();
+  var clis={};INST.rows.forEach(function(r){var c=_repCli(r);if(c)clis[c]=1;});
+  var obs=INST.rows.filter(function(r){return !f.cli||_repCli(r)===f.cli;}).sort(function(a,b){return String(b.folio||'').localeCompare(String(a.folio||''));});
+  var gente={};INST.rows.forEach(function(r){Object.keys(r.asistencia||{}).forEach(function(d){Object.keys((r.asistencia||{})[d]||{}).forEach(function(n){gente[_repNom(n)]=1;});});});
+  var opt=function(v,t,sel){return '<option value="'+_ie(v)+'"'+(String(v)===String(sel)?' selected':'')+'>'+_ie(t)+'</option>';};
+  var lab=function(t,h){return '<div><div style="font-size:10.5px;color:#888;margin-bottom:3px;text-transform:uppercase">'+t+'</div>'+h+'</div>';};
+  var st='border:1px solid #ccc;border-radius:7px;padding:7px 9px;font-size:12.5px;background:#fff;max-width:240px';
+  var filtros='<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:12px;margin-bottom:12px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+    lab('Cliente','<select onchange="_repSet(\'cli\',this.value)" style="'+st+'">'+opt('','Todos',f.cli)+Object.keys(clis).sort().map(function(c){return opt(c,c,f.cli);}).join('')+'</select>')+
+    lab('Obra','<select onchange="_repSet(\'obra\',this.value)" style="'+st+'">'+opt('',f.cli?'Todas las de '+f.cli:'Todas',f.obra)+obs.map(function(r){return opt(r.id,_repEtqObra(r),f.obra);}).join('')+'</select>')+
+    lab('Desde','<input type="date" value="'+_ie(f.desde)+'" onchange="_repSet(\'desde\',this.value)" style="'+st+'">')+
+    lab('Hasta','<input type="date" value="'+_ie(f.hasta)+'" onchange="_repSet(\'hasta\',this.value)" style="'+st+'">')+
+    lab('Persona','<select onchange="_repSet(\'per\',this.value)" style="'+st+'">'+opt('','Todas',f.per)+Object.keys(gente).sort().map(function(n){return opt(n,n.toUpperCase(),f.per);}).join('')+'</select>')+
+    '<div style="flex:1"></div>'+
+    '<button onclick="_repExcel()" style="background:#fff;border:1px solid #DA6635;color:#DA6635;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">⬇ Excel</button>'+
+    '<button onclick="_repImprimir()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">🖨 Imprimir / PDF</button></div>';
+  return filtros+'<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:16px;overflow-x:auto">'+_repHoja(R)+'</div>';
+}
+function _repImprimir(){
+  var R=_repDatos();
+  var w=window.open('','_blank');
+  if(!w){showToast('Permite las ventanas emergentes para imprimir','#BA7517');return;}
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Asistencia REPSE '+_ie(R.f.cli||'')+' '+R.f.desde+' a '+R.f.hasta+'</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#222;margin:24px;font-size:13px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}tr{page-break-inside:avoid}@page{margin:14mm}</style></head><body>'+_repHoja(R)+'<script>setTimeout(function(){window.print();},300)<\/script></body></html>');
+  w.document.close();
+}
+function _repExcel(){
+  var R=_repDatos();
+  if(!R.nombres.length){showToast('No hay asistencia con esos filtros','#BA7517');return;}
+  var q=function(t){return '"'+String(t==null?'':t).replace(/"/g,'""')+'"';};
+  var lines=[['Persona','Fecha','Obra','Jornada'].map(q).join(',')];
+  R.nombres.forEach(function(n){R.per[n].dias.forEach(function(x){lines.push([n.toUpperCase(),x.d,x.obra,x.v].map(q).join(','));});
+    lines.push([n.toUpperCase()+' — TOTAL','','',R.per[n].tot].map(q).join(','));});
+  var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='REPSE_'+(R.f.cli||'todos').replace(/[^\w]+/g,'_').slice(0,40)+'_'+R.f.desde+'_a_'+R.f.hasta+'.csv';
+  document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},100);
+  showToast('Reporte exportado','#3B6D11');
+}
+function _asisVistaAsis(){
+  var v=INST.asisVista||'semana';
+  var b=function(m,t){var on=v===m;return '<button onclick="INST.asisVista=\''+m+'\';_instPintar()" style="padding:6px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;border:1px solid '+(on?'#DA6635':'#ddd')+';background:'+(on?'#DA6635':'#fff')+';color:'+(on?'#fff':'#444')+';font-weight:'+(on?'700':'400')+'">'+t+'</button>';};
+  return '<div style="display:flex;gap:6px;margin-bottom:12px">'+b('semana','Semana')+b('repse','📑 Reporte REPSE')+'</div>'+(v==='repse'?_repView():_asisSemanaView());
 }
 // ── Estatus de la instalación → pedido en Seguimiento ──
 // En proceso / Falta material / Por terminar / Terminada se anota en el pedido
@@ -5730,7 +5834,7 @@ async function guardarInst(){
 }
 async function _instEliminar(){
   var e=INST_EDIT;if(!e||!e.id)return;
-  if(!confirm('¿Eliminar este registro del historial REPSE? Esta acción no se puede deshacer.'))return;
+  if(!confirm('¿Eliminar este registro del historial REPSE?\n\nQueda respaldado (con su asistencia) en Configuración → Papelera.'))return;
   clearTimeout(_instSaveTimer);_instDirty=false;
   try{var res=await supabaseClient.from('instalaciones_activas').delete().eq('id',e.id);if(res&&res.error)throw res.error;INST_EDIT=null;var mm=document.getElementById('inst-modal');if(mm)mm.remove();if(typeof showToast==='function')showToast('Registro eliminado','#BA7517');renderInstalaciones();}catch(err){console.error('_instEliminar',err);if(typeof showToast==='function')showToast('⚠ No se pudo eliminar','#BA7517');}
 }
