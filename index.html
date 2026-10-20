@@ -1486,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.03';
+const APP_VERSION='2026.10.20.04';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5606,39 +5606,41 @@ function _repCli(r){return String(r.cliente||r.obra||'').trim();}
 function _repEtqObra(r){return ((r.folio||'')+' '+(r.obra||r.cliente||'')).trim();}
 function _repNom(n){return (typeof _personaCanonica==='function')?_personaCanonica(n):n;}
 function _repDatos(){
-  var f=_repFiltro(),per={},obras={},fechas={},jornadas=0;
+  var f=_repFiltro(),per={},obras={},clisM={},fechas={},jornadas=0;
   INST.rows.forEach(function(r){
-    if(f.cli&&_repCli(r)!==f.cli)return;
-    if(f.obra&&String(r.id)!==String(f.obra))return;
+    if(f.cli&&_repNorm(_repCli(r)).indexOf(_repNorm(f.cli))<0)return;
+    if(f.obra&&_repNorm(_repEtqObra(r)).indexOf(_repNorm(f.obra))<0)return;
     var a=(r.asistencia&&typeof r.asistencia==='object')?r.asistencia:{},etq=_repEtqObra(r);
     Object.keys(a).forEach(function(d){
       if((f.desde&&d<f.desde)||(f.hasta&&d>f.hasta))return;
       Object.keys(a[d]||{}).forEach(function(n0){
         var v=Number(a[d][n0]);if(!(v>0))return;
-        var n=_repNom(n0);if(f.per&&n!==f.per)return;
+        var n=_repNom(n0);if(f.per&&_repNorm(n).indexOf(_repNorm(f.per))<0)return;
         var p=per[n]||(per[n]={dias:[],obras:{},tot:0,lider:false,lideres:{},_k:{}});
         // mismo dia y misma obra con el nombre viejo y el nuevo: cuenta una vez
         var kk=d+'|'+r.id,prev=p._k[kk];
         if(prev){if(v>prev.v){p.tot+=v-prev.v;jornadas+=v-prev.v;prev.v=v;}return;}
         prev={d:d,v:v,obra:etq};p._k[kk]=prev;p.dias.push(prev);p.obras[etq]=1;p.tot+=v;
         if(r.lider&&_repNom(r.lider)===n){p.lider=true;p.lideres[etq]=true;}
-        obras[etq]=1;fechas[d]=1;jornadas+=v;
+        obras[etq]=1;clisM[_repCli(r)]=1;fechas[d]=1;jornadas+=v;
       });
     });
   });
   Object.keys(per).forEach(function(n){per[n].dias.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0;});});
   var nombres=Object.keys(per).sort(function(a,b){return per[b].tot-per[a].tot||a.localeCompare(b);});
-  return {f:f,per:per,nombres:nombres,nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
+  return {f:f,per:per,nombres:nombres,obras:Object.keys(obras),clis:Object.keys(clisM),nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
 }
-function _repSet(k,v){var f=_repFiltro();f[k]=v;if(k==='cli')f.obra='';_instPintar();}
+function _repNorm(t){return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+function _repSet(k,v){var f=_repFiltro();v=String(v||'').trim();if(f[k]===v)return;f[k]=v;if(k==='cli')f.obra='';_instPintar();}
 function _repDiaCorto(iso){var p=iso.split('-'),M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return p[2]+' '+M[(+p[1])-1]+(p[0]!==_asisHoy().slice(0,4)?' '+p[0].slice(2):'');}
 function _repHoja(R){
   var f=R.f;
-  var cli=f.cli||'Todos los clientes';
-  var ob=f.obra?(INST.rows.find(function(r){return String(r.id)===String(f.obra);})||null):null;
+  // Lo escrito puede ser parcial ('tc'): en la hoja va el nombre completo de lo encontrado.
+  var cli=(R.clis.length===1&&(f.cli||f.obra))?R.clis[0]:(f.cli?(R.clis.length?R.clis.join(', '):f.cli):'Todos los clientes');
+
   var hdr='<div class="rp-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:3px solid #DA6635;padding-bottom:10px;margin-bottom:12px;flex-wrap:wrap">'+
     '<div><div style="font-size:22px;font-weight:800;color:#DA6635;letter-spacing:1px">ISARACK</div><div style="color:#666;font-size:12px">Registro de asistencia de personal en sitio</div></div>'+
-    '<div style="text-align:right;font-size:12px"><b>Cliente: '+_ie(cli)+'</b>'+(ob?'<br>Obra: '+_ie(_repEtqObra(ob)):'')+'<br>Periodo: '+_fmtF(f.desde)+' al '+_fmtF(f.hasta)+(f.per?'<br>Persona: '+_ie(f.per.toUpperCase()):'')+'<br><span style="color:#888">Generado '+_fmtF(_asisHoy())+'</span></div></div>';
+    '<div style="text-align:right;font-size:12px"><b>Cliente: '+_ie(cli)+'</b>'+(f.obra?'<br>Obra: '+_ie(R.obras.length?R.obras.join(', '):f.obra):'')+'<br>Periodo: '+_fmtF(f.desde)+' al '+_fmtF(f.hasta)+(f.per?'<br>Persona: '+_ie((R.nombres.length?R.nombres.join(', '):f.per).toUpperCase()):'')+'<br><span style="color:#888">Generado '+_fmtF(_asisHoy())+'</span></div></div>';
   var k=function(n,t){return '<div style="flex:1;min-width:110px;background:#faf7f4;border-radius:9px;padding:9px 11px;font-size:12px"><b style="display:block;font-size:19px;color:#DA6635">'+n+'</b>'+t+'</div>';};
   var kpis='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+k(R.nObras,'Obras')+k(R.nombres.length,'Personas')+k(R.jornadas,'Jornadas')+k(R.nDias,'Días con personal')+'</div>';
   if(!R.nombres.length)return hdr+kpis+'<div style="padding:24px;text-align:center;color:#999">Sin asistencia capturada con esos filtros.</div>';
@@ -5662,22 +5664,25 @@ function _repHoja(R){
   var th=function(t,w,al){return '<th style="font-size:11px;color:#888;text-align:'+(al||'left')+';padding:7px;border-bottom:1px solid #eee;text-transform:uppercase'+(w?';width:'+w:'')+'">'+t+'</th>';};
   return hdr+kpis+'<table style="width:100%;border-collapse:collapse">'+'<tr>'+th('Persona','17%')+th('Obra','18%')+th('Días asistidos')+th('Jornadas','8%','center')+'</tr>'+filas+'</table>'+
     '<div style="font-size:11px;color:#888;margin-top:10px">✓ jornada completa · ½ medio día. Solo aparecen los días que la persona asistió.</div>'+
-    '<div style="display:flex;gap:60px;margin-top:40px"><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Elaboró — ISARACK</div><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Recibió — '+_ie(f.cli||'Cliente')+'</div></div>';
+    '<div style="display:flex;gap:60px;margin-top:40px"><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Elaboró — ISARACK</div><div style="flex:1;border-top:1px solid #999;text-align:center;padding-top:5px;font-size:11px;color:#666">Recibió — '+_ie((f.cli||f.obra)&&R.clis.length===1?R.clis[0]:'Cliente')+'</div></div>';
 }
 function _repView(){
   var f=_repFiltro(),R=_repDatos();
   var clis={};INST.rows.forEach(function(r){var c=_repCli(r);if(c)clis[c]=1;});
-  var obs=INST.rows.filter(function(r){return !f.cli||_repCli(r)===f.cli;}).sort(function(a,b){return String(b.folio||'').localeCompare(String(a.folio||''));});
-  var gente={};INST.rows.forEach(function(r){Object.keys(r.asistencia||{}).forEach(function(d){Object.keys((r.asistencia||{})[d]||{}).forEach(function(n){gente[_repNom(n)]=1;});});});
-  var opt=function(v,t,sel){return '<option value="'+_ie(v)+'"'+(String(v)===String(sel)?' selected':'')+'>'+_ie(t)+'</option>';};
-  var lab=function(t,h){return '<div><div style="font-size:10.5px;color:#888;margin-bottom:3px;text-transform:uppercase">'+t+'</div>'+h+'</div>';};
+  var obs=INST.rows.filter(function(r){return !f.cli||_repNorm(_repCli(r)).indexOf(_repNorm(f.cli))>=0;}).sort(function(a,b){return String(b.folio||'').localeCompare(String(a.folio||''));});
   var st='border:1px solid #ccc;border-radius:7px;padding:7px 9px;font-size:12.5px;background:#fff;max-width:240px';
+  var gente={};INST.rows.forEach(function(r){Object.keys(r.asistencia||{}).forEach(function(d){Object.keys((r.asistencia||{})[d]||{}).forEach(function(n){gente[_repNom(n)]=1;});});});
+  // Se escribe y sugiere (datalist): con cientos de clientes la lista desplegable era enorme.
+  var etqObs={};obs.forEach(function(r){etqObs[_repEtqObra(r)]=1;});
+  var dl=function(id,arr){return '<datalist id="'+id+'">'+arr.map(function(t){return '<option value="'+_ie(t)+'"></option>';}).join('')+'</datalist>';};
+  var inp=function(k,id,ph){return '<input list="'+id+'" value="'+_ie(f[k])+'" placeholder="'+ph+'" onchange="_repSet(\''+k+'\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" autocomplete="off" style="'+st+';width:230px">';};
+  var lab=function(t,h){return '<div><div style="font-size:10.5px;color:#888;margin-bottom:3px;text-transform:uppercase">'+t+'</div>'+h+'</div>';};
   var filtros='<div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:12px;margin-bottom:12px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
-    lab('Cliente','<select onchange="_repSet(\'cli\',this.value)" style="'+st+'">'+opt('','Todos',f.cli)+Object.keys(clis).sort().map(function(c){return opt(c,c,f.cli);}).join('')+'</select>')+
-    lab('Obra','<select onchange="_repSet(\'obra\',this.value)" style="'+st+'">'+opt('',f.cli?'Todas las de '+f.cli:'Todas',f.obra)+obs.map(function(r){return opt(r.id,_repEtqObra(r),f.obra);}).join('')+'</select>')+
+    lab('Cliente',inp('cli','rep-dl-cli','Todos — escribe para buscar')+dl('rep-dl-cli',Object.keys(clis).sort()))+
+    lab('Obra',inp('obra','rep-dl-obra',f.cli?'Todas las de '+_ie(f.cli):'Todas — folio u obra')+dl('rep-dl-obra',Object.keys(etqObs)))+
     lab('Desde','<input type="date" value="'+_ie(f.desde)+'" onchange="_repSet(\'desde\',this.value)" style="'+st+'">')+
     lab('Hasta','<input type="date" value="'+_ie(f.hasta)+'" onchange="_repSet(\'hasta\',this.value)" style="'+st+'">')+
-    lab('Persona','<select onchange="_repSet(\'per\',this.value)" style="'+st+'">'+opt('','Todas',f.per)+Object.keys(gente).sort().map(function(n){return opt(n,n.toUpperCase(),f.per);}).join('')+'</select>')+
+    lab('Persona',inp('per','rep-dl-per','Todas — escribe un nombre')+dl('rep-dl-per',Object.keys(gente).sort()))+
     '<div style="flex:1"></div>'+
     '<button onclick="_repExcel()" style="background:#fff;border:1px solid #DA6635;color:#DA6635;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">⬇ Excel</button>'+
     '<button onclick="_repImprimir()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">🖨 Imprimir / PDF</button></div>';
