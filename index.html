@@ -1486,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.06';
+const APP_VERSION='2026.10.20.07';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5087,25 +5087,58 @@ function _instTerminadas(){
 function _instBoardPedidos(){
   var byFolio={};INST.rows.forEach(function(r){if(r.folio&&!byFolio[r.folio])byFolio[r.folio]=_instFilaDeFolio(r.folio);});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
-  var enP=[],pend=[];
+  var enP=[],pend=[],hoy=_asisHoy(),genteHoy={};
   // Misma regla que Seguimiento (_pedidosVisibles): un pedido solo cuenta como
   // instalable si su venta ya está confirmada como 'Venta'. Si sigue como
   // Cotización/Presupuesto o el pedido está archivado, no aparece en el tablero.
-  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec,soloEnt:/solo\s*entrega/i.test(o.repse||'')};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
-  var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
-  var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
-  if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Asigna la cuadrilla desde el pedido en Seguimiento.</div>';
-  return out;
+  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;
+    var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',vendido:(o.fechaVenta||o.fecha||''),rec:rec,enProc:o.estatus==='En proceso',soloEnt:/solo\s*entrega/i.test(o.repse||''),chofer:o.choferNombre||''};
+    x.sinCuad=!x.soloEnt&&!(rec&&_instMiembros(rec).length);
+    var a=rec&&rec.asistencia&&rec.asistencia[hoy];if(a)Object.keys(a).forEach(function(n){if(Number(a[n])>0)genteHoy[_repNom(n)]=1;});
+    if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  var todos=enP.concat(pend);
+  if(!todos.length)return '<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Asigna la cuadrilla desde el pedido en Seguimiento.</div>';
+  var bf=INST.bf||'todos',filtra=function(arr){return arr.filter(function(x){return bf==='sin'?x.sinCuad:bf==='ent'?x.soloEnt:true;});};
+  var kpi=function(ic,bg,n,t,col){return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e7e4df;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:10px;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:17px">'+ic+'</div><div><div style="font-size:24px;font-weight:700;line-height:1;color:'+(col||'#1f1f1f')+'">'+n+'</div><div style="font-size:11.5px;color:#777;margin-top:3px">'+t+'</div></div></div>';};
+  var nSin=todos.filter(function(x){return x.sinCuad;}).length,nEnt=todos.filter(function(x){return x.soloEnt;}).length;
+  var kpis='<div style="display:flex;gap:10px;margin:2px 0 18px;flex-wrap:wrap">'+kpi('🔧','#fdf1ea',enP.length,'En proceso')+kpi('⏳','#f3f1ed',pend.length,'Pendientes')+kpi('⚠','#fdf0ec',nSin,'Sin cuadrilla',nSin?'#B8431C':'')+kpi('👷','#eaf3de',Object.keys(genteHoy).length,'Personas en obra hoy')+kpi('🚚','#eef5fc',nEnt,'Solo entrega')+'</div>';
+  var fb=function(k,t){var on=bf===k;return '<button onclick="INST.bf=\''+k+'\';_instPintar()" style="border:1px solid '+(on?'#DA6635':'#ddd')+';background:'+(on?'#fff6f1':'#fff')+';color:'+(on?'#DA6635':'#555')+';font-weight:'+(on?'600':'400')+';border-radius:16px;padding:4px 11px;font-size:11.5px;cursor:pointer">'+t+'</button>';};
+  var filtros='<div style="display:flex;gap:6px">'+fb('todos','Todos')+fb('sin','Sin cuadrilla')+fb('ent','Solo entrega')+'</div>';
+  var sec=function(tit,arr,conFiltros){var a=filtra(arr);if(!a.length&&!conFiltros)return '';return '<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 10px;gap:8px;flex-wrap:wrap"><div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:#555;text-transform:uppercase;display:flex;align-items:center;gap:8px">'+tit+' <span style="background:#e9e6e1;border-radius:10px;padding:1px 8px;font-size:11px;color:#444">'+a.length+'</span></div>'+(conFiltros?filtros:'')+'</div>'+
+    (a.length?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-bottom:22px">'+a.map(_instOrdCard).join('')+'</div>':'<div style="color:#aaa;font-size:12px;margin:0 0 22px">Nada con este filtro.</div>');};
+  return kpis+sec('🔧 En proceso',enP,true)+sec('⏳ Pendiente',pend,false);
 }
 function _instOrdCard(x){
-  var r=x.rec,m=r?_instMiembros(r):[];
-  var f=r?_instFecha(r):(x.fecha?_fmtF(x.fecha):'');
-  var estChip=(r&&r.estatus&&r.estatus!=='En proceso'&&!_instEsFin(r))?' <span style="background:#fff3cd;color:#7a5306;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600">'+_ie(r.estatus)+'</span>':'';
-  return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
-    '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(x.cliente||x.folio)+'</div>'+
-    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+estChip+(x.soloEnt?' <span style="background:#E6F1FB;color:#0C447C;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600">🚚 Solo entrega</span>':'')+'</div>'+
-    // Pedido de solo entrega (REPSE = Solo Entrega): no lleva cuadrilla, no se pide.
-    (!m.length&&x.soloEnt?'<div style="font-size:12px;color:#5f7d99;font-style:italic">Solo entrega — no lleva cuadrilla</div>':m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'<div style="margin-top:8px;border-top:1px solid #f2f2f0;padding-top:6px"><button onclick="event.stopPropagation();_instVerPedido(\''+_ie(x.folio)+'\')" style="background:none;border:none;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:0">📋 Ver pedido · estimar tiempo</button></div>'+'</div>';
+  var r=x.rec,m=r?_instMiembros(r):[],hoy=_asisHoy();
+  // Franja: azul solo entrega, naranja en proceso, gris pendiente
+  var st=x.soloEnt?'#4f86c6':(x.enProc?'#DA6635':'#bdb8b0');
+  var pill=function(t,bg,fg){return '<span style="background:'+bg+';color:'+fg+';border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:600">'+_ie(t)+'</span>';};
+  // Fechas: rango de la obra, o la de venta + dias que lleva sin empezar
+  var fi=r&&(''+(r.fecha_inicio||'')).slice(0,10),ff=r&&(''+(r.fecha_fin||'')).slice(0,10),meta=[];
+  var corta=function(iso){var p=iso.split('-'),M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return (+p[2])+' '+M[(+p[1])-1];};
+  if(fi&&ff&&fi!==ff)meta.push('📅 '+corta(fi)+' – '+corta(ff));else if(fi)meta.push('📅 desde '+corta(fi));
+  else if(x.vendido){var v=(''+x.vendido).slice(0,10);if(/^\d{4}-\d\d-\d\d$/.test(v)){meta.push('📅 vendido '+corta(v));var dd=Math.round((Date.parse(hoy+'T12:00:00')-Date.parse(v+'T12:00:00'))/864e5);if(dd>0&&!x.soloEnt)meta.push('<span style="color:'+(dd>14?'#B8431C':'#777')+'">· '+dd+' día'+(dd===1?'':'s')+'</span>');}}
+  if(fi&&ff&&hoy>=fi&&hoy<=ff){var tot=Math.round((Date.parse(ff)-Date.parse(fi))/864e5)+1,dn=Math.round((Date.parse(hoy)-Date.parse(fi))/864e5)+1;meta.push(pill('Día '+dn+' de '+tot,'#e5f1dd','#2f6b1a'));}
+  if(r&&r.estatus&&r.estatus!=='En proceso'&&!_instEsFin(r))meta.push(pill(r.estatus==='Pendiente'?'Obra pendiente':r.estatus,'#fff3cd','#7a5306'));
+  var cuerpo;
+  if(m.length){
+    var lider=r.lider?_repNom(r.lider):'';
+    var noms=m.map(_repNom).sort(function(a,b){return (a===lider?-1:b===lider?1:0);});
+    cuerpo='<div style="display:flex;flex-wrap:wrap;gap:4px">'+noms.slice(0,8).map(function(n){var L=n===lider;return '<span style="background:'+(L?'#E6F1FB':'#f3f1ee')+';color:'+(L?'#0C447C':'#333')+';border-radius:12px;padding:2px 9px;font-size:11.5px'+(L?';font-weight:600':'')+'">'+(L?'★ ':'')+_ie(n)+'</span>';}).join('')+(noms.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(noms.length-8)+'</span>':'')+'</div>';
+  }else if(x.soloEnt)cuerpo='<div style="font-size:12px;color:#2b5d8a;background:#eef5fc;border-radius:8px;padding:6px 9px">🚚 Solo entrega — no lleva cuadrilla</div>';
+  else cuerpo='<div style="font-size:12px;color:#B8431C;background:#fdf0ec;border-radius:8px;padding:6px 9px">⚠ Sin cuadrilla — <b>Asignar</b></div>';
+  // Pie: asistencia de hoy (si la obra ya empezo) o chofer de la entrega
+  var der='';
+  if(m.length&&fi&&hoy>=fi&&(!ff||hoy<=ff)){var a=(r.asistencia||{})[hoy];
+    if(a&&Object.keys(a).length){var si=m.filter(function(n){return Number(a[n])>0;}).length,pc=Math.round(si/m.length*100);der='<div title="Asistencia de hoy" style="display:flex;align-items:center;gap:6px;font-size:11px;color:#777;white-space:nowrap">Hoy <i style="display:block;width:60px;height:5px;border-radius:3px;background:#eee;overflow:hidden"><b style="display:block;height:100%;width:'+pc+'%;background:#3B6D11"></b></i> '+si+'/'+m.length+'</div>';}
+    else der='<span style="font-size:11px;color:#bbb">Sin lista hoy</span>';}
+  else if(x.soloEnt&&x.chofer)der='<span style="font-size:11px;color:#999">Chofer: '+_ie(x.chofer)+'</span>';
+  return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #e7e4df;border-radius:12px;padding:13px 14px 11px 16px;cursor:pointer;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.03)">'+
+    '<div style="position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:'+st+'"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div style="font-weight:650;font-size:14px;line-height:1.25;color:#1a1a1a">'+_ie(x.cliente||x.folio)+'</div><span style="font-family:Consolas,monospace;font-size:11px;color:#DA6635;background:#fdf1ea;border-radius:6px;padding:2px 6px;white-space:nowrap">'+_ie(x.folio)+'</span></div>'+
+    '<div style="display:flex;gap:8px;color:#777;font-size:11.5px;margin:6px 0 10px;align-items:center;flex-wrap:wrap">'+(meta.join(' ')||'&nbsp;')+'</div>'+
+    cuerpo+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid #f1efec;gap:6px"><button onclick="event.stopPropagation();_instVerPedido(\''+_ie(x.folio)+'\')" style="background:none;border:none;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:0;white-space:nowrap">📋 Ver pedido'+(x.soloEnt||der?'':' · estimar tiempo')+'</button>'+der+'</div></div>';
 }
 // Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
 // prellenado con los datos del pedido.
