@@ -1486,7 +1486,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.05';
+const APP_VERSION='2026.10.20.06';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5041,7 +5041,7 @@ function _instPintar(){
   var head='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px">'+
     '<div style="display:flex;gap:3px;background:#f0f0ee;border-radius:20px;padding:3px;flex-wrap:wrap">'+_instSeg('board','📋 Tablero')+_instSeg('fin','✓ Terminadas')+_instSeg('obra','🔎 Por obra')+_instSeg('persona','👤 Por persona')+_instSeg('asis','🗓 Asistencia')+_instSeg('docs','📁 Documentos')+'</div>'+
     ((INST.modo==='obra'||INST.modo==='persona')?'<input id="inst-q" value="'+_ie(INST.q)+'" oninput="INST.q=this.value;_instPintar();var e=document.getElementById(\'inst-q\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}" placeholder="'+(INST.modo==='persona'?'Nombre del instalador…':'Folio o cliente…')+'" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">':'<div style="flex:1"></div>')+
-    '<button onclick="abrirInstEditor(null)" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Registrar obra</button></div>';
+    '</div>';
   var body='';
   if(INST.modo==='persona')body=_instPorPersona();
   else if(INST.modo==='obra')body=_instPorObra();
@@ -5091,10 +5091,10 @@ function _instBoardPedidos(){
   // Misma regla que Seguimiento (_pedidosVisibles): un pedido solo cuenta como
   // instalable si su venta ya está confirmada como 'Venta'. Si sigue como
   // Cotización/Presupuesto o el pedido está archivado, no aparece en el tablero.
-  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
+  ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;var x={folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',rec:rec,soloEnt:/solo\s*entrega/i.test(o.repse||'')};if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
   var sec=function(tit,arr){if(!arr.length)return '';return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+tit+' ('+arr.length+')</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instOrdCard).join('')+'</div></div>';};
   var out=sec('🔧 En proceso',enP)+sec('⏳ Pendiente',pend);
-  if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Usa <b>+ Registrar obra</b> o registra desde Seguimiento de pedidos.</div>';
+  if(!enP.length&&!pend.length)out='<div style="padding:44px;text-align:center;color:#999">No hay pedidos En proceso o Pendiente.<br>Asigna la cuadrilla desde el pedido en Seguimiento.</div>';
   return out;
 }
 function _instOrdCard(x){
@@ -5103,8 +5103,9 @@ function _instOrdCard(x){
   var estChip=(r&&r.estatus&&r.estatus!=='En proceso'&&!_instEsFin(r))?' <span style="background:#fff3cd;color:#7a5306;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600">'+_ie(r.estatus)+'</span>':'';
   return '<div onclick="_instObra(\''+_ie(x.folio)+'\')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px 14px;cursor:pointer">'+
     '<div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:2px">'+_ie(x.cliente||x.folio)+'</div>'+
-    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+estChip+'</div>'+
-    (m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'<div style="margin-top:8px;border-top:1px solid #f2f2f0;padding-top:6px"><button onclick="event.stopPropagation();_instVerPedido(\''+_ie(x.folio)+'\')" style="background:none;border:none;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:0">📋 Ver pedido · estimar tiempo</button></div>'+'</div>';
+    '<div style="font-size:11px;color:#888;margin-bottom:8px"><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span>'+(f?' · '+f:'')+estChip+(x.soloEnt?' <span style="background:#E6F1FB;color:#0C447C;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600">🚚 Solo entrega</span>':'')+'</div>'+
+    // Pedido de solo entrega (REPSE = Solo Entrega): no lleva cuadrilla, no se pide.
+    (!m.length&&x.soloEnt?'<div style="font-size:12px;color:#5f7d99;font-style:italic">Solo entrega — no lleva cuadrilla</div>':m.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+m.slice(0,8).map(function(n){return '<span style="background:#f0f0ee;border-radius:12px;padding:2px 8px;font-size:11px">'+_ie(n)+'</span>';}).join('')+(m.length>8?'<span style="font-size:11px;color:#999;padding:2px 4px">+'+(m.length-8)+'</span>':'')+'</div>':'<div style="font-size:12px;color:#B8431C;font-style:italic">Sin cuadrilla — toca para asignar</div>')+'<div style="margin-top:8px;border-top:1px solid #f2f2f0;padding-top:6px"><button onclick="event.stopPropagation();_instVerPedido(\''+_ie(x.folio)+'\')" style="background:none;border:none;color:#185FA5;font-size:12px;font-weight:600;cursor:pointer;padding:0">📋 Ver pedido · estimar tiempo</button></div>'+'</div>';
 }
 // Abrir una obra desde el tablero: edita su registro si existe, o crea uno nuevo
 // prellenado con los datos del pedido.
