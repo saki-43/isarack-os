@@ -176,6 +176,9 @@ Isaac ya validó cada uno de estos. Márcalos como **normal** en cualquier audit
 - **Flete e instalación**: el configurador ya cobra igual que ISA-OS — instalación 5 % del material **sin mínimo**; flete con la tabla de `calcularFlete` aplicada al material **en la moneda de la cotización** (en MXN entra el monto en pesos, como hace `sincronizarFleteVenta`). Si se cambia la regla, cambiarla en los dos.
 - **Re-render que pierde el scroll**: al redibujar listas con `innerHTML` (Surtido, personal de Instalaciones) hay que guardar y reponer `scrollTop`; si no, la lista brinca hasta arriba en cada clic.
 
+- **Errores automáticos y versión de la PWA (21 oct 2026).** ISA-OS y la PWA de instaladores mandan solos a la tabla `errores_app` todo error de JavaScript no atrapado (`window._reportarError`; sin fallas de red, 1 vez por error por sesión, máx. 20). Se ven en **Diagnóstico → "Errores de la app"** (💻 ISA-OS / 📱 PWA). La PWA, al abrir una versión más nueva que `pwa_version`, sube sola `pwa_version` y `min_version_pwa` (los celulares atrasados se recargan en ≤2 min); respaldo manual: botón **📱 Forzar versión a instaladores** en Configuración. **Nunca pongas `min_version_pwa` a mano a una versión que no esté publicada**: los celulares se recargarían cada 2 min buscándola (pasó el 21 oct y se revirtió a los 8 min sin efectos).
+- **Una sola fuente por dato.** Varios errores salieron de calcular lo mismo en dos lugares (fecha de venta en Tablero vs Seguimiento, comprometido, obras por folio). Antes de calcular algo, busca si ya hay helper (`_tsVentaOrden`, `_instFilaDeFolio`, `_faltantesDeLineas`, `_recetaMarco`, `_ligasCobro`) y úsalo.
+
 ## 9. Dónde vive cada módulo (referencias rápidas)
 
 - **Ventas / Cotizaciones**: función `guardarVenta` (transiciones de estado, Casos A/B/C).

@@ -1007,6 +1007,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
             <button id="btn-test-nube" onclick="testCloudConnection().then(ok=>alert(ok?'✓ Conexión exitosa con Supabase':'⚠ No se pudo conectar. Revisa la consola (F12).'))" style="padding:8px 14px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🔍 Probar conexión</button>
             <button id="btn-migrar-nube" onclick="migrarTodoANube()" style="display:none;padding:8px 14px;background:#7c5cbf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">☁↑ Subir mis datos actuales</button>
             <button id="btn-forzar-version" onclick="forzarActualizacionMinVersion()" style="display:none;padding:8px 14px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🚀 Forzar versión a todos</button>
+            <button id="btn-forzar-pwa" onclick="forzarVersionPWA()" style="display:none;padding:8px 14px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer" title="Los celulares de los instaladores con una versión vieja se recargan solos">📱 Forzar versión a instaladores</button>
             <button id="btn-bajar-nube" onclick="bajarTodoDeNube()" style="padding:8px 14px;background:#3B6D11;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Bajar de la nube</button>
             <button id="btn-diagnosticar" onclick="diagnosticarApp()" style="padding:8px 14px;background:#666;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer" title="Diagnostica rendimiento de la app">📊 Diagnóstico</button>
             <span id="cloud-info" style="font-size:11px;color:#888;margin-left:8px"></span>
@@ -1493,7 +1494,36 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.21.02';
+const APP_VERSION='2026.10.21.03';
+// ── Registro automatico de errores (21 oct 2026) ──
+// Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
+// se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
+// mande captura. Se ignoran fallas de red/extensiones y se manda cada error distinto
+// una sola vez por sesion (maximo 20).
+(function(){
+  var vistos={},enviados=0,pendientes=[];
+  function _cli(){try{return supabaseClient||null;}catch(e){return null;}}
+  function _usr(){try{var u=getCurrentUser();return u?(u.nombre||u.email||''):'';}catch(e){return '';}}
+  function _tab(){try{var t=document.querySelector('.tab-content.active');return t?t.id.replace('tab-',''):'';}catch(e){return '';}}
+  function _vaciar(){var c=_cli();if(!c||!pendientes.length)return;var lote=pendientes.splice(0);
+    try{c.from('errores_app').insert(lote).then(function(){},function(){});}catch(e){}}
+  setInterval(_vaciar,15000);
+  window._reportarError=function(msg,stack,donde){
+    try{
+      msg=String(msg||'').slice(0,500);stack=String(stack||'').slice(0,2000);
+      if(!msg)return;
+      if(/^Script error\.?$/i.test(msg)&&!stack)return;
+      if(/ResizeObserver loop|Failed to fetch|Load failed|NetworkError|network error|AbortError|The operation was aborted|cancelad/i.test(msg))return;
+      if(/chrome-extension:|moz-extension:|safari-extension:/i.test(stack+' '+(donde||'')))return;
+      var k=msg+'|'+(stack.split('\n')[1]||donde||'');
+      if(vistos[k]||enviados>=20)return;vistos[k]=1;enviados++;
+      pendientes.push({app:'isa-os',version:APP_VERSION,usuario:_usr(),mensaje:msg,stack:stack,donde:(_tab()?_tab()+' · ':'')+String(donde||'').slice(0,200),extra:{ua:navigator.userAgent.slice(0,200),url:location.pathname}});
+      setTimeout(_vaciar,1000);
+    }catch(e){}
+  };
+  window.addEventListener('error',function(e){if(!e)return;var f=(e.filename||'').split('/').pop();window._reportarError(e.message,e.error&&e.error.stack,f?(f+':'+(e.lineno||'')):'');});
+  window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;window._reportarError((r&&r.message)||String(r),r&&r.stack,'promesa');});
+})();
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -1741,6 +1771,8 @@ function aplicarPermisos(){
   if(invBtns)invBtns.style.display=u.rol==='admin'?'flex':'none';
   const btnFv=document.getElementById('btn-forzar-version');
   if(btnFv)btnFv.style.display=u.rol==='admin'?'inline-block':'none';
+  const btnFp=document.getElementById('btn-forzar-pwa');
+  if(btnFp)btnFp.style.display=u.rol==='admin'?'inline-block':'none';
   // Hide tabs based on per-user permissions (Opción B)
   const permitidas=getPestanasDeUsuario(u);
   const navTabs=document.querySelectorAll('.nav-tab');
@@ -13985,6 +14017,23 @@ async function reconciliarInventarioMasivo(){
   if(rep.faltantes.length)msg+='\n\n⚠ Faltantes:\n'+rep.faltantes.slice(0,10).join('\n');
   alert(msg);
 }
+// ── Forzar version a la app de instaladores (21 oct 2026) ──
+// La PWA anota en empresa_config 'pwa_version' la version mas nueva que alguien abrio
+// (y sube sola min_version_pwa, igual que ISA-OS). Este boton es el respaldo manual:
+// pone min_version_pwa = pwa_version y cada celular atrasado se recarga en <= 2 min.
+async function forzarVersionPWA(){
+  const u=typeof getCurrentUser==='function'?getCurrentUser():null;
+  if(!u||u.rol!=='admin'){alert('⚠ Solo el administrador.');return;}
+  try{
+    if(!supabaseClient){alert('⚠ Sin conexión a Supabase.');return;}
+    const leer=async k=>{const {data}=await supabaseClient.from('empresa_config').select('valor').eq('clave',k).maybeSingle();let v=data&&data.valor;try{const pv=typeof v==='string'?JSON.parse(v):v;if(typeof pv==='string')v=pv;}catch(e){}return String(v||'').replace(/"/g,'').trim();};
+    const pub=await leer('pwa_version'),min=await leer('min_version_pwa');
+    if(!pub){alert('⚠ Todavía no hay versión registrada de la app de instaladores.\n\nAbre la app una vez en tu celular y vuelve a intentar.');return;}
+    if(!confirm('📱 App de instaladores\n\nVersión publicada: '+pub+'\nVersión mínima actual: '+(min||'—')+'\n\n¿Forzar a todos los celulares a la '+pub+'?\nLos que estén atrasados se recargan solos en menos de 2 minutos.'))return;
+    await supabaseClient.from('empresa_config').upsert({clave:'min_version_pwa',valor:JSON.stringify(pub),updated_at:new Date().toISOString()},{onConflict:'clave'});
+    showToast('📱 Instaladores: versión mínima '+pub,'#3B6D11');
+  }catch(e){alert('⚠ Error: '+(e.message||e));}
+}
 // ── v.14: FORZAR VERSIÓN MÍNIMA ──
 async function forzarActualizacionMinVersion(){
   const u=typeof getCurrentUser==='function'?getCurrentUser():null;
@@ -16699,21 +16748,46 @@ function _diagChequeos(){
     nota:'nada se pierde · usa Reintentar pendientes',accion:'reintentar'});
   R.push({id:'fallos-sync',titulo:'Cambios que no llegaron a la nube',detalle:'Se guardaron en el equipo y siguen en cola; ninguno se descarta',filas:f8});
 
+  // Errores de la app (se reportan solos). Se agrupan por mensaje + lugar; "Ya lo revisé"
+  // lo apaga hasta que vuelva a pasar con otra version.
+  const f9=[];
+  if(Array.isArray(_diagErrores)){
+    const g={};
+    _diagErrores.forEach(x=>{const k=(x.app||'')+'|'+(x.mensaje||'')+'|'+(x.donde||'');const e=g[k]||(g[k]={x,n:0,us:{},vs:{},ult:x.creado});e.n++;if(x.usuario)e.us[x.usuario]=1;if(x.version)e.vs[x.version]=1;});
+    Object.values(g).sort((a,b)=>String(b.ult).localeCompare(String(a.ult))).forEach(e=>{
+      let h=0;const t=(e.x.app||'')+(e.x.mensaje||'')+(e.x.donde||'')+Object.keys(e.vs).sort().pop();for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))>>>0;
+      const d=new Date(e.ult),p2=n=>String(n).padStart(2,'0');
+      f9.push({folio:'E'+h.toString(36).toUpperCase().slice(0,6),cliente:(e.x.app==='pwa'?'📱 ':'💻 ')+String(e.x.mensaje||'').slice(0,140),
+        nota:(e.n===1?'1 vez':e.n+' veces')+' · '+(Object.keys(e.us).join(', ')||'sin usuario')+' · v'+Object.keys(e.vs).join('/')+' · última '+p2(d.getDate())+'/'+p2(d.getMonth()+1)+' '+p2(d.getHours())+':'+p2(d.getMinutes())+(e.x.donde?' · '+e.x.donde:''),accion:'ninguna'});
+    });
+  }
+  R.push({id:'errores-app',titulo:'Errores de la app (últimos 7 días)',detalle:Array.isArray(_diagErrores)?'Se reportan solos desde ISA-OS 💻 y la app de instaladores 📱':'No se pudo leer el registro de errores',filas:f9});
+
   R.forEach(c=>{
     c.atendidas=c.filas.filter(f=>!!_diagAtendidos[_diagClave(c.id,f.folio)]);
     c.filas=c.filas.filter(f=>!_diagAtendidos[_diagClave(c.id,f.folio)]);
-    c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo','fallos-sync'].includes(c.id)?'alarma':'aviso');
+    c.nivel=c.filas.length===0?'ok':(['bloqueados','pagadas-sin-monto','ventas-sin-pedido','inv-negativo','fallos-sync','errores-app'].includes(c.id)?'alarma':'aviso');
   });
   return R;
 }
 
+// Errores de JavaScript de los ultimos 7 dias (tabla errores_app, ISA-OS y PWA).
+let _diagErrores=null;
+async function _diagBajarErrores(){
+  try{
+    if(!supabaseClient){_diagErrores=null;return;}
+    const desde=new Date(Date.now()-7*864e5).toISOString();
+    const {data,error}=await supabaseClient.from('errores_app').select('creado,app,version,usuario,mensaje,donde').gte('creado',desde).order('creado',{ascending:false}).limit(300);
+    _diagErrores=error?null:(data||[]);
+  }catch(e){_diagErrores=null;}
+}
 function correrDiagnostico(){
   const lista=document.getElementById('diag-lista');
   if(!lista)return;
   lista.innerHTML='<div style="text-align:center;padding:24px;color:#999;font-size:13px">Corriendo revisiones…</div>';
   const det=document.getElementById('diag-detalle');if(det)det.innerHTML='';
   _diagCargarAtendidos();
-  _diagBajarAtendidos().then(_pintarDiagnostico).catch(_pintarDiagnostico);
+  Promise.all([_diagBajarAtendidos().catch(()=>{}),_diagBajarErrores()]).then(_pintarDiagnostico).catch(_pintarDiagnostico);
 }
 
 function _pintarDiagnostico(){
