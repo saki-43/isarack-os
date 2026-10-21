@@ -5116,14 +5116,16 @@ function _instOrderFin(folio){
   return !!(o&&/complet|termin/i.test(o.estatus||''));
 }
 // Un folio puede tener varios registros de obra (fases, o uno vacio que se creo de
-// mas). Siempre se usa el mejor: el que no esta terminado, con mas gente/asistencia
-// y el mas reciente. Antes ganaba el ultimo de la lista y TCL salia "Sin cuadrilla".
+// mas). Siempre se usa el mejor: el que tiene gente/asistencia, luego el que no esta
+// terminado, luego el mas reciente. Antes ganaba el ultimo de la lista y TCL salia "Sin cuadrilla".
 function _instMejorFila(rows){
   var pts=function(r){var a=(r&&r.asistencia&&typeof r.asistencia==='object')?Object.keys(r.asistencia).length:0;return ((r&&Array.isArray(r.instaladores))?r.instaladores.length:0)+a;};
   return (rows||[]).filter(Boolean).slice().sort(function(a,b){
+    // Primero el que tiene gente/asistencia: una obra Terminada con datos gana a un
+    // registro vacio que se quedo abierto (TCL S07472 al terminarse, 21 oct 2026).
+    var pa=pts(a)>0?1:0,pb=pts(b)>0?1:0;if(pa!==pb)return pb-pa;
     var fa=/termin|complet/i.test(a.estatus||'')?1:0,fb=/termin|complet/i.test(b.estatus||'')?1:0;
     if(fa!==fb)return fa-fb;
-    var pa=pts(a)>0?1:0,pb=pts(b)>0?1:0;if(pa!==pb)return pb-pa;
     return String(b.updated_at||'').localeCompare(String(a.updated_at||''));
   })[0]||null;
 }
