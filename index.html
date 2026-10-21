@@ -1493,7 +1493,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.20.08';
+const APP_VERSION='2026.10.21.01';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -5100,6 +5100,14 @@ function _instTerminadas(){
   if(!arr.length)return '<div style="padding:40px;text-align:center;color:#999">Sin obras terminadas todavía.<br>Marca una obra como <b>Terminada</b> en su editor y aparecerá aquí (y sigue en el historial REPSE).</div>';
   return '<div style="font-size:12px;color:#666;margin-bottom:8px">'+arr.length+' obra(s) terminada(s) · siguen en el historial REPSE</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'+arr.map(_instCard).join('')+'</div>';
 }
+// Misma fecha que la columna FECHA de Seguimiento (_tsVentaOrden: cuando se confirmo la
+// venta). Antes tomaba fechaVenta/fecha y en algunos pedidos salia la del presupuesto
+// (S07438 Alaris: 10 sep en el Tablero y 13/10 en Seguimiento).
+function _instFechaVenta(o){
+  try{var t=(typeof _tsVentaOrden==='function')?_tsVentaOrden(o):0;
+    if(t){var d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}}catch(e){}
+  return (''+(o.fechaVenta||o.fecha||'')).slice(0,10);
+}
 function _instBoardPedidos(){
   var byFolio={};INST.rows.forEach(function(r){if(r.folio&&!byFolio[r.folio])byFolio[r.folio]=_instFilaDeFolio(r.folio);});
   var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
@@ -5110,7 +5118,7 @@ function _instBoardPedidos(){
   ords.forEach(function(o){if(!o||!o.num)return;if(o.archivadoCotizacion)return;if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;
     if(L.de[o.num])return; // pedido de solo cobro: va en la tarjeta de su pedido de material
     var rec=byFolio[o.num]||null;if(rec&&_instEsFin(rec))return;
-    var x={cobros:L.en[o.num]||[],folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',vendido:(o.fechaVenta||o.fecha||''),rec:rec,enProc:o.estatus==='En proceso',soloEnt:/solo\s*entrega/i.test(o.repse||''),chofer:o.choferNombre||''};
+    var x={cobros:L.en[o.num]||[],folio:o.num,cliente:o.cliente||'',fecha:o.fecha||'',vendido:_instFechaVenta(o),rec:rec,enProc:o.estatus==='En proceso',soloEnt:/solo\s*entrega/i.test(o.repse||''),chofer:o.choferNombre||''};
     x.sinCuad=!x.soloEnt&&!(rec&&_instMiembros(rec).length);
     var a=rec&&rec.asistencia&&rec.asistencia[hoy];if(a)Object.keys(a).forEach(function(n){if(Number(a[n])>0)genteHoy[_repNom(n)]=1;});
     if(o.estatus==='En proceso')enP.push(x);else if(o.estatus==='Pendiente')pend.push(x);});
