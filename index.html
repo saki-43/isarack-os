@@ -1493,7 +1493,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.21.01';
+const APP_VERSION='2026.10.21.02';
 // ══ CAPA MOBILE: menu "⋯" para admin en pantallas pequenas ══
 // Espeja la visibilidad de los botones del desktop (que dependen del rol) para que
 // admin/ceo vean todo y comerciales solo Sync PWA.
@@ -3963,7 +3963,9 @@ function renderChips(t){const l=t==='presupuesto'?pdfPresupuesto:pdfRecepcion;
 // En 'recepcion' se ocultan las firmas de ENTREGA: van en su propia caja. Se
 // conserva el índice real del arreglo para que ver y borrar sigan apuntando bien.
 const items=(l||[]).map((f,i)=>({f,i})).filter(x=>!(t==='recepcion'&&_esFirmaDeEntrega(x.f)));
-document.getElementById('chips-'+t).innerHTML=items.map(({f,i})=>`<span class="pdf-chip" onclick="viewChipPDF('${t}',${i})">📄 ${f.name||f.nombre||'Documento'} <span onclick="event.stopPropagation();removeChip('${t}',${i})" style="color:#c62828;margin-left:4px;font-weight:700">✕</span></span>`).join('');if(t==='recepcion'){renderChipsFirmaEntrega();actualizarUIFirma();}}
+// El recuadro de chips del presupuesto ya no existe en el modal: sin este chequeo,
+// abrir un pedido con PDF del configurador (PW-/RW-/GW-) tronaba y no abria.
+const _chEl=document.getElementById('chips-'+t);if(_chEl)_chEl.innerHTML=items.map(({f,i})=>`<span class="pdf-chip" onclick="viewChipPDF('${t}',${i})">📄 ${f.name||f.nombre||'Documento'} <span onclick="event.stopPropagation();removeChip('${t}',${i})" style="color:#c62828;margin-left:4px;font-weight:700">✕</span></span>`).join('');if(t==='recepcion'){renderChipsFirmaEntrega();actualizarUIFirma();}}
 // Visor modal para archivos guardados en Supabase Storage (tienen url, no base64).
 // Muestra PDF o imagen en un iframe con botones Cerrar e Imprimir, sin abrir pestaña suelta.
 function cerrarVisorOverlay(btn){
