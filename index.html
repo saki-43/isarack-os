@@ -1494,7 +1494,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.21.03';
+const APP_VERSION='2026.10.21.04';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -5790,7 +5790,9 @@ function _repImprimir(){
   var R=_repDatos();
   var w=window.open('','_blank');
   if(!w){showToast('Permite las ventanas emergentes para imprimir','#BA7517');return;}
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Asistencia REPSE '+_ie(R.f.cli||'')+' '+R.f.desde+' a '+R.f.hasta+'</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#222;margin:24px;font-size:13px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}tr{page-break-inside:avoid}@page{margin:14mm}</style></head><body>'+_repHoja(R)+'<script>setTimeout(function(){window.print();},300)<\/script></body></html>');
+  // @page margin 0: sin esto el navegador imprime 'about:blank' y '1/1' en cada hoja.
+  // El margen va en el thead/tfoot vacios de .pm, que se repiten en cada pagina.
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Asistencia REPSE '+_ie(R.f.cli||'')+' '+R.f.desde+' a '+R.f.hasta+'</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#222;margin:0;font-size:13px}.pm{width:100%;border-collapse:collapse}.pm>thead td,.pm>tfoot td{height:12mm;padding:0}.pm>tbody>tr>td{padding:0 14mm}@media screen{body{margin:24px}.pm>thead,.pm>tfoot{display:none}.pm>tbody>tr>td{padding:0}}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}tr{page-break-inside:avoid}@page{size:letter;margin:0}</style></head><body><table class="pm"><thead><tr><td></td></tr></thead><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'+_repHoja(R)+'</td></tr></tbody></table><script>setTimeout(function(){window.print();},300)<\/script></body></html>');
   w.document.close();
 }
 function _repExcel(){
