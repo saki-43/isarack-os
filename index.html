@@ -581,6 +581,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <span id="cloud-status-badge" style="padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;background:#FCEBEB;color:#A32D2D;cursor:default;user-select:none" title="Estado de sincronización con la nube">🔴 Offline</span>
       <button onclick="_recargarAppFuerza()" id="btn-recargar-app" style="padding:5px 10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer" title="Descargar la última versión de la app y recargar. Uso: cuando escuches que hay una versión nueva y aún no te ha llegado.">🔄 Actualizar</button>
       <button id="btn-resumen-dia" onclick="mostrarResumenDiario(true)" style="display:none;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Resumen del día">☀️</button>
+      <span style="position:relative;display:inline-flex"><button id="btn-conectados" onclick="_presToggleLista(event)" style="display:none;align-items:center;gap:4px;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" title="Quién tiene ISA-OS abierto"></button><div id="conectados-lista" style="display:none;position:absolute;top:110%;right:0;min-width:190px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 0;z-index:4000;font-size:13px"></div></span>
       <button id="btn-mat-sol" onclick="abrirMatSolicitar()" style="display:none;align-items:center;gap:4px;padding:6px 10px;background:#FBEDE6;color:#B44E23;border:1px solid #DA6635;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer" title="Material por solicitar (escaleras, protecciones, vigas de 48 y de pasarela)">📦 <span id="mat-sol-n">0</span></button>
       <button id="notif-bell" onclick="toggleNotifPanel()" style="position:relative;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Notificaciones">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#c62828;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span></button>
       <div id="notif-panel" style="display:none;position:fixed;top:62px;right:18px;width:330px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);z-index:4000"></div>
@@ -1496,7 +1497,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.22.02';
+const APP_VERSION='2026.10.22.04';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -1778,6 +1779,7 @@ function aplicarPermisos(){
   const btnEsc=document.getElementById('btn-escaleras');
   if(btnEsc)btnEsc.style.display=u.rol==='admin'?'inline-flex':'none';
   try{_matSolBadge();}catch(_e){}
+  try{_presenciaIniciar();}catch(_e){}
   // Hide tabs based on per-user permissions (Opción B)
   const permitidas=getPestanasDeUsuario(u);
   const navTabs=document.querySelectorAll('.nav-tab');
@@ -2706,6 +2708,9 @@ function _hayTrabajoEnCurso(){
   try{
     const m=document.getElementById('modal');
     if(m&&m.style.display&&m.style.display!=='none')return true;
+    // Venta a medio capturar (el formulario no es modal): no recargar encima.
+    const vf=document.getElementById('vta-form-view');
+    if(vf&&vf.style.display&&vf.style.display!=='none')return true;
     if(document.querySelector('.modal-bg.open,.ov.open,.overlay.open'))return true;
     const a=document.activeElement;
     if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable))return true;
@@ -6731,6 +6736,49 @@ function _ordenarConCobros(list){
   });
   list.forEach(o=>{if(!puesto.has(o.num))out.push(o);});
   return out;
+}
+// ══ CONECTADOS (22 oct 2026) ══
+// Isaac quiere saber si hay alguien en el sistema antes de subir una version. Solo
+// "quien tiene ISA-OS abierto": NO que hace ni donde, y NO se guarda en ningun lado
+// (presencia de Supabase Realtime: vive en memoria y se va sola al cerrar la pestana).
+// Todos se anuncian; solo el admin ve el indicador.
+let _presCanal=null;
+function _presenciaIniciar(){
+  const u=getCurrentUser();
+  if(!u||_presCanal||typeof supabaseClient==='undefined'||!supabaseClient||typeof supabaseClient.channel!=='function')return;
+  const yo=String(u.username||u.nombre||'').toLowerCase();if(!yo)return;
+  _presCanal=supabaseClient.channel('isaos-conectados',{config:{presence:{key:yo}}});
+  _presCanal.on('presence',{event:'sync'},_presPintar)
+    .subscribe(st=>{if(st==='SUBSCRIBED')_presCanal.track({n:u.nombre||u.username||''});});
+}
+function _presOtros(){
+  if(!_presCanal)return [];
+  const u=getCurrentUser()||{},yo=String(u.username||u.nombre||'').toLowerCase();
+  const st=_presCanal.presenceState()||{};
+  return Object.keys(st).filter(k=>k!==yo).map(k=>((st[k]||[])[0]||{}).n||k).sort((a,b)=>a.localeCompare(b,'es'));
+}
+function _presPintar(){
+  const btn=document.getElementById('btn-conectados');if(!btn)return;
+  const u=getCurrentUser();
+  if(!u||u.rol!=='admin'){btn.style.display='none';return;}
+  const otros=_presOtros();
+  btn.style.display='inline-flex';
+  btn.innerHTML=otros.length?('🟡 '+otros.length+' conectado'+(otros.length>1?'s':'')):'🟢 Solo tú';
+  btn.title=otros.length?('Tienen ISA-OS abierto: '+otros.join(', ')):'Nadie más tiene ISA-OS abierto';
+  const l=document.getElementById('conectados-lista');if(l&&l.style.display!=='none')_presLista();
+}
+function _presLista(){
+  const l=document.getElementById('conectados-lista');if(!l)return;
+  const otros=_presOtros(),E=_escNotif;
+  l.innerHTML='<div style="padding:4px 14px 6px;font-size:11px;color:#888;font-weight:700;letter-spacing:.3px">TIENEN ISA-OS ABIERTO</div>'
+    +(otros.length?otros.map(n=>'<div style="padding:5px 14px">🟢 '+E(n)+'</div>').join(''):'<div style="padding:5px 14px;color:#555">Nadie más, solo tú</div>');
+}
+function _presToggleLista(ev){
+  if(ev)ev.stopPropagation();
+  const l=document.getElementById('conectados-lista');if(!l)return;
+  if(l.style.display!=='none'){l.style.display='none';return;}
+  _presLista();l.style.display='block';
+  setTimeout(()=>document.addEventListener('click',()=>{l.style.display='none';},{once:true}),0);
 }
 // ══ MATERIAL POR SOLICITAR (22 oct 2026) ══
 // Escaleras, protecciones, vigas de 48" y vigas de pasarela se compran por pedido:
@@ -13932,6 +13980,7 @@ function menuVenta(ev,ri){
   m.innerHTML=(esConfirmada
       ? it('✏ Modificar partidas','#185FA5','editarVenta('+ri+')')
       : it('✏ Modificar','#1a1a1a','editarVenta('+ri+')'))
+    +((_esFolioWeb(v.num)&&!esConfirmada&&(v.tipo||'Cotización')==='Cotización')?it('🧊 Modificar en configurador','#DA6635','modificarEnConfigurador('+ri+')'):'')
     +it('⧉ Duplicar','#7c5cbf','duplicarVenta('+ri+')')
     +(esConfirmada?'<div style="padding:6px 12px 8px;font-size:11px;color:#888;line-height:1.4;border-top:1px solid #f0f0f0;margin-top:2px">Edita cantidades y precios sin sacarla de venta:<br>solo se ajusta la diferencia de inventario.</div>':'');
   document.body.appendChild(m);
@@ -13939,6 +13988,30 @@ function menuVenta(ev,ri){
   m.style.top=(top+m.offsetHeight>window.innerHeight?Math.max(8,r.top-m.offsetHeight-4):top)+'px';
   m.style.left=left+'px';
   setTimeout(()=>document.addEventListener('click',cerrarRowMenu,{once:true}),0);
+}
+// Reabre una cotizacion web (RW-/GW-/PW-) en el configurador para cambiarle el
+// diseno. El configurador guarda el diseno en planos/cotizaciones-web/{folio}.json
+// (desde el 22 oct 2026; las anteriores no lo tienen) y al volver a pedir la
+// cotizacion actualiza ESE folio: partidas, total, PDF e imagen. Si ya es Venta no
+// se ofrece (moveria pedido e inventario).
+async function modificarEnConfigurador(ri){
+  const v=ventas[ri];if(!v)return;
+  if((v.tipo||'Cotización')!=='Cotización'){alert('La '+v.num+' ya es Venta: cámbiala desde aquí con ✏ Modificar partidas.');return;}
+  const w=window.open('about:blank','_blank');   // antes del await: si no, el navegador la bloquea
+  let st=null;
+  try{
+    const r=await fetch(SUPABASE_URL+'/storage/v1/object/public/planos/cotizaciones-web/'+encodeURIComponent(String(v.num).trim())+'.json?t='+Date.now(),{cache:'no-store'});
+    if(r.ok)st=await r.json();
+  }catch(e){}
+  if(!st){
+    if(w)w.close();
+    alert('La '+v.num+' no tiene su diseño guardado (se hizo antes del 22 oct 2026).\n\nPuedes cambiar cantidades y precios con ✏ Modificar, o volver a armarla en el configurador.');
+    return;
+  }
+  const cod=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const datos={cliente:v.cliente||'',razon:v.razon||'',rfc:v.rfc||'',contacto:v.contacto||'',tel:v.cel||v.tel||'',email:v.email||'',dir:v.dir||''};
+  const url='https://isarack-web.vercel.app/configurador.html?editar='+encodeURIComponent(v.num)+'&d='+cod(st)+'&c='+cod(datos);
+  if(w)w.location.href=url;else window.open(url,'_blank');
 }
 async function duplicarVenta(i){
   const v=ventas[i];if(!v)return;
