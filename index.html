@@ -1497,7 +1497,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.22.04';
+const APP_VERSION='2026.10.22.05';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -1779,7 +1779,7 @@ function aplicarPermisos(){
   const btnEsc=document.getElementById('btn-escaleras');
   if(btnEsc)btnEsc.style.display=u.rol==='admin'?'inline-flex':'none';
   try{_matSolBadge();}catch(_e){}
-  try{_presenciaIniciar();}catch(_e){}
+  try{_presenciaIniciar();_presPintar();}catch(_e){}
   // Hide tabs based on per-user permissions (Opción B)
   const permitidas=getPestanasDeUsuario(u);
   const navTabs=document.querySelectorAll('.nav-tab');
@@ -6742,14 +6742,17 @@ function _ordenarConCobros(list){
 // "quien tiene ISA-OS abierto": NO que hace ni donde, y NO se guarda en ningun lado
 // (presencia de Supabase Realtime: vive en memoria y se va sola al cerrar la pestana).
 // Todos se anuncian; solo el admin ve el indicador.
-let _presCanal=null;
+let _presCanal=null,_presError=false;
 function _presenciaIniciar(){
   const u=getCurrentUser();
   if(!u||_presCanal||typeof supabaseClient==='undefined'||!supabaseClient||typeof supabaseClient.channel!=='function')return;
   const yo=String(u.username||u.nombre||'').toLowerCase();if(!yo)return;
   _presCanal=supabaseClient.channel('isaos-conectados',{config:{presence:{key:yo}}});
   _presCanal.on('presence',{event:'sync'},_presPintar)
-    .subscribe(st=>{if(st==='SUBSCRIBED')_presCanal.track({n:u.nombre||u.username||''});});
+    .subscribe(st=>{
+      if(st==='SUBSCRIBED'){_presError=false;_presCanal.track({n:u.nombre||u.username||''});_presPintar();}
+      else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){_presError=true;_presPintar();}
+    });
 }
 function _presOtros(){
   if(!_presCanal)return [];
@@ -6761,8 +6764,9 @@ function _presPintar(){
   const btn=document.getElementById('btn-conectados');if(!btn)return;
   const u=getCurrentUser();
   if(!u||u.rol!=='admin'){btn.style.display='none';return;}
-  const otros=_presOtros();
   btn.style.display='inline-flex';
+  if(_presError||!_presCanal){btn.innerHTML='⚪ Conectados';btn.title='No se pudo saber quién está conectado (sin conexión en vivo con Supabase)';return;}
+  const otros=_presOtros();
   btn.innerHTML=otros.length?('🟡 '+otros.length+' conectado'+(otros.length>1?'s':'')):'🟢 Solo tú';
   btn.title=otros.length?('Tienen ISA-OS abierto: '+otros.join(', ')):'Nadie más tiene ISA-OS abierto';
   const l=document.getElementById('conectados-lista');if(l&&l.style.display!=='none')_presLista();
@@ -11240,6 +11244,9 @@ function initSupabase(){
       return false;
     }
     supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    // aplicarPermisos corre antes de que exista el cliente: el indicador de
+    // conectados se arranca aqui (si no, nunca se conectaba).
+    try{_presenciaIniciar();}catch(_e){}
     cloudStatus='connecting';
     updateCloudIndicator();
     // Test rápido de conexión
