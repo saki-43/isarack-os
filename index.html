@@ -6602,6 +6602,9 @@ function _urlConfiguradorConComercial(){
   const base='https://isarack-web.vercel.app/configurador.html';
   try{const c=_miComercialDefault();return (c&&c!=='todos')?base+'?com='+encodeURIComponent(c):base;}catch(e){return base;}
 }
+// Filtro de ejecutivo al entrar a Seguimiento, Ventas y Facturacion: el admin
+// (Isaac) ve a todos; los vendedores, lo suyo (22 oct 2026).
+function _filtroEjecInicial(){const u=getCurrentUser();return (u&&u.rol==='admin')?'todos':_miComercialDefault();}
 function _miComercialDefault(){
   const u=getCurrentUser();if(!u)return 'todos';
   const c=_canonNotif(u.nombreComercial||u.nombre||'');
@@ -6630,8 +6633,7 @@ function _pedidoVendido(num){
 // Comerciales solo ven SUS pedidos en Seguimiento; admin/almacén/ceo ven todo
 function _pedidosVisibles(){
   const base=orders.filter(o=>o&&!o.archivadoCotizacion&&_pedidoVendido(o.num));
-  // Admin (Isaac) entra viendo a todos; los vendedores, lo suyo (22 oct 2026).
-  if(segFiltroEjec===undefined){const _u=getCurrentUser();segFiltroEjec=(_u&&_u.rol==='admin')?'todos':_miComercialDefault();}
+  if(segFiltroEjec===undefined)segFiltroEjec=_filtroEjecInicial();
   _llenarSelectorEjec('seg-filtro-ejec',segFiltroEjec);
   if(segFiltroEjec==='todos')return base;
   return base.filter(o=>o.comercial&&_canonNotif(o.comercial)===segFiltroEjec);
@@ -8092,7 +8094,7 @@ function _estadoFacturacion(f){
   return 'incompleto';
 }
 function renderFacturas(){
-  if(!window._filtroEjecInit){window._filtroEjecInit=true;const _d=_miComercialDefault();if(_d!=='todos'&&facturas.some(f=>_normalizaEjecutivo(_ejecutivoReal(f))===_d)){filtroEjec=_d;if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();}}
+  if(!window._filtroEjecInit){window._filtroEjecInit=true;const _d=_filtroEjecInicial();if(_d!=='todos'&&facturas.some(f=>_normalizaEjecutivo(_ejecutivoReal(f))===_d)){filtroEjec=_d;if(typeof actualizarFiltrosEjec==='function')actualizarFiltrosEjec();}}
   const _arch=_numsArchivados();
   // Aplicar filtro por ejecutivo (excluyendo facturas de pedidos archivados/presupuesto)
   let fl=(filtroEjec==='todos'?facturas.slice():facturas.filter(f=>_normalizaEjecutivo(_ejecutivoReal(f))===filtroEjec)).filter(f=>!_arch.has(f.pedido)&&_pedidoVendido(f.pedido)&&(typeof facturasExcluidas==='undefined'||facturasExcluidas.indexOf(f.pedido)<0));
@@ -13867,7 +13869,7 @@ async function duplicarVenta(i){
   renderVentas();
   showToast('✓ Duplicada como '+copia.num,'#3B6D11');
 }
-function renderVentas(){if(vtaFiltroEjec===undefined)vtaFiltroEjec=_miComercialDefault();_llenarSelectorEjec('vta-filtro-ejec',vtaFiltroEjec);const base=(vtaFiltroEjec==='todos')?ventas:ventas.filter(v=>v&&v.comercial&&_canonNotif(v.comercial)===vtaFiltroEjec);const q=(document.getElementById('vta-buscar')?.value||'').toLowerCase();const enWeb=(vtaFiltroTipo==='Web');const scope=enWeb?base.filter(v=>v&&_esVentaWeb(v)):base.filter(v=>!!v);const fl=scope.filter(v=>{if(!enWeb&&vtaFiltroTipo&&(v.tipo||'Cotización')!==vtaFiltroTipo)return false;if(q&&!(v.num+v.cliente+(v.comercial||'')).toLowerCase().includes(q))return false;return true;}).sort((a,b)=>{
+function renderVentas(){if(vtaFiltroEjec===undefined)vtaFiltroEjec=_filtroEjecInicial();_llenarSelectorEjec('vta-filtro-ejec',vtaFiltroEjec);const base=(vtaFiltroEjec==='todos')?ventas:ventas.filter(v=>v&&v.comercial&&_canonNotif(v.comercial)===vtaFiltroEjec);const q=(document.getElementById('vta-buscar')?.value||'').toLowerCase();const enWeb=(vtaFiltroTipo==='Web');const scope=enWeb?base.filter(v=>v&&_esVentaWeb(v)):base.filter(v=>!!v);const fl=scope.filter(v=>{if(!enWeb&&vtaFiltroTipo&&(v.tipo||'Cotización')!==vtaFiltroTipo)return false;if(q&&!(v.num+v.cliente+(v.comercial||'')).toLowerCase().includes(q))return false;return true;}).sort((a,b)=>{
   // Ordenar primero por FECHA (mas reciente arriba), desempate por folio numerico.
   // El sort anterior era solo por folio, mezclaba fechas (RW/PW con numero grande caian
   // arriba de S07XXX aunque fueran mas viejos).
