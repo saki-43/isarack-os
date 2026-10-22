@@ -1494,7 +1494,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.21.05';
+const APP_VERSION='2026.10.21.06';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -2567,9 +2567,22 @@ aplicarDarkModeInicial();
 let _versionAvisada=false;
 // Compara versiones "2026.06.02.10" vs "2026.06.02.2" numéricamente (string falla: '10'<'2')
 function _cmpVer(a,b){const pa=String(a||'').split('.').map(Number),pb=String(b||'').split('.').map(Number);for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
+// Vista previa de Vercel (la copia de un PR antes del merge) o navegador automatico
+// (la foto que toma Vercel, pruebas): NO deben publicar su version ni subir el minimo,
+// porque esa version todavia no esta publicada y el equipo se quedaria recargando.
+// Paso con la app de instaladores el 21 oct 2026.
+function _esVistaPrevia(){
+  try{
+    if(navigator.webdriver)return true;
+    var h=location.hostname||'';
+    if(/^(localhost|127\.0\.0\.1)$/.test(h))return true;
+    return /\.vercel\.app$/.test(h)&&(/-git-/.test(h)||/-[a-z0-9]{9}-[a-z0-9-]+\.vercel\.app$/.test(h));
+  }catch(e){return true;}
+}
 async function publicarVersion(){
   // El archivo que arranca publica SU versión en la nube (la más nueva desplegada gana).
   if(location.protocol==='file:')return; // NUNCA publicar desde un archivo local
+  if(_esVistaPrevia())return;
   if(!supabaseClient||cloudStatus!=='online')return;
   try{
     const {data}=await supabaseClient.from('empresa_config').select('valor').eq('clave','app_version').maybeSingle();
@@ -2671,7 +2684,7 @@ async function checarVersion(){
       // v.14: si mi APP_VERSION es MÁS NUEVA que la de Supabase, actualizar ambas automáticamente.
       // Esto elimina la necesidad de apretar botón o correr SQL al desplegar.
       const _remClean=String(remota||'').replace(/"/g,'');
-      if(!_remClean||_cmpVer(APP_VERSION,_remClean)>0){
+      if((!_remClean||_cmpVer(APP_VERSION,_remClean)>0)&&!_esVistaPrevia()){
         console.log('🚀 APP_VERSION ('+APP_VERSION+') > app_version en nube ('+_remClean+'). Actualizando automáticamente.');
         supabaseClient.from('empresa_config').upsert({clave:'app_version',valor:JSON.stringify(APP_VERSION),updated_at:new Date().toISOString()},{onConflict:'clave'}).then(()=>{});
         supabaseClient.from('empresa_config').upsert({clave:'min_version',valor:JSON.stringify(APP_VERSION),updated_at:new Date().toISOString()},{onConflict:'clave'}).then(()=>{});
