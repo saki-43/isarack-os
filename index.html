@@ -477,14 +477,17 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
   }
   /* Body: grid 2 columnas -> 1 columna, fondo tonal, scroll con espacio para footer */
   #modal .modal>div:nth-child(2){
-    grid-template-columns:1fr!important;gap:10px!important;
+    grid-template-columns:minmax(0,1fr)!important;gap:10px!important;
     padding:10px 10px 100px!important;
     max-height:none!important;
     background:#F5F2ED!important;
     flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
   }
   /* Columnas internas (las dos flex-columns dentro del grid) sin padding extra */
-  #modal .modal>div:nth-child(2)>div{gap:10px!important}
+  #modal .modal>div:nth-child(2)>div{gap:10px!important;min-width:0}
+  /* Un nombre largo (p. ej. un plano "WhatsApp Image 2026-10-08 at 12.17.47 PM") ensanchaba
+     toda la ventana y en el celular se salia de la pantalla (22 oct 2026). */
+  #modal .modal>div:nth-child(2)>div>div{min-width:0}
   /* Todas las cajas interiores pintadas como cards claras */
   #modal .modal>div:nth-child(2) div[style*="background:#fafaf7"]{
     background:#fff!important;border:1px solid #E9E3DA!important;border-radius:14px!important;padding:12px 14px!important;
@@ -11992,9 +11995,9 @@ function renderChipsPlanos(){
   if(!planosOrder||!planosOrder.length){cont.innerHTML='';return;}
   cont.innerHTML=planosOrder.map((p,i)=>{
     const sizeKB=p.size?Math.round(p.size/1024)+' KB':'';
-    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f0f7ff;border:1px solid #b5cce8;border-radius:6px;margin-bottom:4px;font-size:11px">
+    return `<div style="display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;box-sizing:border-box;padding:6px 10px;background:#f0f7ff;border:1px solid #b5cce8;border-radius:6px;margin-bottom:4px;font-size:11px">
       <span style="font-size:14px">🖼</span>
-      <a onclick="abrirGaleriaPlanos(${i})" style="flex:1;color:#185FA5;text-decoration:none;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${p.name}">${p.name}</a>
+      <a onclick="abrirGaleriaPlanos(${i})" style="flex:1;min-width:0;color:#185FA5;text-decoration:none;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${p.name}">${p.name}</a>
       <span style="color:#888;font-size:10px">${sizeKB}</span>
       <button onclick="eliminarPlano(${i})" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:13px;padding:0 4px" title="Eliminar">✕</button>
     </div>`;
