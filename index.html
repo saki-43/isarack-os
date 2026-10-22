@@ -1494,7 +1494,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.21.06';
+const APP_VERSION='2026.10.22.01';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -6630,7 +6630,8 @@ function _pedidoVendido(num){
 // Comerciales solo ven SUS pedidos en Seguimiento; admin/almacén/ceo ven todo
 function _pedidosVisibles(){
   const base=orders.filter(o=>o&&!o.archivadoCotizacion&&_pedidoVendido(o.num));
-  if(segFiltroEjec===undefined)segFiltroEjec=_miComercialDefault();
+  // Admin (Isaac) entra viendo a todos; los vendedores, lo suyo (22 oct 2026).
+  if(segFiltroEjec===undefined){const _u=getCurrentUser();segFiltroEjec=(_u&&_u.rol==='admin')?'todos':_miComercialDefault();}
   _llenarSelectorEjec('seg-filtro-ejec',segFiltroEjec);
   if(segFiltroEjec==='todos')return base;
   return base.filter(o=>o.comercial&&_canonNotif(o.comercial)===segFiltroEjec);
