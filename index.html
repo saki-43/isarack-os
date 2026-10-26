@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.26.02';
+const APP_VERSION='2026.10.26.03';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -7243,6 +7243,98 @@ function nombreDocFactura(pedido,cliente,tipo,fileOrExt){
   return ('ISARACK '+limpio(pedido)+' '+_recortarCliente(cliente)+' '+(tipo||'DOC')+'.'+ext).replace(/\s+/g,' ');
 }
 // Solo Adrián Solórzano (o admin) puede subir/cambiar la FACTURA
+// ══ CANCELAR FACTURA CON ACUSE DEL SAT (26 oct 2026) ══
+// Antes no habia forma de decirle al sistema que una factura se cancelo: la venta no
+// se podia regresar ("ya tiene factura") ni subir la nueva. Ahora se sube el acuse,
+// queda en f.cancelaciones (columna facturas.cancelaciones; la base no deja que se
+// encoja) y se liberan folio, PDF y XML. El trigger proteger_factura solo permite
+// vaciarlos cuando en el mismo update entra una cancelacion nueva.
+const _MOTIVOS_CANC={'01':'Comprobante con errores con relación','02':'Comprobante con errores sin relación','03':'No se llevó a cabo la operación','04':'Operación nominativa en factura global'};
+function _cancRowFact(ri,f){
+  const L=Array.isArray(f.cancelaciones)?f.cancelaciones:[],E=_escNotif;
+  const chips=L.map((c,j)=>'<div style="padding:3px 0 3px 26px"><span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px;background:#FCEBEB;color:#791F1F;border:1px solid #f3c4c4;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600">🚫 '+E(c.factura||'Factura')+' cancelada '+E(_fmtF(String(c.fechaCancel||c.registrada||'').slice(0,10)))+(c.motivo?' · motivo '+E(c.motivo):'')+(c.sigue==='cae'?' · venta caída':'')+(c.acuse&&c.acuse.url?' · <a href="'+E(c.acuse.url)+'" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none">📄 ver acuse</a>':'')+'</span></div>').join('');
+  const hay=String(f.factura||'').trim()||_hayAdj(f.pdfFactNum)||_hayAdj(f.xmlCfdi);
+  const btn=(hay&&puedeEditarFactura(f))?'<div style="text-align:right;padding:4px 0 6px"><button onclick="abrirCancelarFactura('+ri+')" style="font-size:11px;color:#c62828;background:#fff5f5;border:1px solid #e8b4b4;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:700">🚫 Cancelar factura'+(f.factura?' '+E(f.factura):'')+'</button></div>':'';
+  return btn+chips;
+}
+function abrirCancelarFactura(ri){
+  const f=facturas[ri];if(!f)return;
+  if(!puedeEditarFactura(f)){showToast('🔒 Solo Adrián o un administrador pueden cancelar facturas','#BA7517');return;}
+  const E=_escNotif;window._CANC={ri,file:null,uuid:'',fechaCancel:'',estado:''};
+  const ov=document.createElement('div');ov.id='canc-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3500;display:flex;justify-content:center;align-items:flex-start;padding:40px 12px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:480px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden">'+
+    '<div style="padding:14px 18px;border-bottom:1px solid #eee;font-weight:800;color:#c62828;font-size:16px">🚫 Cancelar factura '+E(f.factura||'')+' — '+E(f.pedido)+'</div>'+
+    '<div style="padding:14px 18px;font-size:13px">'+
+      '<div style="font-weight:700;margin-bottom:6px">Acuse de cancelación del SAT (PDF)</div>'+
+      '<label style="display:block;border:2px dashed #e0b4b4;border-radius:10px;padding:12px;text-align:center;background:#fffafa;cursor:pointer;color:#B8431C;font-weight:600"><input type="file" accept="application/pdf,.pdf" style="display:none" onchange="_cancLeerAcuse(this)"><span id="canc-fname">📎 Subir acuse</span></label>'+
+      '<div id="canc-leido" style="display:none;background:#EAF3DE;border:1px solid #b5d99c;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:#27500A"></div>'+
+      '<div style="font-weight:700;margin:12px 0 4px">Motivo (SAT)</div>'+
+      '<select id="canc-motivo" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+Object.keys(_MOTIVOS_CANC).map(k=>'<option value="'+k+'"'+(k==='02'?' selected':'')+'>'+k+' · '+_MOTIVOS_CANC[k]+'</option>').join('')+'</select>'+
+      '<div style="font-weight:700;margin:12px 0 4px">¿Qué sigue?</div>'+
+      '<label style="display:block;margin:4px 0"><input type="radio" name="canc-sigue" value="refacturar" checked> Se emite otra factura (queda libre para subir la nueva)</label>'+
+      '<label style="display:block;margin:4px 0"><input type="radio" name="canc-sigue" value="cae"> La venta se cae (se puede regresar a presupuesto)</label>'+
+    '</div>'+
+    '<div style="padding:12px 18px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:8px">'+
+      '<button onclick="document.getElementById(\'canc-overlay\').remove()" style="padding:7px 14px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer">Cancelar</button>'+
+      '<button id="canc-ok" onclick="_cancRegistrar()" style="padding:7px 14px;border:none;background:#c62828;color:#fff;border-radius:8px;cursor:pointer;font-weight:700">🚫 Registrar cancelación</button>'+
+    '</div></div>';
+  document.body.appendChild(ov);
+}
+async function _cancLeerAcuse(inp){
+  const file=inp.files&&inp.files[0];if(!file||!window._CANC)return;
+  if(!/\.pdf$/i.test(file.name)&&file.type!=='application/pdf'){showToast('El acuse debe ser PDF','#BA7517');return;}
+  _CANC.file=file;document.getElementById('canc-fname').textContent='📎 '+file.name;
+  const box=document.getElementById('canc-leido');
+  try{
+    const u=new Uint8Array(await file.arrayBuffer());
+    const pdf=await pdfjsLib.getDocument({data:u}).promise;let t='';
+    for(let pg=1;pg<=Math.min(pdf.numPages,2);pg++){const c=await (await pdf.getPage(pg)).getTextContent();t+=' '+c.items.map(x=>x.str).join(' ');}
+    const m=t.match(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i);
+    const fd=t.match(/cancelaci[oó]n:?\s*(\d{4}-\d{2}-\d{2})T?(\d{2}:\d{2})?/i);
+    _CANC.uuid=m?m[0].toUpperCase():'';_CANC.fechaCancel=fd?fd[1]+(fd[2]?'T'+fd[2]:''):'';_CANC.estado=/cancelado/i.test(t)?'Cancelado':'';
+    box.style.display='block';
+    box.innerHTML=(_CANC.uuid||_CANC.fechaCancel)
+      ?'✓ Leído del acuse<br>Folio fiscal: <b>'+(_CANC.uuid||'—')+'</b><br>Fecha de cancelación: <b>'+(_CANC.fechaCancel?_fmtF(_CANC.fechaCancel.slice(0,10))+(fd&&fd[2]?' '+fd[2]:''):'—')+'</b>'+(_CANC.estado?' · Estado: <b>Cancelado</b>':'')
+      :'⚠ No pude leer el folio ni la fecha; igual se guarda el acuse.';
+    if(!_CANC.uuid&&!_CANC.fechaCancel){box.style.background='#FFF4D6';box.style.borderColor='#f0d58a';box.style.color='#8a6200';}
+  }catch(e){box.style.display='block';box.textContent='⚠ No pude leer el PDF; igual se guarda el acuse.';}
+}
+async function _cancRegistrar(){
+  const C=window._CANC;if(!C)return;const f=facturas[C.ri];if(!f)return;
+  if(!C.file){alert('Sube el acuse de cancelación del SAT.');return;}
+  if(typeof supabaseClient==='undefined'||!supabaseClient||cloudStatus!=='online'){alert('Sin conexión con la nube. Intenta de nuevo cuando diga "Sincronizado".');return;}
+  const btn=document.getElementById('canc-ok');if(btn){btn.disabled=true;btn.textContent='⏳ Guardando…';}
+  try{
+    const path='facturas-canceladas/'+String(f.pedido).replace(/[^a-zA-Z0-9_-]/g,'_')+'/'+Date.now()+'_'+limpiarNombreArchivo(C.file.name);
+    const up=await supabaseClient.storage.from('planos').upload(path,C.file,{contentType:'application/pdf',upsert:false});
+    if(up.error)throw new Error('acuse: '+up.error.message);
+    const url=supabaseClient.storage.from('planos').getPublicUrl(path).data.publicUrl;
+    const u=getCurrentUser()||{};
+    const sigue=(document.querySelector('input[name="canc-sigue"]:checked')||{}).value||'refacturar';
+    const entrada={factura:String(f.factura||'').trim(),uuid:C.uuid,fechaCancel:C.fechaCancel,motivo:(document.getElementById('canc-motivo')||{}).value||'',sigue,
+      acuse:{name:C.file.name,url,path},por:u.nombre||u.username||'',registrada:new Date().toISOString()};
+    const r=await supabaseClient.from('facturas').select('cancelaciones').eq('pedido',f.pedido).maybeSingle();
+    if(r.error)throw new Error('leer: '+r.error.message);
+    const lista=((r.data&&Array.isArray(r.data.cancelaciones))?r.data.cancelaciones:[]).concat([entrada]);
+    const w=await supabaseClient.from('facturas').update({cancelaciones:lista,factura:null,pdf_fact_num:null,pdf_factura:null,xml_cfdi:null,updated_at:new Date().toISOString()}).eq('pedido',f.pedido).select('pedido,factura');
+    if(w.error)throw new Error('guardar: '+w.error.message);
+    if(!w.data||!w.data.length)throw new Error('la factura '+f.pedido+' no está en la nube');
+    f.cancelaciones=lista;f.factura='';f.pdfFactNum=null;f.pdfFactura=null;f.xmlCfdi=null;
+    guardarFacturasLS();
+    try{_factNubeTs[f.pedido]=new Date().toISOString();guardarLS('isarack_fact_nube_ts',_factNubeTs);}catch(_e){}
+    const ov=document.getElementById('canc-overlay');if(ov)ov.remove();
+    showToast('🚫 Factura '+(entrada.factura||'')+' cancelada'+(sigue==='cae'?' · ya puedes regresar la venta a presupuesto':' · sube la nueva factura'),'#c62828');
+    // Ya quedo guardada: si el redibujado falla no se debe avisar "no se pudo registrar".
+    try{if(typeof renderFacturas==='function')renderFacturas();}catch(_r){console.warn('renderFacturas',_r);}
+  }catch(e){
+    console.error('cancelar factura',e);
+    try{_registrarFalloSync('update','facturas',f.pedido,'cancelación: '+(e&&e.message||e),true);}catch(_e){}
+    alert('No se pudo registrar la cancelación: '+(e&&e.message||e));
+    if(btn){btn.disabled=false;btn.textContent='🚫 Registrar cancelación';}
+  }
+}
 function puedeEditarFactura(f){
   const u=(typeof getCurrentUser==='function')?getCurrentUser():null;
   if(!u)return false;
@@ -8613,6 +8705,7 @@ function renderFacturaDetalle(){
     docRowA('PO','📋','poNum','pdfPo',true)+
     presRowA+
     factRowA(ri,f)+
+    _cancRowFact(ri,f)+
     docRowA('CSF','📑','rfc','pdfRfc',true)+
     cfdiRowA+
     complementoRowA(ri,f)+
@@ -11808,6 +11901,21 @@ async function cloudSyncFactura(f){
       return p;
     });
   }else _fpay.pagos_extra=_peL||_peN||[];
+  // Facturas canceladas (26 oct 2026): el historial gana el mas largo (la base tampoco
+  // deja que se encoja) y un equipo con copia vieja NO revive el folio ni los archivos
+  // de una factura que ya se cancelo: se queda lo que hay en la nube.
+  {
+    const _cL=Array.isArray(f.cancelaciones)?f.cancelaciones:[],_cN=(_nube&&Array.isArray(_nube.cancelaciones))?_nube.cancelaciones:[];
+    _fpay.cancelaciones=(_cL.length>=_cN.length)?_cL:_cN;
+    const _folC=_fpay.cancelaciones.map(c=>String((c&&c.factura)||'').trim()).filter(Boolean);
+    if(_fpay.factura&&_folC.indexOf(String(_fpay.factura).trim())>=0){
+      const _nf=_nube&&_nube.factura;
+      _fpay.factura=(_nf&&_folC.indexOf(String(_nf).trim())<0)?_nf:null;
+      _fpay.pdf_fact_num=_nube?_nube.pdf_fact_num:null;_fpay.pdf_factura=_nube?_nube.pdf_factura:null;_fpay.xml_cfdi=_nube?_nube.xml_cfdi:null;
+      f.factura=_fpay.factura||'';f.pdfFactNum=_fpay.pdf_fact_num||null;f.pdfFactura=_fpay.pdf_factura||null;f.xmlCfdi=_fpay.xml_cfdi||null;
+    }
+    f.cancelaciones=_fpay.cancelaciones;
+  }
   cloudUpsert('facturas',_fpay,'pedido');
   // Registrar que ESTE equipo dejó esta versión como la más nueva (evita auto-bloqueo posterior)
   try{_factNubeTs[f.pedido]=_fpay.updated_at;guardarLS('isarack_fact_nube_ts',_factNubeTs);}catch(_e){}
@@ -13020,6 +13128,7 @@ function nubeToLocalFactura(r){
     finiquito_na:!!r.finiquito_na,
     complemento_na:!!r.complemento_na,
     formaPagoNF:r.forma_pago_nf||'',
+    cancelaciones:Array.isArray(r.cancelaciones)?r.cancelaciones:[],
     _ts:(r.ts&&typeof r.ts==='object')?r.ts:{},
     pagado:!!r.pagado,
     fechaPago:r.fecha_pago||'',
@@ -14150,8 +14259,10 @@ async function cambiarTipoVenta(ri,nuevoTipo){
   if(nuevoTipo==='Cotización'){
     if(v._historica){v.tipo='Cotización';v.stage='Presupuesto';v.estatus='Borrador';guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(v);if(typeof renderComisiones==='function')renderComisiones();renderVentas();showToast('🕓 Histórica regresada a Presupuesto (inventario intacto)','#7c5cbf');return;}
     const fact=facturas.find(f=>f.pedido===v.num);
-    if(fact&&(fact.factura||fact.cfdi||(fact.pdfFactNum&&fact.pdfFactNum.data))){
-      alert('⚠ No se puede regresar a presupuesto\n\n'+v.num+' ya tiene factura emitida. Cancélala primero en Facturación.');return;
+    // Solo cuenta una factura de verdad (folio o PDF). El uso de CFDI (G03) se captura antes
+    // de facturar y bloqueaba sin razon. Para liberar una emitida: 🚫 Cancelar factura.
+    if(fact&&(String(fact.factura||'').trim()||_hayAdj(fact.pdfFactNum))){
+      alert('⚠ No se puede regresar a presupuesto\n\n'+v.num+' ya tiene factura emitida ('+(fact.factura||'PDF')+').\n\nSi se canceló en el SAT: Facturación → '+v.num+' → 🚫 Cancelar factura (sube el acuse).');return;
     }
     if(!confirm('¿Regresar '+v.num+' a PRESUPUESTO?\n\nEsto va a:\n  • Devolver el material al inventario\n  • El pedido se CONSERVA en Seguimiento con sus archivos\n\n¿Continuar?'))return;
     // Restaurar inventario
@@ -14388,8 +14499,8 @@ async function regresarVentaACotizacion(i){
   }
   // Bloquear si ya tiene factura asociada
   const fact=facturas.find(f=>f.pedido===v.num);
-  if(fact&&(fact.factura||fact.cfdi||(fact.pdfFactNum&&fact.pdfFactNum.data))){
-    alert('⚠ No se puede regresar a cotización\n\nLa venta '+v.num+' ya tiene factura emitida.\n\nSi necesitas modificar, primero cancela la factura desde el SAT y elimínala manualmente del módulo de Facturación.');
+  if(fact&&(String(fact.factura||'').trim()||_hayAdj(fact.pdfFactNum))){
+    alert('⚠ No se puede regresar a cotización\n\nLa venta '+v.num+' ya tiene factura emitida ('+(fact.factura||'PDF')+').\n\nSi se canceló en el SAT: Facturación → '+v.num+' → 🚫 Cancelar factura (sube el acuse).');
     return;
   }
   // Advertir si tiene anticipo cobrado
