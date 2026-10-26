@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.26.01';
+const APP_VERSION='2026.10.26.02';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -5695,6 +5695,10 @@ function _asisSemanaDatos(){
       var c=p.dias[d]||(p.dias[d]={v:0,obras:[],falta:false,_k:{}});
       if(v>0){var pv=c._k[r.id]||0;if(v<=pv)return;var dv=v-pv;c._k[r.id]=v;c.v+=dv;if(c.obras.indexOf(etq)<0)c.obras.push(etq);p.tot+=dv;p.obras[etq]=(p.obras[etq]||0)+dv;}else c.falta=true;});});
   });
+  // Dias = dias de calendario, no dias x obra: si el mismo dia quedo anotado en dos
+  // obras (S07559 y S07551 de BROAN, 26 oct 2026) contaba 2. Tope 1 por dia; medio
+  // dia en una obra y medio en otra si suma 1.
+  Object.keys(per).forEach(function(n){var p=per[n];p.tot=0;Object.keys(p.dias).forEach(function(d){p.tot+=Math.min(1,p.dias[d].v||0);});});
   return {lun,dias,per};
 }
 function _asisSemanaView(){
@@ -5751,6 +5755,10 @@ function _repDatos(){
     });
   });
   Object.keys(per).forEach(function(n){per[n].dias.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0;});});
+  // Mismo tope que la semana: una persona no trabaja mas de 1 dia en un dia aunque
+  // salga en dos obras (las dos obras si se listan, cada una con su fecha).
+  jornadas=0;
+  Object.keys(per).forEach(function(n){var p=per[n],xd={};p.dias.forEach(function(x){xd[x.d]=(xd[x.d]||0)+x.v;});p.tot=0;Object.keys(xd).forEach(function(d){p.tot+=Math.min(1,xd[d]);});jornadas+=p.tot;});
   var nombres=Object.keys(per).sort(function(a,b){return per[b].tot-per[a].tot||a.localeCompare(b);});
   return {f:f,per:per,nombres:nombres,folios:Object.keys(folios),fechas:Object.keys(fechas).sort(),obras:Object.keys(obras),clis:Object.keys(clisM),nObras:Object.keys(obras).length,nDias:Object.keys(fechas).length,jornadas:jornadas};
 }
