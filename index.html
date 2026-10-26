@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.23.02';
+const APP_VERSION='2026.10.26.01';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -5303,8 +5303,8 @@ function _instPedModal(){
 function _instDocsView(){
   if(INST.docs===undefined){setTimeout(_instCargarDocs,0);return '<div style="padding:30px;text-align:center;color:#999">Cargando documentos…</div>';}
   if(!INST.docs.length)return '<div style="padding:30px;text-align:center;color:#999">Sin documentos de personal todavía.</div>';
-  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','Antidoping','Permisos','Otros'];
-  var CERT={'DC-3 Alturas':'#3B6D11','DC-3 Montacargas':'#185FA5','Antidoping':'#7c5cbf'};
+  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','DC-3 Corte y soldadura','Antidoping','Permisos','Otros'];
+  var CERT={'DC-3 Alturas':'#3B6D11','DC-3 Montacargas':'#185FA5','DC-3 Corte y soldadura':'#B8431C','Antidoping':'#7c5cbf'};
   var groups={};INST.docs.forEach(function(d){var c=d.categoria||'Otros';(groups[c]=groups[c]||[]).push(d);});
   var order=CATS.filter(function(c){return groups[c];}).concat(Object.keys(groups).filter(function(c){return CATS.indexOf(c)<0;}).sort());
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;color:#666">'+INST.docs.length+' documentos · por categoría</div><button onclick="_instSubirDoc()" style="background:#DA6635;color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer">+ Subir documento</button></div>'+order.map(function(c){
@@ -5538,7 +5538,8 @@ async function _instUpDetect(dataUrl){
     var pdf=await pdfjsLib.getDocument({data:u}).promise;var t='';
     for(var p=1;p<=Math.min(pdf.numPages,3);p++){var pg=await pdf.getPage(p);var ct=await pg.getTextContent();ct.items.forEach(function(it){t+=' '+it.str;});}
     var T=t.toUpperCase();var out={};
-    if(/MONTACARGAS/.test(T))out.cat='DC-3 Montacargas';
+    if(/SOLDADURA/.test(T))out.cat='DC-3 Corte y soldadura';
+    else if(/MONTACARGAS/.test(T))out.cat='DC-3 Montacargas';
     else if(/ALTURAS/.test(T))out.cat='DC-3 Alturas';
     else if(/ANTIDOPING|TOXICOL/.test(T))out.cat='Antidoping';
     var roster=_instRoster();
@@ -5548,7 +5549,7 @@ async function _instUpDetect(dataUrl){
 }
 function _instUpModal(){
   var ex=document.getElementById('inst-up-modal');if(ex)ex.remove();
-  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','Antidoping','Permisos','Otros'];
+  var CATS=['Seguro / IMSS','Cédula IMSS','Liquidación IMSS','Pago IMSS','DC-3 Alturas','DC-3 Montacargas','DC-3 Corte y soldadura','Antidoping','Permisos','Otros'];
   var u=INST_UP;var esPersonal=/DC-3|Antidoping/i.test(u.categoria);var roster=_instRoster();
   var m=document.createElement('div');m.id='inst-up-modal';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:4300;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto';
