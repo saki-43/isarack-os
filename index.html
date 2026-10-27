@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.26.03';
+const APP_VERSION='2026.10.26.04';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -7250,16 +7250,25 @@ function nombreDocFactura(pedido,cliente,tipo,fileOrExt){
 // encoja) y se liberan folio, PDF y XML. El trigger proteger_factura solo permite
 // vaciarlos cuando en el mismo update entra una cancelacion nueva.
 const _MOTIVOS_CANC={'01':'Comprobante con errores con relación','02':'Comprobante con errores sin relación','03':'No se llevó a cabo la operación','04':'Operación nominativa en factura global'};
+// Quien puede registrar una cancelacion: quien puede editar la factura (admin/Adrian) y,
+// desde el 26 oct 2026, el COMERCIAL DUENO de esa factura (Daniel sube las de Panasonic
+// con el acuse que le pasa Adrian). Al comercial se le exige un acuse real del SAT.
+function puedeCancelarFactura(f){
+  if(!f)return false;
+  if(puedeEditarFactura(f))return true;
+  const u=getCurrentUser();if(!u||u.rol!=='comercial')return false;
+  try{const mio=_miComercialDefault();return !!mio&&mio!=='todos'&&_normalizaEjecutivo(_ejecutivoReal(f))===mio;}catch(e){return false;}
+}
 function _cancRowFact(ri,f){
   const L=Array.isArray(f.cancelaciones)?f.cancelaciones:[],E=_escNotif;
   const chips=L.map((c,j)=>'<div style="padding:3px 0 3px 26px"><span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px;background:#FCEBEB;color:#791F1F;border:1px solid #f3c4c4;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600">🚫 '+E(c.factura||'Factura')+' cancelada '+E(_fmtF(String(c.fechaCancel||c.registrada||'').slice(0,10)))+(c.motivo?' · motivo '+E(c.motivo):'')+(c.sigue==='cae'?' · venta caída':'')+(c.acuse&&c.acuse.url?' · <a href="'+E(c.acuse.url)+'" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none">📄 ver acuse</a>':'')+'</span></div>').join('');
   const hay=String(f.factura||'').trim()||_hayAdj(f.pdfFactNum)||_hayAdj(f.xmlCfdi);
-  const btn=(hay&&puedeEditarFactura(f))?'<div style="text-align:right;padding:4px 0 6px"><button onclick="abrirCancelarFactura('+ri+')" style="font-size:11px;color:#c62828;background:#fff5f5;border:1px solid #e8b4b4;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:700">🚫 Cancelar factura'+(f.factura?' '+E(f.factura):'')+'</button></div>':'';
+  const btn=(hay&&puedeCancelarFactura(f))?'<div style="text-align:right;padding:4px 0 6px"><button onclick="abrirCancelarFactura('+ri+')" style="font-size:11px;color:#c62828;background:#fff5f5;border:1px solid #e8b4b4;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:700">🚫 Cancelar factura'+(f.factura?' '+E(f.factura):'')+'</button></div>':'';
   return btn+chips;
 }
 function abrirCancelarFactura(ri){
   const f=facturas[ri];if(!f)return;
-  if(!puedeEditarFactura(f)){showToast('🔒 Solo Adrián o un administrador pueden cancelar facturas','#BA7517');return;}
+  if(!puedeCancelarFactura(f)){showToast('🔒 Solo el comercial de esta factura, Adrián o un administrador pueden registrar la cancelación','#BA7517');return;}
   const E=_escNotif;window._CANC={ri,file:null,uuid:'',fechaCancel:'',estado:''};
   const ov=document.createElement('div');ov.id='canc-overlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3500;display:flex;justify-content:center;align-items:flex-start;padding:40px 12px;overflow:auto';
@@ -7304,6 +7313,9 @@ async function _cancLeerAcuse(inp){
 async function _cancRegistrar(){
   const C=window._CANC;if(!C)return;const f=facturas[C.ri];if(!f)return;
   if(!C.file){alert('Sube el acuse de cancelación del SAT.');return;}
+  if(!puedeCancelarFactura(f)){alert('No tienes permiso para cancelar esta factura.');return;}
+  // Comercial: solo con el acuse real del SAT (folio fiscal + "Cancelado").
+  if(!puedeEditarFactura(f)&&!(C.uuid&&C.estado==='Cancelado')){alert('Ese PDF no parece el acuse de cancelación del SAT (no trae folio fiscal ni dice "Cancelado").\n\nPídele a Adrián el acuse y súbelo.');return;}
   if(typeof supabaseClient==='undefined'||!supabaseClient||cloudStatus!=='online'){alert('Sin conexión con la nube. Intenta de nuevo cuando diga "Sincronizado".');return;}
   const btn=document.getElementById('canc-ok');if(btn){btn.disabled=true;btn.textContent='⏳ Guardando…';}
   try{
@@ -7325,6 +7337,9 @@ async function _cancRegistrar(){
     guardarFacturasLS();
     try{_factNubeTs[f.pedido]=new Date().toISOString();guardarLS('isarack_fact_nube_ts',_factNubeTs);}catch(_e){}
     const ov=document.getElementById('canc-overlay');if(ov)ov.remove();
+    if(!puedeEditarFactura(f)&&typeof crearNotificacion==='function'){
+      try{crearNotificacion('comercial:'+_canonNotif('Adrian Solorzano'),'🚫 Factura cancelada','Pedido '+f.pedido+': '+(entrada.por||'')+' registró la cancelación de '+(entrada.factura||'la factura')+(sigue==='cae'?' (la venta se cae)':' (se refactura)'),f.pedido);}catch(_n){}
+    }
     showToast('🚫 Factura '+(entrada.factura||'')+' cancelada'+(sigue==='cae'?' · ya puedes regresar la venta a presupuesto':' · sube la nueva factura'),'#c62828');
     // Ya quedo guardada: si el redibujado falla no se debe avisar "no se pudo registrar".
     try{if(typeof renderFacturas==='function')renderFacturas();}catch(_r){console.warn('renderFacturas',_r);}
