@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.28.02';
+const APP_VERSION='2026.10.28.03';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -6164,7 +6164,7 @@ function descontarInventarioPedido(orderObj,lineas){
     orderObj.fechaDescuento=Date.now();
     guardarLS('isarack_inventario_v4',inventario);
     // KARDEX: registrar cada descuento por venta
-    try{lineas.forEach(l=>{if(!l||l.tipo)return;const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
+    try{lineas.forEach(l=>{if(!l||l.tipo)return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:'Pieza de '+(l.producto||'')});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
     // FIX: usar _skusTocados (lista real de SKUs) en vez de intentar extraer de strings
     if(typeof cloudSyncInventarioTodo==='function'&&_skusTocados.length)cloudSyncInventarioTodo([...new Set(_skusTocados)]);
     saveOrders();
