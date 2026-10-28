@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.28.03';
+const APP_VERSION='2026.10.28.04';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -3284,6 +3284,8 @@ async function calcularDeficit(){
     // v.14: Excluir si la venta asociada es HISTÓRICA
     const _vDef=ventas.find(x=>x.num===o.num);
     if(_vDef&&_vDef._historica===true)continue;
+    // Pedido de una venta regresada a presupuesto: ya no es compromiso
+    if(o.archivadoCotizacion||(_vDef&&_vDef.tipo&&_vDef.tipo!=='Venta'))continue;
     let lineas=null;
     if(o.cotData&&o.cotData.lineas&&o.cotData.lineas.length)lineas=o.cotData.lineas;
     if(!lineas){const v=ventas.find(x=>x.num===o.num);if(v&&v.lineas&&v.lineas.length)lineas=v.lineas;}
@@ -11176,6 +11178,7 @@ function _comprometidoSKU(sku){
     const _nombre=_prod?((''+_prod.producto).toLowerCase().trim()):'';
     (orders||[]).forEach(o=>{
       if(!o||o.inventarioDescontado!==true||o.archivadoCotizacion)return;
+      {const _v=(ventas||[]).find(x=>x&&x.num===o.num);if(_v&&_v.tipo&&_v.tipo!=='Venta')return;}
       const est=((o.estatus||'')+'').toLowerCase();
       if(est==='cancelado'||est==='completado')return;
       const ent=((o.entregado||'')+'').toLowerCase();
