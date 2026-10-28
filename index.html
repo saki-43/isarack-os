@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.28.04';
+const APP_VERSION='2026.10.28.05';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -1774,7 +1774,7 @@ function aplicarPermisos(){
   if(btnSyncPwa)btnSyncPwa.style.display=u.rol==='admin'?'inline-block':'none';
   // Ocultar botones de admin de Inventario para no-admins
   const invBtns=document.getElementById('inv-admin-buttons');
-  if(invBtns)invBtns.style.display=u.rol==='admin'?'flex':'none';
+  if(invBtns)invBtns.style.display=(u.rol==='admin'||_esEditorInvFijo(u))?'flex':'none';
   const btnFv=document.getElementById('btn-forzar-version');
   if(btnFv)btnFv.style.display=u.rol==='admin'?'inline-block':'none';
   const btnFp=document.getElementById('btn-forzar-pwa');
@@ -2071,13 +2071,17 @@ function puedeFacturar(){
   if(u.rol==='admin')return true; // Admin siempre puede
   return u.puedeFacturar===true;
 }
+// Pueden modificar inventario en cualquier equipo (los usuarios viven en localStorage de cada
+// equipo, así que la casilla "Puede modificar inventario" no viaja). Gil = dueño (28 oct 2026).
+const _INV_EDITORES=['gil','gosuna@isarack.com'];
+function _esEditorInvFijo(u){return !!u&&(_INV_EDITORES.includes((u.username||'').toLowerCase())||_INV_EDITORES.includes((u.email||'').toLowerCase()));}
 function puedeEditarInventario(){
   const u=getCurrentUser();if(!u)return false;
-  return u.rol==='admin'||u.rol==='almacen'||u.puedeInventario===true;
+  return u.rol==='admin'||u.rol==='almacen'||u.puedeInventario===true||_esEditorInvFijo(u);
 }
 function puedeFotosInventario(){
   const u=getCurrentUser();if(!u)return false;
-  return u.rol==='admin'||u.puedeFotos===true||u.rol==='almacen'||u.puedeInventario===true;
+  return u.rol==='admin'||u.puedeFotos===true||u.rol==='almacen'||u.puedeInventario===true||_esEditorInvFijo(u);
 }
 function abrirSistemaFacturacion(numPedido,cliente,monto){
   if(!puedeFacturar()){
@@ -10863,7 +10867,7 @@ showToast(isNew?'✓ Producto agregado':'✓ Actualizado','#3B6D11');}
 function aplicarPermisosInventarioUI(){
   try{
     const u=(typeof getCurrentUser==='function')?getCurrentUser():null;
-    const esAdmin=u&&u.rol==='admin';
+    const esAdmin=u&&(u.rol==='admin'||_esEditorInvFijo(u));
     const cont=document.getElementById('inv-admin-buttons');
     if(cont)cont.style.display=esAdmin?'flex':'none';
     const _bk=document.getElementById('btn-kardex-lote');
