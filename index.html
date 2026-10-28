@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.26.04';
+const APP_VERSION='2026.10.28.01';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -15688,7 +15688,7 @@ h+=`</tr></table>`;
 h+=`</div>`;
 // ── CLIENT + PRESUPUESTO # ──
 h+=`<div style="padding:14px 40px 10px"><table style="width:100%;border-collapse:collapse"><tr>`;
-h+=`<td style="vertical-align:bottom;width:50%"><div style="font-size:14px;font-weight:700;color:#1a1a1a">${cli}</div>${razon?'<div style="font-size:11px;color:#555;margin-top:2px;font-style:italic">'+razon+'</div>':''}${rfc?'<div style="font-size:12px;color:#888;margin-top:2px">RFC: '+rfc+'</div>':''}${contacto?'<div style="font-size:12px;color:#888;margin-top:2px">Contacto: '+contacto+(cel?' \u00b7 '+cel:'')+'</div>':''}<div style="font-size:12px;color:#888;margin-top:2px">${(incDom==='NO'||!dir)?'CLIENTE RECOGE EN SUCURSAL':('Dir: '+dir)}</div></td>`;
+h+=`<td style="vertical-align:bottom;width:50%"><div style="font-size:14px;font-weight:700;color:#1a1a1a">${cli}</div>${razon?'<div style="font-size:11px;color:#555;margin-top:2px;font-style:italic">'+razon+'</div>':''}${rfc?'<div style="font-size:12px;color:#888;margin-top:2px">RFC: '+rfc+'</div>':''}${contacto?'<div style="font-size:12px;color:#888;margin-top:2px">Contacto: '+contacto+(cel?' \u00b7 '+cel:'')+'</div>':''}<div style="font-size:12px;color:#888;margin-top:2px">${incDom==='NO'?'CLIENTE RECOGE EN SUCURSAL':(dir?('Dir: '+dir):'ENTREGA A DOMICILIO · dirección por confirmar')}</div></td>`;
 h+=`<td style="vertical-align:bottom;width:50%;text-align:right;font-size:24px;font-weight:700;color:#D85A30">Presupuesto # ${num}</td>`;
 h+=`</tr></table></div>`;
 // ── INFO BAR (rounded) ──
