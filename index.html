@@ -1500,7 +1500,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.28.01';
+const APP_VERSION='2026.10.28.02';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -6123,6 +6123,23 @@ function descontarInventarioPedido(orderObj,lineas){
         l.bomPiezas=piezas;l.esPanel=true;
         piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
         return;
+      }
+    }
+    // ── REGLA BOM CUSTOM (bom_rules): si hay stock del hijo se descuenta directo; si no,
+    // se fabrica cortando del padre. (Venia solo en confirmarComoVenta; ahora todas las
+    // rutas usan esta funcion.)
+    if(l.sku&&typeof buscarReglaBomPorHijo==='function'){
+      const reglaCustom=buscarReglaBomPorHijo({sku:l.sku});
+      if(reglaCustom){
+        const idxR=inventario.findIndex(p=>p.sku===l.sku);
+        if(!(idxR>=0&&(inventario[idxR].cantidad||0)>=cant)&&typeof descontarReglaBomCustom==='function'){
+          const piezas=descontarReglaBomCustom(reglaCustom,cant);
+          bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
+          piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': -'+p.cantidad));});
+          piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
+          l.bomPiezas=piezas;l.esBomCustom=true;
+          return;
+        }
       }
     }
     // Producto normal - búsqueda flexible
@@ -11158,7 +11175,7 @@ function _comprometidoSKU(sku){
     const _prod=(inventario||[]).find(p=>p&&p.sku===sku);
     const _nombre=_prod?((''+_prod.producto).toLowerCase().trim()):'';
     (orders||[]).forEach(o=>{
-      if(!o||o.inventarioDescontado!==true)return;
+      if(!o||o.inventarioDescontado!==true||o.archivadoCotizacion)return;
       const est=((o.estatus||'')+'').toLowerCase();
       if(est==='cancelado'||est==='completado')return;
       const ent=((o.entregado||'')+'').toLowerCase();
@@ -11235,7 +11252,7 @@ function _kardexPedidosActivosHTML(sku,prod){
     const nombre=(prod?((''+prod.producto).toLowerCase().trim()):'');
     const filas=[];
     (orders||[]).forEach(o=>{
-      if(!o||o.inventarioDescontado!==true)return;
+      if(!o||o.inventarioDescontado!==true||o.archivadoCotizacion)return;   // archivado = su venta regreso a presupuesto
       const est=((o.estatus||'')+'').toLowerCase();
       if(est==='cancelado'||est==='completado')return;
       const ent=((o.entregado||'')+'').toLowerCase(); if(ent==='si')return;
@@ -11640,12 +11657,41 @@ async function cloudSyncInventarioTodo(skus){
     if(_saltados>0)console.warn('⛔ Candado inventario: '+_saltados+' SKU(s) no se subieron (la nube estaba más nueva)');
   }catch(e){console.warn('cloudSyncInventarioTodo:',e);}
 }
-async function cloudSyncInventario(p,_tsNubeSabido){
+// Fila por SKU: dos subidas del mismo SKU no deben calcular el cambio contra la misma base.
+const _invColaSku={};
+function cloudSyncInventario(p,_tsNubeSabido){
+  if(!p||!p.sku)return Promise.resolve();
+  const k=p.sku;
+  const r=(_invColaSku[k]||Promise.resolve()).then(()=>_cloudSyncInventarioCore(p,_tsNubeSabido)).catch(e=>{console.warn('cloudSyncInventario',e);return false;});
+  _invColaSku[k]=r;return r;
+}
+// Aplica en la nube el cambio de existencia (local - base) con inventario_sumar y deja la
+// existencia local igual a la de la nube (que ya trae lo que otros vendieron).
+// true = aplicado o nada que aplicar; null = no se pudo (sin base, sin red o sin la funcion).
+async function _invSubirCambio(p){
+  try{
+    if(typeof supabaseClient==='undefined'||!supabaseClient||cloudStatus!=='online')return null;
+    if(typeof _invNubeCant[p.sku]!=='number')return null;
+    const delta=Math.round((Number(p.cantidad)||0)-_invNubeCant[p.sku]);
+    if(!delta)return true;
+    const {data,error}=await supabaseClient.rpc('inventario_sumar',{p_sku:p.sku,p_delta:delta});
+    if(error||data===null||data===undefined){if(error)console.warn('inventario_sumar',p.sku,error.message);return null;}
+    const nueva=Number(data)||0;
+    // Lo que se haya movido localmente MIENTRAS iba la llamada sigue pendiente: se respeta.
+    const pendiente=(Number(p.cantidad)||0)-(_invNubeCant[p.sku]+delta);
+    _invNubeCant[p.sku]=nueva;p.cantidad=nueva+pendiente;
+    guardarLS('isarack_inv_nube_cant',_invNubeCant);guardarLS('isarack_inventario_v4',inventario);
+    return true;
+  }catch(e){console.warn('_invSubirCambio',e);return null;}
+}
+async function _cloudSyncInventarioCore(p,_tsNubeSabido){
   if(window._appBloqueada)return;
   if(!p||!p.sku)return; // requiere SKU
+  const _cambioOK=await _invSubirCambio(p);
   // ── CANDADO: si la nube tiene una versión MÁS NUEVA de este SKU que la última bajada de este equipo, NO pisar ──
+  // (Si la cantidad ya viajo como cambio, lo demas —precio, nombre— no la toca: no hace falta.)
   try{
-    if(supabaseClient&&cloudStatus==='online'){
+    if(_cambioOK!==true&&supabaseClient&&cloudStatus==='online'){
       let _nubeTs=_tsNubeSabido;
       if(_nubeTs===undefined){const _r=await supabaseClient.from('inventario').select('updated_at').eq('sku',p.sku).maybeSingle();_nubeTs=(_r&&_r.data&&_r.data.updated_at)||null;}
       const _visto=_invNubeTs[p.sku]||null;
@@ -11669,7 +11715,10 @@ async function cloudSyncInventario(p,_tsNubeSabido){
   if(p.peso!==undefined&&p.peso!==null&&p.peso!==''&&!isNaN(Number(p.peso)))_ip.peso=Number(p.peso);
   _ip.es_servicio=!!p.esServicio;
   if(p.foto)_ip.foto_url=p.foto;
+  // La cantidad ya viajo como cambio: no se sube el numero total (pisaria lo de otros).
+  if(_cambioOK===true)delete _ip.cantidad;
   const _okU=await cloudUpsert('inventario',_ip,'sku');
+  if(_okU&&_cambioOK!==true){_invNubeCant[p.sku]=Number(p.cantidad)||0;try{guardarLS('isarack_inv_nube_cant',_invNubeCant);}catch(_e){}}
   if(_okU){_invNubeTs[p.sku]=_ip.updated_at;try{guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}}
   return _okU;
 }
@@ -13177,6 +13226,17 @@ let _ultimoUpdatedVisto=cargarLS('isarack_ultimo_updated_nube')||null;
 let _ultimoUpdatedTabla=cargarLS('isarack_ultimo_updated_tablas')||{};
 let _pendienteWatermark=null;
 let _invNubeTs=cargarLS('isarack_inv_nube_ts')||{};
+// Existencia de cada SKU tal como esta en la nube (la ultima que este equipo vio). Al subir
+// se manda el CAMBIO (local - esta) con inventario_sumar, no el numero total: asi dos
+// personas vendiendo a la vez no se pisan ni se pierde un descuento (28 oct 2026).
+let _invNubeCant=cargarLS('isarack_inv_nube_cant')||{};
+function _invBaseDesdeNube(rows,respetarPendientes){
+  try{const ahora=Date.now();(rows||[]).forEach(r=>{if(!r||!r.sku)return;
+    // Si este equipo tiene un cambio sin subir de ese SKU, su base NO se mueve: si se
+    // moviera, el cambio pendiente se calcularia contra la nube nueva y se perderia.
+    if(respetarPendientes){const t=_recienTocado['inventario:'+r.sku];if(t&&(ahora-t)<_GRACIA_MS)return;}
+    _invNubeCant[r.sku]=Number(r.cantidad)||0;});guardarLS('isarack_inv_nube_cant',_invNubeCant);}catch(_e){}
+}
 let _factNubeTs=cargarLS('isarack_fact_nube_ts')||{};
 try{if((cargarLS('isarack_wm_version')||'')!==APP_VERSION){_ultimoUpdatedTabla={};try{localStorage.removeItem('isarack_ultimo_updated_tablas');}catch(_e){}guardarLS('isarack_wm_version',APP_VERSION);}}catch(_e){}
 async function hayCambiosEnNube(){
@@ -13236,7 +13296,7 @@ async function bajarCambiosDeNube(){
   try{
     // Tablas ligeras: completas (cubre eliminaciones de facturas/contactos)
     const inv=await cloudFetchAll('inventario');
-    if(inv){try{inv.forEach(r=>{if(r&&r.sku)_invNubeTs[r.sku]=r.updated_at||'';});guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}inventario=_mergeConGracia('inventario',inv.map(nubeToLocalInventario),inventario,'sku');guardarLS('isarack_inventario_v4',inventario);}
+    if(inv){try{inv.forEach(r=>{if(r&&r.sku)_invNubeTs[r.sku]=r.updated_at||'';});guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}_invBaseDesdeNube(inv,true);inventario=_mergeConGracia('inventario',inv.map(nubeToLocalInventario),inventario,'sku');guardarLS('isarack_inventario_v4',inventario);}
     const ct=await cloudFetchAll('contactos');
     if(ct){contactos=ct.map(nubeToLocalContacto);guardarLS(CT_KEY,contactos);}
     const vt=await cloudFetchAll('ventas');
@@ -13325,6 +13385,7 @@ async function bajarTodoDeNube(silencioso){
     const inv=await cloudFetchAll('inventario');
     if(inv){
       try{inv.forEach(r=>{if(r&&r.sku)_invNubeTs[r.sku]=r.updated_at||'';});guardarLS('isarack_inv_nube_ts',_invNubeTs);}catch(_e){}
+      _invBaseDesdeNube(inv,false);
       inventario=inv.map(nubeToLocalInventario);
       guardarLS('isarack_inventario_v4',inventario);
     }
@@ -14284,7 +14345,9 @@ async function cambiarTipoVenta(ri,nuevoTipo){
     const r=restaurarInventarioDeLineas(v.lineas, v.num);
     if(r.restaurados>0){guardarLS('isarack_inventario_v4',inventario);}
     // ARCHIVAR el pedido: sale de Seguimiento/Almacén/Facturación pero CONSERVA sus archivos
-    {const _oa=orders.find(o=>o&&o.num===v.num);if(_oa){_oa.archivadoCotizacion=true;saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(_oa);}}
+    // El material ya regreso: el pedido archivado queda como NO descontado. Si no, al
+    // reconfirmar no volvia a descontar (S07163, 28 oct 2026).
+    {const _oa=orders.find(o=>o&&o.num===v.num);if(_oa){_oa.archivadoCotizacion=true;_oa.inventarioDescontado=false;((_oa.cotData&&_oa.cotData.lineas)||[]).forEach(l=>{if(l)delete l.faltanteInv;});_oa.updated=Date.now();saveOrders();if(typeof cloudSyncOrder==='function')cloudSyncOrder(_oa);}}
     // Factura auto-creada: quitarla de Facturación si está vacía
     _limpiarFacturaDeCotizacion(v.num);
     // Limpiar marcas BOM para evitar doble descuento al re-convertir
@@ -14554,7 +14617,7 @@ async function regresarVentaACotizacion(i){
   guardarLS(VTA_KEY,ventas);
   if(typeof cloudSyncVenta==='function')cloudSyncVenta(v); // CRÍTICO: sin esto la nube conserva tipo='Venta' y el polling la revive (seguía en Comisiones)
   // ARCHIVAR el pedido: sale de Seguimiento/Almacén/Facturación pero CONSERVA sus archivos
-  {const _oa=orders.find(o=>o&&o.num===v.num);if(_oa){_oa.archivadoCotizacion=true;if(typeof cloudSyncOrder==='function')cloudSyncOrder(_oa);}if(typeof saveOrders==='function')saveOrders();if(typeof render==='function')render();if(typeof renderAlmacen==='function')renderAlmacen();}
+  {const _oa=orders.find(o=>o&&o.num===v.num);if(_oa){_oa.archivadoCotizacion=true;_oa.inventarioDescontado=false;((_oa.cotData&&_oa.cotData.lineas)||[]).forEach(l=>{if(l)delete l.faltanteInv;});_oa.updated=Date.now();if(typeof cloudSyncOrder==='function')cloudSyncOrder(_oa);}if(typeof saveOrders==='function')saveOrders();if(typeof render==='function')render();if(typeof renderAlmacen==='function')renderAlmacen();}
   // Factura auto-creada: quitarla si está vacía
   if(typeof _limpiarFacturaDeCotizacion==='function')_limpiarFacturaDeCotizacion(v.num);
   if(typeof renderFacturas==='function')renderFacturas();
@@ -15795,119 +15858,17 @@ async function confirmarComoVenta(){
   {const _ix=(editVtaIdx>=0&&ventas[editVtaIdx])?editVtaIdx:ventas.findIndex(x=>x.num===num);if(_ix>=0)ventas[_ix]=_vventa;else ventas.push(_vventa);}
   guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(_vventa);_sincContactoDesdeVenta(_vventa);
   // ── 3. Descontar inventario ──
-  let descuentos=[];let bomDescontados=[];let _skusTocadosCCV=[];
-  vtaLineas.forEach(l=>{
-    if(_esLineaServicio(l))return;
-    const nombre=(l.producto||'').trim().toUpperCase();
-    const cant=l.cantidad||0;
-    if(!nombre||cant<=0)return;
-    l.faltanteInv=0; // lo que no alcance a descontarse (ver _faltantesDeLineas)
-    // ── LÓGICA MIXTA: si el producto tiene SKU real con stock suficiente, usarlo directo ──
-    // Sólo aplica a marcos chicos 42" (que son MIXTOS por diseño). Marcos grandes siguen usando BOM siempre.
-    const esMarcoChicoMixto=nombre.startsWith('MARCO 42"')||nombre.startsWith('MARCO 42 ')||nombre.startsWith('MARCO PICKING 42"')||nombre.startsWith('MARCO PICKING 42 ');
-    if(esMarcoChicoMixto){
-      const idx=inventario.findIndex(p=>p.producto.toUpperCase()===nombre||(p.sku&&l.sku&&p.sku===l.sku));
-      if(idx>=0&&(inventario[idx].cantidad||0)>=cant){
-        // Hay stock suficiente: descuento directo del SKU
-        const prev=inventario[idx].cantidad;
-        inventario[idx].cantidad=Math.max(0,prev-cant);
-        l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
-        l.sku=inventario[idx].sku||l.sku||'';
-        l.producto=inventario[idx].producto;
-        descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
-        _skusTocadosCCV.push(inventario[idx].sku); // SYNC
-        return;
-      }
-      // Stock insuficiente o SKU no existe → cae al BOM (fabricar) abajo
-    }
-    // ── REGLAS BOM CUSTOM (configuradas por el usuario) ──
-    // Prioridad: si el producto tiene una regla custom, intenta primero descontar del SKU directo;
-    // si no hay stock SKU, descuenta del padre según la regla.
-    if(l.sku){
-      const reglaCustom=typeof buscarReglaBomPorHijo==='function'?buscarReglaBomPorHijo({sku:l.sku}):null;
-      if(reglaCustom){
-        const idx=inventario.findIndex(p=>p.sku===l.sku);
-        if(idx>=0&&(inventario[idx].cantidad||0)>=cant){
-          // Hay stock del hijo: descuento directo
-          const prev=inventario[idx].cantidad;
-          inventario[idx].cantidad=Math.max(0,prev-cant);
-          l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
-          descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
-          _skusTocadosCCV.push(inventario[idx].sku); // SYNC
-          return;
-        }
-        // Stock insuficiente → fabricar cortando del padre
-        const piezas=descontarReglaBomCustom(reglaCustom,cant);
-        bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
-        piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
-        l.bomPiezas=piezas;l.esBomCustom=true;
-        return;
-      }
-    }
-    // ── LÓGICA MIXTA PANELES: SKU real primero, luego fabricar de panel grande (BOM) ──
-    const esPanelChicoMixto=nombre.includes('PANEL')&&nombre.includes('BEIGE')&&nombre.includes('GRADO B')&&!nombre.includes('75');
-    if(esPanelChicoMixto){
-      const idx=inventario.findIndex(p=>p.producto.toUpperCase()===nombre||(p.sku&&l.sku&&p.sku===l.sku));
-      if(idx>=0&&(inventario[idx].cantidad||0)>=cant){
-        // Hay stock del panel chico ya cortado: descuento directo
-        const prev=inventario[idx].cantidad;
-        inventario[idx].cantidad=Math.max(0,prev-cant);
-        l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
-        l.sku=inventario[idx].sku||l.sku||'';
-        l.producto=inventario[idx].producto;
-        descuentos.push(inventario[idx].producto+' (SKU): '+prev+' → '+inventario[idx].cantidad);
-        _skusTocadosCCV.push(inventario[idx].sku); // SYNC
-        return;
-      }
-      // Stock insuficiente → fabricar cortando del panel grande
-      const panelInfo=detectarPanelChico(nombre);
-      if(panelInfo){
-        const piezas=descontarPanelBOM(panelInfo,cant);
-        bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-        piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
-        piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);}); // SYNC
-        l.bomPiezas=piezas;l.esPanel=true;
-        return;
-      }
-    }
-    // Check if it's a MARCO PICKING first (more specific)
-    const marcoPicking=_marcoEsEspecial(nombre)?null:detectarMarcoPicking(nombre);   // especiales: solo su stock
-    if(marcoPicking){
-      const piezas=descontarMarcoPickingBOM(marcoPicking,cant);
-      bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
-      l.bomPiezas=piezas;l.esMarco=true;l.esMarcoPicking=true;
-      piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);});
-      return;
-    }
-    // Check if it's a MARCO Selectivo → use BOM
-    const marco=_marcoEsEspecial(nombre)?null:detectarMarco(nombre);
-    if(marco){
-      const piezas=descontarMarcoBOM(marco,cant);
-      bomDescontados.push({marco:l.producto,cantidad:cant,piezas});
-      piezas.forEach(p=>{if(!p.faltante)descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': '+p.prev+' → '+p.nuevo+' (-'+p.cantidad+')'));});
-      // Enrich line with BOM info
-      l.bomPiezas=piezas;l.esMarco=true;
-      piezas.forEach(p=>{if(p.sku)_skusTocadosCCV.push(p.sku);});
-      return;
-    }
-    // Normal product - direct deduction
-    const idx=inventario.findIndex(p=>p.producto.toUpperCase()===nombre);
-    if(idx>=0){
-      const prev=inventario[idx].cantidad;
-      inventario[idx].cantidad=Math.max(0,prev-cant);
-      l.faltanteInv=Math.max(0,cant-Math.max(0,Number(prev)||0));
-      l.sku=inventario[idx].sku||l.sku||'';
-      l.producto=inventario[idx].producto;
-      _skusTocadosCCV.push(inventario[idx].sku);
-      descuentos.push(inventario[idx].producto+': '+prev+' → '+inventario[idx].cantidad);
-    }
-  });
-  // Update cotData with enriched lineas
+  // v2026.10.28.02: usa la funcion CENTRAL (descontarInventarioPedido). Antes esta ruta
+  // tenia su propia copia que descontaba en memoria pero NO escribia el kardex ni marcaba
+  // el pedido como descontado, y la subida de la existencia podia perderse: S07419, S07501,
+  // S07526, S07537, S07565... entregados sin descontar o descontados sin rastro (28 oct 2026).
+  const _rD=descontarInventarioPedido(newOrder,vtaLineas)||{};
+  const bomDescontados=_rD.bomDescontados||[];
+  // Update cotData with enriched lineas (faltanteInv, bomPiezas, sku reales)
   cotData.lineas=JSON.parse(JSON.stringify(vtaLineas));
   newOrder.cotData=cotData;
-  if(descuentos.length>0||bomDescontados.length>0){saveInv();if(typeof cloudSyncInventarioTodo==='function'&&_skusTocadosCCV.length)cloudSyncInventarioTodo([...new Set(_skusTocadosCCV)]);saveOrders();}
+  saveOrders();
+  if(typeof cloudSyncOrder==='function')cloudSyncOrder(newOrder);
   // Show BOM summary if any marcos
   if(bomDescontados.length>0){
     let resumen='✓ Marcos vendidos descontaron piezas:\n\n';
@@ -15921,7 +15882,9 @@ async function confirmarComoVenta(){
   {let _iv=ventas.findIndex(x=>x.num===num);if(_iv<0)_iv=editVtaIdx;
    if(_iv>=0&&ventas[_iv]){const _v=ventas[_iv];_v.tipo='Venta';_v.stage='Pedido de venta';_v.estatus='Confirmada';guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(_v);}}
   cerrarVentaForm();render();actualizarFiltrosEjec();renderFacturas();renderInventario();
+  const descuentos=_rD.descuentos||[];
   const msg=descuentos.length>0?'✓ Venta '+num+' creada · Factura generada · '+descuentos.length+' productos descontados':'✓ Venta '+num+' creada · Factura generada';
+  if(_rD.faltantes&&_rD.faltantes.length)setTimeout(()=>showToast('⚠ '+_rD.faltantes.length+' faltante(s) de inventario en '+num+' (quedan en Por comprar)','#BA7517'),3200);
   showToast(msg,'#3B6D11');
   document.querySelectorAll('.nav-tab').forEach((b,i)=>{b.classList.toggle('active',i===0)});
   document.querySelectorAll('.tab-content').forEach(d=>d.classList.remove('active'));
