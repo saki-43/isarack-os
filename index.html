@@ -587,6 +587,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <button onclick="_recargarAppFuerza()" id="btn-recargar-app" style="padding:5px 10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer" title="Descargar la última versión de la app y recargar. Uso: cuando escuches que hay una versión nueva y aún no te ha llegado.">🔄 Actualizar</button>
       <button id="btn-resumen-dia" onclick="mostrarResumenDiario(true)" style="display:none;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Resumen del día">☀️</button>
       <span style="position:relative;display:inline-flex"><button id="btn-conectados" onclick="_presToggleLista(event)" style="display:none;align-items:center;gap:4px;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" title="Quién tiene ISA-OS abierto"></button><div id="conectados-lista" style="display:none;position:absolute;top:110%;right:0;min-width:190px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 0;z-index:4000;font-size:13px"></div></span>
+      <button id="btn-taller" onclick="abrirTaller()" style="display:none;align-items:center;gap:4px;padding:6px 10px;background:#F3EEF8;color:#6B4FA0;border:1px solid #9b7fd0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer" title="Taller: piezas por cortar o fabricar para pedidos activos">🏭 <span id="taller-n">0</span></button>
       <button id="btn-mat-sol" onclick="abrirMatSolicitar()" style="display:none;align-items:center;gap:4px;padding:6px 10px;background:#FBEDE6;color:#B44E23;border:1px solid #DA6635;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer" title="Material por solicitar (escaleras, protecciones, vigas de 48 y de pasarela)">📦 <span id="mat-sol-n">0</span></button>
       <button id="notif-bell" onclick="toggleNotifPanel()" style="position:relative;padding:6px 10px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:14px;cursor:pointer" title="Notificaciones">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#c62828;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span></button>
       <div id="notif-panel" style="display:none;position:fixed;top:62px;right:18px;width:330px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);z-index:4000"></div>
@@ -1502,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.03';
+const APP_VERSION='2026.10.29.04';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -6148,6 +6149,8 @@ function descontarInventarioPedido(orderObj,lineas){
           piezas.forEach(p=>{if(p.faltante)faltantes.push(p.nombre+' ('+p.cantidad+')');else descuentos.push(p.esSobrante?(p.nombre+': +1 (sobrante)'):(p.nombre+': -'+p.cantidad));});
           piezas.forEach(p=>{if(p.sku)_skusTocados.push(p.sku);});
           l.bomPiezas=piezas;l.esBomCustom=true;
+          // Si no alcanzo el padre no se desconto nada: queda todo como faltante (Por comprar)
+          l.faltanteInv=(piezas[0]&&piezas[0].faltante)?cant:0;
           return;
         }
       }
@@ -6174,7 +6177,7 @@ function descontarInventarioPedido(orderObj,lineas){
     orderObj.fechaDescuento=Date.now();
     guardarLS('isarack_inventario_v4',inventario);
     // KARDEX: registrar cada descuento por venta
-    try{lineas.forEach(l=>{if(!l||l.tipo||_lineaSinInventario(l))return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:'Pieza de '+(l.producto||'')});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
+    try{lineas.forEach(l=>{if(!l||l.tipo||_lineaSinInventario(l))return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:l.esBomCustom?((pz.tipoBom==='fabricar'?'🏭 Fabricación: ':'🔧 Trabajo: ')+_bomNum(l.cantidad)+' '+(l.producto||'')+' de '+q+' '+((ip&&ip.producto)||pz.nombre||'')):('Pieza de '+(l.producto||''))});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
     // FIX: usar _skusTocados (lista real de SKUs) en vez de intentar extraer de strings
     if(typeof cloudSyncInventarioTodo==='function'&&_skusTocados.length)cloudSyncInventarioTodo([...new Set(_skusTocados)]);
     saveOrders();
@@ -6903,7 +6906,78 @@ function abrirMatSolicitar(refrescar){
     ${filas||'<div style="text-align:center;color:#888;padding:24px">Nada pendiente 👍</div>'}
   </div>`;
 }
-function renderTable(){_sincronizarCobrosLigados();try{_matSolBadge();}catch(_e){}const _L=_ligasCobro();const _esAdmin=getCurrentUser()?.rol==='admin';const q=(document.getElementById('search').value||'').toLowerCase();const list=_pedidosVisibles().filter(o=>{if(filter!=='todos'&&o.estatus!==filter)return false;if(q&&!((o.num||'')+o.cliente+o.comercial+(o.desc||'')).toLowerCase().includes(q))return false;return true;}).sort((a,b)=>{const ia=_tsVentaOrden(a),ib=_tsVentaOrden(b);return sortAsc?ia-ib:ib-ia;});_ordenarConCobros(list).forEach((x,i)=>{list[i]=x;});document.getElementById('tbl-header').textContent=`PEDIDOS — ${list.length} registro${list.length!==1?'s':''}`;const tb=document.getElementById('tbody');if(!list.length){tb.innerHTML=`<tr><td colspan="12" class="empty-row"><span style="font-size:32px;display:block;margin-bottom:.5rem">📦</span>Sin pedidos</td></tr>`;return;}
+// ══ TALLER (29 oct 2026) ══
+// Renglones de pedidos activos que se surten con una regla BOM (🔧 trabajar / 🏭 fabricar):
+// lo que el taller tiene que cortar o fabricar. "✅ Hecho" guarda o.tallerHecho[sku] con la
+// cantidad; si despues cambia la cantidad del pedido, vuelve a salir.
+function _tallerItems(o){
+  const lin=(o&&o.cotData&&o.cotData.lineas)||[];
+  const out=[];
+  lin.forEach(l=>{
+    if(!l||l.tipo||!l.sku)return;
+    const cant=parseFloat(l.cantidad)||0;if(cant<=0)return;
+    const regla=(typeof buscarReglaBomPorHijo==='function')?buscarReglaBomPorHijo({sku:l.sku}):null;if(!regla)return;
+    // Solo si el renglon se surtio de la regla (o el pedido aun no descuenta y no hay hijo hecho)
+    const usoRegla=!!l.esBomCustom||(o.inventarioDescontado!==true&&!((inventario||[]).find(p=>p.sku===l.sku&&Number(p.cantidad||0)>=cant)));
+    if(!usoRegla)return;
+    const pz=(Array.isArray(l.bomPiezas)&&l.bomPiezas[0]&&!l.bomPiezas[0].faltante)?l.bomPiezas[0]:null;
+    const padres=pz?Number(pz.cantidad||0):Math.ceil(cant/(Number(regla.hijos_por_padre)||1));
+    const padre=(inventario||[]).find(p=>p.sku===regla.padre_sku);
+    const ya=out.find(x=>x.sku===l.sku);
+    if(ya){ya.cant+=cant;ya.padres+=padres;return;}   // mismo producto en varios renglones: uno solo
+    out.push({sku:l.sku,producto:l.producto||l.sku,cant,padres,padreSku:regla.padre_sku,padreNombre:(padre&&padre.producto)||regla.padre_sku,tipo:_bomTipo(regla)});
+  });
+  return out;
+}
+function _tallerPendientes(){
+  const lista=(typeof _pedidosVisibles==='function')?_pedidosVisibles():(orders||[]);
+  const out=[];
+  lista.forEach(o=>{
+    if(!o||o.archivadoCotizacion||o.estatus==='Cancelado'||o.estatus==='Completado')return;
+    const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===o.num):null;
+    if(v&&v.tipo&&v.tipo!=='Venta')return;
+    const items=_tallerItems(o).filter(i=>!(o.tallerHecho&&o.tallerHecho[i.sku]&&Number(o.tallerHecho[i.sku].cant)===i.cant));
+    if(items.length)out.push({o,items});
+  });
+  return out.sort((a,b)=>_tsVentaOrden(a.o)-_tsVentaOrden(b.o));
+}
+function _tallerBadge(){
+  const btn=document.getElementById('btn-taller');if(!btn)return;
+  const u=getCurrentUser();
+  if(!u||!(u.rol==='admin'||_esEditorInvFijo(u))){btn.style.display='none';return;}
+  const n=_tallerPendientes().reduce((a,r)=>a+r.items.length,0);
+  document.getElementById('taller-n').textContent=n;
+  btn.style.display=n?'inline-flex':'none';
+}
+function tallerHecho(num,sku){
+  const r=_tallerPendientes().find(x=>x.o.num===num);if(!r)return;
+  const it=r.items.find(i=>i.sku===sku);if(!it)return;
+  const u=getCurrentUser()||{};
+  r.o.tallerHecho=r.o.tallerHecho||{};
+  r.o.tallerHecho[sku]={cant:it.cant,fecha:Date.now(),por:u.nombre||u.username||''};
+  r.o.updated=Date.now();
+  saveOrders();
+  if(typeof cloudSyncOrder==='function'){try{cloudSyncOrder(r.o);}catch(_e){}}
+  showToast('✅ '+num+': '+it.cant+' '+it.producto+' listo','#3B6D11');
+  _tallerBadge();abrirTaller(true);
+}
+function abrirTaller(refrescar){
+  let ov=document.getElementById('taller-overlay');
+  if(!ov){if(refrescar)return;ov=document.createElement('div');ov.id='taller-overlay';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding:40px 12px;overflow:auto';ov.onclick=e=>{if(e.target===ov)ov.remove();};document.body.appendChild(ov);}
+  const pend=_tallerPendientes(),E=_escNotif;
+  const filas=pend.map(r=>{const o=r.o;return `<div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div><b style="color:#DA6635">${E(o.num)}</b> · <b>${E(o.cliente||'—')}</b> <span style="color:#888;font-size:12px">${E(o.comercial||'')} · ${E(o.estatus||'Pendiente')}</span></div>
+      ${r.items.map(i=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed #eee">
+        <div style="font-size:13px">${i.tipo==='fabricar'?'🏭 <b>Fabricar</b>':'🔧 <b>Trabajar</b>'} <b>${_bomNum(i.cant)}</b> ${E(i.producto)}<div style="font-size:12px;color:#666;margin-top:2px">← de <b>${_bomNum(i.padres)}</b> ${E(i.padreNombre)}</div></div>
+        <button onclick="tallerHecho('${E(o.num)}','${E(i.sku)}')" style="padding:7px 12px;background:#fff;color:#3B6D11;border:1.5px solid #3B6D11;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">✅ Hecho</button>
+      </div>`).join('')}</div>`;}).join('');
+  ov.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0;font-size:16px">🏭 Taller</h3><button onclick="document.getElementById('taller-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button></div>
+    <div style="font-size:12px;color:#888;margin-bottom:14px">Piezas de pedidos activos que salen de una regla BOM: 🔧 trabajar (cortar o adaptar la misma pieza) o 🏭 fabricar (pieza nueva). El inventario ya se descontó del material de origen.</div>
+    ${filas||'<div style="text-align:center;color:#888;padding:24px">Nada pendiente 👍</div>'}
+  </div>`;
+}
+function renderTable(){_sincronizarCobrosLigados();try{_matSolBadge();}catch(_e){}try{_tallerBadge();}catch(_e){}const _L=_ligasCobro();const _esAdmin=getCurrentUser()?.rol==='admin';const q=(document.getElementById('search').value||'').toLowerCase();const list=_pedidosVisibles().filter(o=>{if(filter!=='todos'&&o.estatus!==filter)return false;if(q&&!((o.num||'')+o.cliente+o.comercial+(o.desc||'')).toLowerCase().includes(q))return false;return true;}).sort((a,b)=>{const ia=_tsVentaOrden(a),ib=_tsVentaOrden(b);return sortAsc?ia-ib:ib-ia;});_ordenarConCobros(list).forEach((x,i)=>{list[i]=x;});document.getElementById('tbl-header').textContent=`PEDIDOS — ${list.length} registro${list.length!==1?'s':''}`;const tb=document.getElementById('tbody');if(!list.length){tb.innerHTML=`<tr><td colspan="12" class="empty-row"><span style="font-size:32px;display:block;margin-bottom:.5rem">📦</span>Sin pedidos</td></tr>`;return;}
 tb.innerHTML=list.map(o=>{const id=o.id,si=(o.sistemas||[]).map(s=>`<span class="tag">${s}</span>`).join('')||'<span style="color:#ccc">—</span>',sp=o.surtido||0,fp=o.fab||0,ef=o.entrega?o.entrega.split('-').reverse().join('/'):'+ fecha',ff=(()=>{const t=_tsVentaOrden(o);if(!t)return o.fecha?o.fecha.split('-').reverse().join('/'):'—';const d=new Date(t);const dia=String(d.getDate()).padStart(2,'0'),mes=String(d.getMonth()+1).padStart(2,'0'),anio=d.getFullYear();let h=d.getHours();const m=String(d.getMinutes()).padStart(2,'0');const am=h<12?'a.m.':'p.m.';h=h%12||12;return `${String(h).padStart(2,'0')}:${m} ${am}<br><span style="font-size:11px;color:#888">${dia}/${mes}/${anio}</span>`;})(),hp=o.pdfsPresupuesto?.length>0||!!o.cotHTML||!!o.cotData,hr=_tieneFirmaCierre(o);return`<tr data-id="${id}" style="${o.estatus==='Completado'?'background:#e8f5e0':(_L.de[o.num]?'background:#fbf9ff':'')}"><td class="drag-handle">⠿</td><td><button class="act-btn" onclick="openModal(${id})" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap" title="Abrir reporte completo del pedido"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>Reporte<span class="mob-hide"> de entrega</span></button></td><td>${(()=>{const fi=facturas.findIndex(x=>x.pedido===o.num);if(fi<0)return `<button onclick="crearFacturaDesdePedido(${id})" style="padding:4px 9px;background:#fff;border:1px dashed #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Crear factura para este pedido">+ Factura</button>`;const f=facturas[fi];const tienePdf=_hayAdj(f.pdfFactNum);return tienePdf?`<button onclick="verAdjuntoFact(${fi},'pdfFactNum')" style="padding:4px 10px;background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Ver PDF de la factura">📄 Ver</button>`:`<button onclick="adjuntarCampoFact(${fi},'factura')" style="padding:4px 10px;background:#fff;border:1px solid #D85A30;color:#D85A30;font-weight:600;border-radius:8px;font-size:11px;cursor:pointer" title="Adjuntar PDF de la factura">📎 Adjuntar</button>`;})()}</td><td>${hp?`<button class="act-btn" onclick="viewPDF(event,${id},'presupuesto')" style="background:#f3eef8;border:1px solid #d4c5e8;color:#7c5cbf;font-weight:700;padding:5px 12px;gap:5px" title="Ver presupuesto ${o.num}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${o.num}</button>`:`<span class="num" style="cursor:default" title="Sin presupuesto adjunto">${o.num}</span>`}${_chipLiga(o,_L)}</td><td class="fecha-cell" data-inline onclick="inlineFechaPresp(event,${id},'${o.fecha||''}')" style="line-height:1.3">${ff}</td><td data-inline onclick="inlineCliente(event,${id},${JSON.stringify(o.cliente||'').replace(/"/g,'&quot;')})" style="max-width:220px;overflow:hidden;font-weight:500;cursor:pointer;vertical-align:top" title="Click para editar cliente — nota en boton 📝"><div style="display:flex;align-items:center;gap:4px;overflow:hidden"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">${o.cliente||''}</span><button onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="padding:1px 5px;background:${o.notas?'#FFF3EC':'transparent'};border:1px solid ${o.notas?'#D85A30':'#e0d9cf'};border-radius:6px;font-size:11px;color:${o.notas?'#B5502A':'#aaa'};cursor:pointer;line-height:1.2;flex-shrink:0" title="${o.notas?'Nota — click para ver/editar':'Agregar nota'}">📝</button></div>${(()=>{var _escN=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};const _nt=(o.notas||'').trim();const _nu=_nt&&!/^Moneda:/i.test(_nt)?_nt:'';return _nu?`<div onclick="event.stopPropagation();inlineNotas(event,${id},${JSON.stringify(o.notas||'').replace(/"/g,'&quot;')})" style="font-size:10.5px;color:#8a6a5a;background:#FFF3EC;border-left:2px solid #D85A30;padding:2px 6px;margin-top:3px;border-radius:0 4px 4px 0;line-height:1.3;font-weight:400;cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escN(_nu)}">📝 ${_escN(_nu.length>60?_nu.slice(0,58)+'…':_nu)}</div>`:'';})()}</td><td data-inline onclick="inlineComercial(event,${id},${JSON.stringify(o.comercial||'').replace(/"/g,'&quot;')})" style="font-size:12px;color:#666;max-width:145px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer" title="Click para editar — ${o.comercial||''}">${o.comercial||'—'}</td><td>${o.whatsapp?`<div style="display:flex;align-items:center;gap:4px"><a href="https://wa.me/52${o.whatsapp.replace(/\D/g,'')}" target="_blank" style="padding:3px 9px;background:#e8faf0;border:1px solid #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;text-decoration:none;font-weight:600">💬 ${o.contactoNombre||o.whatsapp}</a><button data-inline onclick="inlineWhatsapp(event,${id},${JSON.stringify(o.contactoNombre||'').replace(/"/g,'&quot;')},${JSON.stringify(o.whatsapp||'').replace(/"/g,'&quot;')})" style="padding:2px 6px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#666" title="Editar">✏</button></div>`:`<button data-inline onclick="inlineWhatsapp(event,${id},'','')" style="padding:3px 9px;background:#fff;border:1px dashed #b5e8c8;border-radius:20px;font-size:11px;color:#1a7a3c;cursor:pointer">+ Agregar 💬</button>`}</td><td>${o.instaladorNombre?`<div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap"><span data-inline onclick="inlineInstalador(event,${id},'${o.instaladorCel||''}')" style="font-size:12px;max-width:100px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5;font-weight:600" title="Click para cambiar">${o.instaladorNombre}</span><button onclick="notificarPorId(${id})" style="padding:4px 10px;background:#25D366;border:none;border-radius:20px;font-size:11px;color:#fff;font-weight:700;cursor:pointer;flex-shrink:0">📤</button></div>`:`<button data-inline onclick="inlineInstalador(event,${id},'')" style="padding:4px 10px;background:#fff;border:1px dashed #185FA5;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Asignar 👷</button>`}</td><td>${o.ubicacion?`<div style="display:flex;align-items:center;gap:4px"><span data-inline onclick="inlineUbicacion(event,${id},${JSON.stringify(o.ubicacion||'').replace(/"/g,'&quot;')})" style="font-size:11px;max-width:140px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;cursor:pointer;color:#185FA5" title="Click para editar — ${(o.ubicacion||'').replace(/"/g,'&quot;')}">${o.ubicacion}</span><button onclick="verMapaInline(event,${id})" style="padding:2px 8px;background:#E6F1FB;border:1px solid #b5cce8;border-radius:20px;font-size:10px;color:#185FA5;font-weight:600;cursor:pointer;flex-shrink:0">🗺</button></div>`:`<button data-inline onclick="inlineUbicacion(event,${id},'')" style="padding:3px 9px;background:#fff;border:1px dashed #b5cce8;border-radius:20px;font-size:11px;color:#185FA5;cursor:pointer;font-weight:600">+ Ubicación 📍</button>`}</td></tr>`}).join('');setTimeout(initRowDrag,30);
 // Ocultar la columna Comercial cuando el usuario ES comercial (todas las filas son suyas)
 const _esCom=(typeof segFiltroEjec!=='undefined'&&segFiltroEjec&&segFiltroEjec!=='todos');
@@ -9065,6 +9139,14 @@ function descontarPanelBOM(panelInfo,cantidadChicos){
 // Estructura de cada regla: {id, hijo_sku, padre_sku, hijos_por_padre, fecha, usuario}
 
 function saveBomRules(){guardarLS(BOM_RULES_KEY,bomRules);}
+// Tipo de regla (29 oct 2026): 🔧 trabajar = la misma pieza adaptada (cortar viga 96→48,
+// viga 96x4→pasarela); 🏭 fabricar = pieza nueva armada de otra (topes de tarima de viga
+// 144x3.5 con corte y soldadura; acepta fracciones: 1.5 topes por viga).
+function _bomTipo(r){return r&&r.tipo==='fabricar'?'fabricar':'trabajar';}
+function _bomTipoChip(r){return _bomTipo(r)==='fabricar'
+  ?'<span style="background:#F3EEF8;color:#6B4FA0;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">🏭 Fabricar</span>'
+  :'<span style="background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">🔧 Trabajar</span>';}
+function _bomNum(n){n=Number(n)||0;return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);}
 
 // Devuelve la regla custom si el producto X es "hijo" de alguna regla
 function buscarReglaBomPorHijo(producto){
@@ -9102,7 +9184,7 @@ function descontarReglaBomCustom(regla,cantidadHijos){
     return piezas;
   }
   padre.cantidad=stockPrev-padresNec;
-  piezas.push({nombre:padre.producto,sku:padre.sku||'',cantidad:padresNec,prev:stockPrev,nuevo:padre.cantidad,faltante:false});
+  piezas.push({nombre:padre.producto,sku:padre.sku||'',cantidad:padresNec,prev:stockPrev,nuevo:padre.cantidad,faltante:false,tipoBom:_bomTipo(regla),hijos:cantidadHijos});
   return piezas;
 }
 
@@ -9167,9 +9249,9 @@ function renderReglasBomModal(){
 <span style="font-family:monospace;background:#fff8f5;color:#993C1D;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600">${r.hijo_sku}</span>
 <span style="color:#888">→</span>
 <span style="font-family:monospace;background:#E6F1FB;color:#0C447C;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600">${r.padre_sku}</span>
-<span style="background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600">1 padre = ${r.hijos_por_padre} hijos</span>
+${_bomTipoChip(r)}<span style="background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600">1 padre = ${_bomNum(r.hijos_por_padre)} hijos</span>
 </div>
-<div style="font-size:11px;color:#666;line-height:1.4">${hijoNombre} <strong>sale de cortar</strong> ${padreNombre}</div>
+<div style="font-size:11px;color:#666;line-height:1.4">${hijoNombre} <strong>${_bomTipo(r)==='fabricar'?'se fabrica de':'sale de cortar'}</strong> ${padreNombre}</div>
 </div>
 <button onclick="abrirModalReglaBom('${r.id}')" style="padding:5px 12px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#185FA5;font-weight:600">✏ Editar</button>
 <button onclick="eliminarReglaBom('${r.id}');setTimeout(renderReglasBomModal,100);" style="padding:5px 10px;background:#fff;border:1px solid #f0c4a4;color:#993C1D;border-radius:8px;font-size:11px;cursor:pointer">✕</button>
@@ -9205,9 +9287,9 @@ function renderReglasBom(){
 <span style="font-family:monospace;background:#fff8f5;color:#993C1D;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600">${r.hijo_sku}</span>
 <span style="color:#888">→</span>
 <span style="font-family:monospace;background:#E6F1FB;color:#0C447C;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600">${r.padre_sku}</span>
-<span style="background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600">1 padre = ${r.hijos_por_padre} hijos</span>
+${_bomTipoChip(r)}<span style="background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600">1 padre = ${_bomNum(r.hijos_por_padre)} hijos</span>
 </div>
-<div style="font-size:11px;color:#666;line-height:1.4">${hijoNombre} <strong>sale de cortar</strong> ${padreNombre}</div>
+<div style="font-size:11px;color:#666;line-height:1.4">${hijoNombre} <strong>${_bomTipo(r)==='fabricar'?'se fabrica de':'sale de cortar'}</strong> ${padreNombre}</div>
 </div>
 <button onclick="abrirModalReglaBom('${r.id}')" style="padding:5px 12px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:11px;cursor:pointer;color:#185FA5;font-weight:600">✏ Editar</button>
 <button onclick="eliminarReglaBom('${r.id}')" style="padding:5px 10px;background:#fff;border:1px solid #f0c4a4;color:#993C1D;border-radius:8px;font-size:11px;cursor:pointer">✕</button>
@@ -9249,8 +9331,16 @@ function abrirModalReglaBom(idEdit){
 
 <div>
 <label style="font-size:11px;color:#888;text-transform:uppercase;font-weight:600;letter-spacing:0.05em;display:block;margin-bottom:4px">¿Cuántos hijos por padre?</label>
-<input id="bom-cantidad" type="number" value="${reglaExistente?reglaExistente.hijos_por_padre:2}" min="1" oninput="bomActualizarResumen()" style="width:120px;padding:9px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-<div style="font-size:11px;color:#888;margin-top:3px">Ejemplo: si cortas 1 padre y obtienes 2 hijos, escribe 2</div>
+<input id="bom-cantidad" type="number" value="${reglaExistente?reglaExistente.hijos_por_padre:2}" min="0.1" step="0.5" oninput="bomActualizarResumen()" style="width:120px;padding:9px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+<div style="font-size:11px;color:#888;margin-top:3px">Ejemplo: si cortas 1 padre y obtienes 2 hijos, escribe 2. Acepta decimales (1.5 = 3 hijos de 2 padres)</div>
+</div>
+
+<div>
+<label style="font-size:11px;color:#888;text-transform:uppercase;font-weight:600;letter-spacing:0.05em;display:block;margin-bottom:4px">Tipo</label>
+<select id="bom-tipo" onchange="bomActualizarResumen()" style="padding:9px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+<option value="trabajar" ${(!reglaExistente||_bomTipo(reglaExistente)==='trabajar')?'selected':''}>🔧 Trabajar — la misma pieza adaptada (cortar, perforar)</option>
+<option value="fabricar" ${(reglaExistente&&_bomTipo(reglaExistente)==='fabricar')?'selected':''}>🏭 Fabricar — pieza nueva (corte + soldadura)</option>
+</select>
 </div>
 
 <div id="bom-resumen" style="background:#EAF3DE;border-left:3px solid #639922;padding:9px 12px;border-radius:4px;font-size:11px;color:#27500A;line-height:1.5;display:none"></div>
@@ -9312,10 +9402,10 @@ function bomSeleccionar(tipo,sku,el){
 function bomActualizarResumen(){
   const hijoSku=document.getElementById('bom-hijo-sku')?.value||'';
   const padreSku=document.getElementById('bom-padre-sku')?.value||'';
-  const cant=parseInt(document.getElementById('bom-cantidad')?.value)||0;
+  const cant=parseFloat(document.getElementById('bom-cantidad')?.value)||0;
   const div=document.getElementById('bom-resumen');
   if(!div)return;
-  if(!hijoSku||!padreSku||cant<1){div.style.display='none';return;}
+  if(!hijoSku||!padreSku||cant<=0){div.style.display='none';return;}
   const hijo=inventario.find(p=>p.sku===hijoSku);
   const padre=inventario.find(p=>p.sku===padreSku);
   if(!hijo||!padre){div.style.display='none';return;}
@@ -9328,12 +9418,13 @@ function bomActualizarResumen(){
 function guardarReglaBom(idEdit){
   const hijoSku=document.getElementById('bom-hijo-sku').value.trim();
   const padreSku=document.getElementById('bom-padre-sku').value.trim();
-  const cant=parseInt(document.getElementById('bom-cantidad').value)||0;
+  const cant=Math.round((parseFloat(document.getElementById('bom-cantidad').value)||0)*100)/100;
+  const tipo=document.getElementById('bom-tipo')?.value==='fabricar'?'fabricar':'trabajar';
   // Validaciones
   if(!hijoSku){alert('⚠ Selecciona el producto HIJO');return;}
   if(!padreSku){alert('⚠ Selecciona el producto PADRE');return;}
   if(hijoSku===padreSku){alert('⚠ El hijo y el padre no pueden ser el mismo producto');return;}
-  if(cant<1){alert('⚠ La cantidad de hijos por padre debe ser al menos 1');return;}
+  if(cant<=0){alert('⚠ La cantidad de hijos por padre debe ser mayor que 0');return;}
   // Validar duplicado (mismo hijo)
   const dup=bomRules.find(r=>r.hijo_sku===hijoSku&&r.id!==idEdit);
   if(dup){
@@ -9343,7 +9434,7 @@ function guardarReglaBom(idEdit){
   if(idEdit){
     const idx=bomRules.findIndex(r=>r.id===idEdit);
     if(idx>=0){
-      bomRules[idx]={...bomRules[idx],hijo_sku:hijoSku,padre_sku:padreSku,hijos_por_padre:cant,fecha_modificada:new Date().toISOString()};
+      bomRules[idx]={...bomRules[idx],hijo_sku:hijoSku,padre_sku:padreSku,hijos_por_padre:cant,tipo,fecha_modificada:new Date().toISOString()};
     }
   }else{
     const nueva={
@@ -9351,12 +9442,15 @@ function guardarReglaBom(idEdit){
       hijo_sku:hijoSku,
       padre_sku:padreSku,
       hijos_por_padre:cant,
+      tipo,
       fecha:new Date().toISOString(),
       usuario:(typeof getCurrentUser==='function'?(getCurrentUser()?.email||getCurrentUser()?.nombre||'desconocido'):'desconocido')
     };
     bomRules.push(nueva);
   }
   saveBomRules();
+  // Antes esta ruta no subia la regla a la nube (solo la de Editar producto lo hacia)
+  if(typeof cloudSyncBomRule==='function'){const _rg=bomRules.find(r=>r.hijo_sku===hijoSku);if(_rg)cloudSyncBomRule(_rg);}
   document.getElementById('bom-modal').remove();
   renderReglasBom();
   if(typeof renderReglasBomModal==='function'&&document.getElementById('reglas-bom-modal'))renderReglasBomModal();
@@ -10722,8 +10816,12 @@ ${(()=>{const reglaExistente=(p.sku&&typeof bomRules!=='undefined')?bomRules.fin
     </div>
     <div>
       <label style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:block;margin-bottom:3px">¿Cuántos hijos por padre?</label>
-      <input type="number" id="np-bom-cantidad" value="${reglaExistente?reglaExistente.hijos_por_padre:2}" min="1" oninput="bomEPActualizarResumen()" style="width:80px;padding:7px 10px;border:1px solid #f0c4a4;border-radius:5px;font-size:12px;background:#fff">
-      <span style="font-size:10px;color:#888;margin-left:8px">Ej: 1 padre → 2 hijos</span>
+      <input type="number" id="np-bom-cantidad" value="${reglaExistente?reglaExistente.hijos_por_padre:2}" min="0.1" step="0.5" oninput="bomEPActualizarResumen()" style="width:80px;padding:7px 10px;border:1px solid #f0c4a4;border-radius:5px;font-size:12px;background:#fff">
+      <span style="font-size:10px;color:#888;margin-left:8px">Ej: 1 padre → 2 hijos (acepta 1.5)</span>
+      <select id="np-bom-tipo" style="margin-left:8px;padding:6px 8px;border:1px solid #f0c4a4;border-radius:5px;font-size:12px">
+        <option value="trabajar" ${(!reglaExistente||_bomTipo(reglaExistente)==='trabajar')?'selected':''}>🔧 Trabajar</option>
+        <option value="fabricar" ${(reglaExistente&&_bomTipo(reglaExistente)==='fabricar')?'selected':''}>🏭 Fabricar</option>
+      </select>
     </div>
     <div id="np-bom-resumen" style="background:#EAF3DE;border-left:3px solid #639922;padding:7px 10px;border-radius:3px;font-size:11px;color:#27500A;display:${reglaExistente?'block':'none'}"></div>
   </div>
@@ -10785,7 +10883,7 @@ function bomEPSeleccionar(sku){
 // Actualiza el resumen verde
 function bomEPActualizarResumen(){
   const padreSku=document.getElementById('np-bom-padre-sku')?.value||'';
-  const cant=parseInt(document.getElementById('np-bom-cantidad')?.value)||0;
+  const cant=parseFloat(document.getElementById('np-bom-cantidad')?.value)||0;
   const div=document.getElementById('np-bom-resumen');
   const skuHijo=document.getElementById('np-sku')?.value.trim()||'';
   const nombreHijo=document.getElementById('np-producto')?.value.trim()||'producto';
@@ -10799,16 +10897,18 @@ function bomEPActualizarResumen(){
 }
 
 // Helper: crea o actualiza una regla BOM desde el modal Editar Producto
-function guardarReglaBomDesdeProducto(reglaPrev,hijoSku,padreSku,cant){
+function guardarReglaBomDesdeProducto(reglaPrev,hijoSku,padreSku,cant,tipo){
+  tipo=tipo==='fabricar'?'fabricar':'trabajar';
   if(reglaPrev){
     const idx=bomRules.findIndex(r=>r.id===reglaPrev.id);
-    if(idx>=0)bomRules[idx]={...bomRules[idx],hijo_sku:hijoSku,padre_sku:padreSku,hijos_por_padre:cant,fecha_modificada:new Date().toISOString()};
+    if(idx>=0)bomRules[idx]={...bomRules[idx],hijo_sku:hijoSku,padre_sku:padreSku,hijos_por_padre:cant,tipo,fecha_modificada:new Date().toISOString()};
   }else{
     bomRules.push({
       id:'bom-'+Date.now()+'-'+Math.random().toString(36).substr(2,5),
       hijo_sku:hijoSku,
       padre_sku:padreSku,
       hijos_por_padre:cant,
+      tipo,
       fecha:new Date().toISOString(),
       usuario:(typeof getCurrentUser==='function'?(getCurrentUser()?.email||getCurrentUser()?.nombre||'desconocido'):'desconocido')
     });
@@ -10839,9 +10939,10 @@ if(bomChk&&data.sku&&typeof bomRules!=='undefined'){
   if(bomChk.checked){
     // Crear/actualizar regla
     const padreSku=document.getElementById('np-bom-padre-sku').value.trim();
-    const cant=parseInt(document.getElementById('np-bom-cantidad').value)||0;
+    const cant=Math.round((parseFloat(document.getElementById('np-bom-cantidad').value)||0)*100)/100;
+    const tipoBom=document.getElementById('np-bom-tipo')?.value==='fabricar'?'fabricar':'trabajar';
     if(!padreSku){alert('⚠ Marcaste "Se fabrica cortando otro producto" pero no seleccionaste el producto padre. La regla NO se guardó.');}
-    else if(cant<1){alert('⚠ Cantidad de hijos por padre debe ser al menos 1. La regla NO se guardó.');}
+    else if(cant<=0){alert('⚠ Cantidad de hijos por padre debe ser mayor que 0. La regla NO se guardó.');}
     else if(padreSku===data.sku){alert('⚠ El padre no puede ser el mismo producto. La regla NO se guardó.');}
     else{
       // Validar mismo sistema
@@ -10850,10 +10951,10 @@ if(bomChk&&data.sku&&typeof bomRules!=='undefined'){
         if(!confirm('⚠ El padre "'+padreInv.producto+'" es del sistema '+padreInv.sistema+' pero este producto es del sistema '+data.sistema+'.\n\n¿Crear la regla de todos modos?')){
           // Cancelado: no tocar reglas
         }else{
-          guardarReglaBomDesdeProducto(reglaPrev,data.sku,padreSku,cant);
+          guardarReglaBomDesdeProducto(reglaPrev,data.sku,padreSku,cant,tipoBom);
         }
       }else{
-        guardarReglaBomDesdeProducto(reglaPrev,data.sku,padreSku,cant);
+        guardarReglaBomDesdeProducto(reglaPrev,data.sku,padreSku,cant,tipoBom);
       }
     }
   }else if(reglaPrev){
@@ -12010,6 +12111,7 @@ function cloudSyncBomRule(r){
     hijo_sku:r.hijo_sku,
     padre_sku:r.padre_sku,
     hijos_por_padre:Number(r.hijos_por_padre)||1,
+    tipo:r.tipo==='fabricar'?'fabricar':'trabajar',
     usuario:r.usuario||null,
     updated_at:new Date().toISOString()
   },'hijo_sku');
@@ -13216,6 +13318,7 @@ function nubeToLocalBomRule(r){
     hijo_sku:r.hijo_sku,
     padre_sku:r.padre_sku,
     hijos_por_padre:Number(r.hijos_por_padre)||1,
+    tipo:r.tipo==='fabricar'?'fabricar':'trabajar',
     usuario:r.usuario,
     fecha:r.created_at,
   };
