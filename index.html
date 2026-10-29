@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.06';
+const APP_VERSION='2026.10.29.07';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -11888,6 +11888,7 @@ function cloudSyncContacto(c){
     email:c.email||null,
     tel:c.tel||null,
     cel:c.cel||null,
+    contacto:c.contacto||null,
     dir:c.dir||null,
     tipo:c.tipo||'cliente',
     csf:c.csf||null,
@@ -13275,6 +13276,7 @@ function nubeToLocalContacto(r){
     email:r.email||'',
     tel:r.tel||'',
     cel:r.cel||'',
+    contacto:r.contacto||'',
     dir:r.dir||'',
     tipo:r.tipo||'cliente',
     csf:r.csf||null,
@@ -15125,7 +15127,7 @@ function _sincContactoDesdeVenta(v){
     const nombre=String(v.cliente||'').trim();
     if(!nombre||nombre==='CLIENTE')return;
     const val=k=>{let x=String(v[k]==null?'':v[k]).trim();if(k==='rfc')x=x.toUpperCase();return x;};
-    const campos=['razon','rfc','email','tel','cel','dir'];
+    const campos=['razon','rfc','email','tel','cel','contacto','dir'];
     const key=nombre.toUpperCase();
     let c=contactos.find(x=>x&&x.nombre&&x.nombre.toUpperCase().trim()===key);
     let cambio=false;
@@ -15146,6 +15148,7 @@ function guardarClienteRapido(){
   const email=get('vf-email');
   const tel=get('vf-tel');
   const cel=get('vf-cel');
+  const contacto=get('vf-contacto');
   const dir=get('vf-dir');
   // Buscar si ya existe
   const existe=contactos.findIndex(c=>c.nombre&&c.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
@@ -15157,6 +15160,7 @@ function guardarClienteRapido(){
     if(email)c.email=email;
     if(tel)c.tel=tel;
     if(cel)c.cel=cel;
+    if(contacto)c.contacto=contacto;
     if(dir)c.dir=dir;
     guardarLS(CT_KEY,contactos);
     if(typeof cloudSyncContacto==='function')cloudSyncContacto(c);
@@ -15170,6 +15174,7 @@ function guardarClienteRapido(){
     if(email)nuevo.email=email;
     if(tel)nuevo.tel=tel;
     if(cel)nuevo.cel=cel;
+    if(contacto)nuevo.contacto=contacto;
     if(dir)nuevo.dir=dir;
     contactos.push(nuevo);
     guardarLS(CT_KEY,contactos);
@@ -15854,9 +15859,13 @@ try{
     if(typeof generarCotHTML==='function'){try{const _c=generarCotHTML(cotData);orders[pedidoIdx].cotHTML=(_c&&typeof _c==='object')?_c.html:_c;}catch(e){console.error('Error generando cotHTML:',e);}}
     if(!orders[pedidoIdx].comercial&&v.comercial)orders[pedidoIdx].comercial=v.comercial;
     // Rellenar SOLO campos vacíos del pedido con datos de la venta (nunca pisar lo capturado)
-    if(!(orders[pedidoIdx].contactoNombre||'').trim()&&(v.contacto||'').trim())orders[pedidoIdx].contactoNombre=v.contacto.trim();
-    if(!(orders[pedidoIdx].whatsapp||'').trim()&&((v.cel||v.tel)||'').trim())orders[pedidoIdx].whatsapp=(v.cel||v.tel).trim();
-    if(!(orders[pedidoIdx].ubicacion||'').trim()&&(v.dir||'').trim())orders[pedidoIdx].ubicacion=v.dir.trim();
+    // Tambien se actualiza si el pedido tiene lo que venia de la venta (o el nombre del cliente
+    // como contacto): asi corregir el contacto en la venta llega al pedido (Isaac, 29 oct 2026, S07496).
+    {const _O=orders[pedidoIdx],_n=x=>String(x||'').trim().toUpperCase(),_P=_vPrev||{};
+     const _cN=String(v.contacto||'').trim(),_wN=String(v.cel||v.tel||'').trim(),_dN=String(v.dir||'').trim();
+     if(_cN&&(!_n(_O.contactoNombre)||_n(_O.contactoNombre)===_n(v.cliente)||_n(_O.contactoNombre)===_n(_P.contacto)))_O.contactoNombre=_cN;
+     if(_wN&&(!_n(_O.whatsapp)||_n(_O.whatsapp)===_n(_P.cel||_P.tel)))_O.whatsapp=_wN;
+     if(_dN&&(!_n(_O.ubicacion)||_n(_O.ubicacion)===_n(_P.dir)))_O.ubicacion=_dN;}
     // Planos subidos en la venta que el pedido aún no tenga
     if(Array.isArray(v.planos)&&v.planos.length){const _pl=orders[pedidoIdx].planos=orders[pedidoIdx].planos||[];const _st=new Set(_pl.map(p=>p&&(p.path||p.url||p.name)).filter(Boolean));v.planos.forEach(p=>{const k=p&&(p.path||p.url||p.name);if(k&&!_st.has(k)){_pl.push(p);_st.add(k);}});}
     if((!orders[pedidoIdx].desc||orders[pedidoIdx].desc==='')&&v.total){orders[pedidoIdx].desc='Total: $'+v.total.toFixed(2)+' '+(v.moneda||'USD');}
@@ -16024,7 +16033,7 @@ async function confirmarComoVenta(){
   if(typeof cloudSyncOrder==='function')cloudSyncOrder(newOrder);
   // Guardar el registro de VENTA para que aparezca en Ventas (no solo en Seguimiento/Facturación)
   // v2026.09.01.03: incluir tsVenta ("minutero" real) para que futuros reparadores lo respeten.
-  const _vventa={num,fecha,tsVenta:_tsNueva,cliente:cli,comercial,rfc,razon:(document.getElementById('vf-razon')||{}).value||'',email,tel,cel,dir,tipo:'Venta',stage:'Pedido de venta',moneda,plazo,plantilla,tiempoEntrega:tEntrega,instalacion:incInst,domicilio:incDom,maniobra:incMan,lineas:JSON.parse(JSON.stringify(vtaLineas)),total:cot.total,estatus:'Confirmada'};
+  const _vventa={num,fecha,tsVenta:_tsNueva,cliente:cli,comercial,rfc,razon:(document.getElementById('vf-razon')||{}).value||'',email,tel,cel,contacto:contactoP,dir,tipo:'Venta',stage:'Pedido de venta',moneda,plazo,plantilla,tiempoEntrega:tEntrega,instalacion:incInst,domicilio:incDom,maniobra:incMan,lineas:JSON.parse(JSON.stringify(vtaLineas)),total:cot.total,estatus:'Confirmada'};
   {const _ix=(editVtaIdx>=0&&ventas[editVtaIdx])?editVtaIdx:ventas.findIndex(x=>x.num===num);if(_ix>=0)ventas[_ix]=_vventa;else ventas.push(_vventa);}
   guardarLS(VTA_KEY,ventas);if(typeof cloudSyncVenta==='function')cloudSyncVenta(_vventa);_sincContactoDesdeVenta(_vventa);
   // ── 3. Descontar inventario ──
@@ -16232,7 +16241,7 @@ function actualizarHintRazon(){
   hint.style.display=(rfc.length>=10&&!razon)?'block':'none';
 }
 
-function acClienteSelectFull(idx){const c=contactos[idx];if(!c)return;const _inp=document.getElementById('vf-cliente');const _mH=(_inp.value||'').match(/^#H\s+/i);const _pref=_mH?'#H ':'';_inp.value=_pref+(c.nombre||'');const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};set('vf-razon',c.razon);set('vf-rfc',c.rfc);set('vf-email',c.email);set('vf-tel',c.tel);set('vf-cel',c.cel);set('vf-dir',c.dir);acClienteHide();actualizarHintRazon();refrescarBotonCSF();}
+function acClienteSelectFull(idx){const c=contactos[idx];if(!c)return;const _inp=document.getElementById('vf-cliente');const _mH=(_inp.value||'').match(/^#H\s+/i);const _pref=_mH?'#H ':'';_inp.value=_pref+(c.nombre||'');const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};set('vf-razon',c.razon);set('vf-rfc',c.rfc);set('vf-email',c.email);set('vf-tel',c.tel);set('vf-cel',c.cel);set('vf-contacto',c.contacto);set('vf-dir',c.dir);acClienteHide();actualizarHintRazon();refrescarBotonCSF();}
 
 // ── CSF (Constancia de Situación Fiscal) ligada al CLIENTE ──
 // Busca el contacto que coincide con el nombre escrito en Ventas
