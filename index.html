@@ -1502,7 +1502,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.01';
+const APP_VERSION='2026.10.29.02';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -3305,7 +3305,7 @@ async function calcularDeficit(){
     const _desc=o.inventarioDescontado===true;
     const _falt=_desc?_faltantesDeLineas(o.num,lineas):null;
     lineas.forEach((l,_li)=>{
-      if(l.tipo||!l.producto||!l.cantidad)return;
+      if(l.tipo||!l.producto||!l.cantidad||_lineaSinInventario(l))return;
       const cant=_desc?(_falt[_li]||0):(parseFloat(l.cantidad)||0);if(!cant)return;
       // For MARCO with BOM, register each component
       if(l.bomPiezas&&l.bomPiezas.length){
@@ -6037,7 +6037,7 @@ function descontarInventarioPedido(orderObj,lineas){
   if(!lineas||!lineas.length)return{nodata:true};
   let descuentos=[];let bomDescontados=[];let faltantes=[];let _skusTocados=[];
   lineas.forEach(l=>{
-    if(typeof _esLineaServicio==='function'?_esLineaServicio(l):l.tipo)return;
+    if(typeof _lineaSinInventario==='function'?_lineaSinInventario(l):l.tipo)return;
     const nombre=(l.producto||'').trim().toUpperCase();
     const cant=parseFloat(l.cantidad)||0;
     if(!nombre||cant<=0)return;
@@ -6172,7 +6172,7 @@ function descontarInventarioPedido(orderObj,lineas){
     orderObj.fechaDescuento=Date.now();
     guardarLS('isarack_inventario_v4',inventario);
     // KARDEX: registrar cada descuento por venta
-    try{lineas.forEach(l=>{if(!l||l.tipo)return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:'Pieza de '+(l.producto||'')});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
+    try{lineas.forEach(l=>{if(!l||l.tipo||_lineaSinInventario(l))return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:'Pieza de '+(l.producto||'')});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
     // FIX: usar _skusTocados (lista real de SKUs) en vez de intentar extraer de strings
     if(typeof cloudSyncInventarioTodo==='function'&&_skusTocados.length)cloudSyncInventarioTodo([...new Set(_skusTocados)]);
     saveOrders();
@@ -6212,7 +6212,7 @@ function regresarInventarioPedido(orderObj,lineas){
   let regresos=[];const _skusRegreso=[];
   const _falt=_faltantesDeLineas(orderObj&&orderObj.num,lineas);
   lineas.forEach((l,_li)=>{
-    if(typeof _esLineaServicio==='function'?_esLineaServicio(l):l.tipo)return;
+    if(typeof _lineaSinInventario==='function'?_lineaSinInventario(l):l.tipo)return;
     // Si es marco con BOM, regresar cada pieza
     if(l.bomPiezas&&l.bomPiezas.length){
       l.bomPiezas.forEach(p=>{
@@ -11177,6 +11177,7 @@ function _faltantesDeLineas(num,lineas){
 function _comprometidoSKU(sku){
   try{
     if(!sku)return 0;
+    {const _ps=(inventario||[]).find(p=>p&&p.sku===sku);if(_ps&&_ps.esServicio)return 0;}
     let c=0;
     // Si este SKU es padre de algún hijo con regla BOM, sumar lo requerido por hijos comprometidos
     try{if(typeof _bomHijoPadre==='object'){for(const _h in _bomHijoPadre){const _r=_bomHijoPadre[_h];if(_r&&_r.padre===sku){const _cH=arguments.callee(_h);if(_cH>0){c+=Math.ceil(_cH/(_r.x||1));}}}}}catch(_be){}
@@ -14457,6 +14458,18 @@ function _esLineaServicio(l){
   if(/^DESMONTAJE(\s|$)/.test(p))return true;
   return false;
 }
+// Renglón que NO mueve inventario: servicio por nombre (_esLineaServicio) o producto del
+// inventario marcado como servicio (es_servicio: renta montacargas, etiquetado...). Los
+// servicios no se gastan: no descuentan, no regresan, no salen en déficit ni "Por comprar"
+// (Isaac, 29 oct 2026). _esLineaServicio se queda igual porque también arma bases de precio.
+function _lineaSinInventario(l){
+  if(_esLineaServicio(l))return true;
+  try{
+    const sku=((l.sku||'')+'').trim();const nom=((l.producto||'')+'').toLowerCase().trim();
+    const p=(inventario||[]).find(x=>x&&((sku&&x.sku===sku)||(!sku&&nom&&((x.producto||'')+'').toLowerCase().trim()===nom)));
+    return !!(p&&p.esServicio);
+  }catch(e){return false;}
+}
 // ── Helper: detecta si líneas difieren en algo que afecte inventario ──
 function _lineasDeVentaCambiaron(viejas,nuevas){
   const norm=arr=>(arr||[]).filter(l=>l&&!_esLineaServicio(l)).map(l=>({s:(l.sku||'').trim().toUpperCase(),p:((l.producto||'')+'').toUpperCase().trim(),c:Number(l.cantidad||0)})).sort((a,b)=>(a.s+a.p).localeCompare(b.s+b.p));
@@ -14477,7 +14490,7 @@ function restaurarInventarioDeLineas(lineas, refNum){
     return p;
   };
   lineas.forEach((l,_li)=>{
-    if(_esLineaServicio(l))return;
+    if(_lineaSinInventario(l))return;
     const cant=parseFloat(l.cantidad)||0;
     if(!cant||!l.producto)return;
     // Marco/panel/bom-custom/góndola: restaurar componentes (mismo matching robusto que la rama directa)
