@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.04';
+const APP_VERSION='2026.10.29.05';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -3307,10 +3307,13 @@ async function calcularDeficit(){
     const _falt=_desc?_faltantesDeLineas(o.num,lineas):null;
     lineas.forEach((l,_li)=>{
       if(l.tipo||!l.producto||!l.cantidad||_lineaSinInventario(l))return;
-      const cant=_desc?(_falt[_li]||0):(parseFloat(l.cantidad)||0);if(!cant)return;
+      const cant=_desc?(_falt[_li]||0):(parseFloat(l.cantidad)||0);if(!cant&&!(_desc&&l.bomPiezas&&l.bomPiezas.length))return;
       // For MARCO with BOM, register each component
       if(l.bomPiezas&&l.bomPiezas.length){
-        if(_desc)return; // sus piezas ya se descontaron
+        if(_desc){ // sus piezas ya se descontaron; solo cuenta lo que no alcanzo (kits)
+          l.bomPiezas.forEach(p=>{const fc=Number(p&&p.faltanteCant||0);if(!fc||!p.sku)return;const key=p.sku;if(!compromisos[key])compromisos[key]={nombre:p.nombre,sku:p.sku,vendido:0,pedidos:[]};compromisos[key].vendido+=fc;compromisos[key].pedidos.push({num:o.num,cliente:o.cliente||'—',cantidad:fc,fecha:o.fecha,entrega:o.fechaEntrega||'',estatus:o.estatus||'Pendiente'});});
+          return;
+        }
         l.bomPiezas.forEach(p=>{if(p.faltante)return;const key=p.sku||p.nombre;if(!compromisos[key])compromisos[key]={nombre:p.nombre,sku:p.sku||'',vendido:0,pedidos:[]};compromisos[key].vendido+=parseFloat(p.cantidad)||0;compromisos[key].pedidos.push({num:o.num,cliente:o.cliente||'—',cantidad:p.cantidad,fecha:o.fecha,entrega:o.fechaEntrega||'',estatus:o.estatus||'Pendiente'});});
         return;
       }
@@ -6045,6 +6048,14 @@ function descontarInventarioPedido(orderObj,lineas){
     const cant=parseFloat(l.cantidad)||0;
     if(!nombre||cant<=0)return;
     l.faltanteInv=0; // lo que no alcance a descontarse (ver _faltantesDeLineas)
+    // ── KIT (29 oct 2026): producto del inventario con receta en Módulos (familia KIT).
+    // Ej. TOPE TARIMA 96" = 1 tope + 2 uniones tope tarima; UNION DE MARCO 24" = 2 de 12".
+    // Se descuenta como modulo: cada componente (la receta incluye al propio producto si
+    // tambien sale de su existencia).
+    if(!l.esModulo&&l.sku&&typeof _kitDeSku==='function'){
+      const _kit=_kitDeSku(l.sku);
+      if(_kit){l.esModulo=true;l.esKit=true;l.moduloComponentes=JSON.parse(JSON.stringify(_kit.componentes));}
+    }
     // ── MÓDULO PREARMADO: descontar cada componente ──
     if(l.esModulo&&l.moduloComponentes&&l.moduloComponentes.length){
       const piezas=[];
@@ -6057,7 +6068,7 @@ function descontarInventarioPedido(orderObj,lineas){
           inventario[idx].cantidad=Math.max(0,prev-cantTotal);
           _skusTocados.push(inventario[idx].sku);
           descuentos.push(inventario[idx].producto+': '+prev+' → '+inventario[idx].cantidad);
-          piezas.push({sku:c.sku,nombre:inventario[idx].producto,cantidad:cantTotal,faltante:false});
+          piezas.push({sku:c.sku,nombre:inventario[idx].producto,cantidad:cantTotal,faltante:false,faltanteCant:Math.max(0,cantTotal-Math.max(0,Number(prev)||0))});
           if(prev<cantTotal)faltantes.push(inventario[idx].producto+' (faltan '+(cantTotal-prev)+')');
         }else{
           faltantes.push((c.nombre||c.sku)+' ('+cantTotal+') — NO en inventario');
@@ -6177,7 +6188,7 @@ function descontarInventarioPedido(orderObj,lineas){
     orderObj.fechaDescuento=Date.now();
     guardarLS('isarack_inventario_v4',inventario);
     // KARDEX: registrar cada descuento por venta
-    try{lineas.forEach(l=>{if(!l||l.tipo||_lineaSinInventario(l))return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:l.esBomCustom?((pz.tipoBom==='fabricar'?'🏭 Fabricación: ':'🔧 Trabajo: ')+_bomNum(l.cantidad)+' '+(l.producto||'')+' de '+q+' '+((ip&&ip.producto)||pz.nombre||'')):('Pieza de '+(l.producto||''))});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
+    try{lineas.forEach(l=>{if(!l||l.tipo||_lineaSinInventario(l))return;if(Array.isArray(l.bomPiezas)&&l.bomPiezas.length){l.bomPiezas.forEach(pz=>{if(!pz||!pz.sku||pz.faltante)return;const q=Number(pz.cantidad||0)-(Number(pz.faltanteCant)||0);if(!q)return;const ip=inventario.find(x=>x.sku===pz.sku);_kardexRegistrar({sku:pz.sku,producto:(ip&&ip.producto)||pz.nombre||pz.sku,tipo:'venta',cantidad:-q,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num,nota:l.esBomCustom?((pz.tipoBom==='fabricar'?'🏭 Fabricación: ':'🔧 Trabajo: ')+_bomNum(l.cantidad)+' '+(l.producto||'')+' de '+q+' '+((ip&&ip.producto)||pz.nombre||'')):('Pieza de '+(l.producto||''))});});return;}const cnt=Number(l.cantidad||0);if(!cnt)return;const idx=inventario.findIndex(p=>(l.sku&&p.sku===l.sku)||(p.producto&&l.producto&&p.producto.toLowerCase().trim()===(''+l.producto).toLowerCase().trim()));if(idx<0)return;_kardexRegistrar({sku:inventario[idx].sku,producto:inventario[idx].producto,tipo:'venta',cantidad:-cnt,ref_tipo:'pedido',ref_num:orderObj&&orderObj.num});});}catch(_ke){}
     // FIX: usar _skusTocados (lista real de SKUs) en vez de intentar extraer de strings
     if(typeof cloudSyncInventarioTodo==='function'&&_skusTocados.length)cloudSyncInventarioTodo([...new Set(_skusTocados)]);
     saveOrders();
@@ -6223,7 +6234,8 @@ function regresarInventarioPedido(orderObj,lineas){
       l.bomPiezas.forEach(p=>{
         if(p.faltante)return;
         const idx=inventario.findIndex(x=>(p.sku&&x.sku===p.sku)||x.producto===p.nombre);
-        if(idx>=0){inventario[idx].cantidad+=parseFloat(p.cantidad)||0;regresos.push(p.nombre+': '+(p.cantidad<0?'':'+')+p.cantidad);if(inventario[idx].sku)_skusRegreso.push(inventario[idx].sku);}
+        const _q=(parseFloat(p.cantidad)||0)-(Number(p.faltanteCant)||0); // lo que no alcanzo nunca salio
+        if(idx>=0&&_q){inventario[idx].cantidad+=_q;regresos.push(p.nombre+': '+(_q<0?'':'+')+_q);if(inventario[idx].sku)_skusRegreso.push(inventario[idx].sku);}
       });
       return;
     }
@@ -9148,6 +9160,12 @@ function _bomTipoChip(r){return _bomTipo(r)==='fabricar'
   :'<span style="background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">🔧 Trabajar</span>';}
 function _bomNum(n){n=Number(n)||0;return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);}
 
+// Receta (kit) de un producto del inventario: modulo con el mismo SKU y familia KIT.
+function _kitDeSku(sku){
+  if(!sku||typeof modulos==='undefined'||!Array.isArray(modulos))return null;
+  const m=modulos.find(x=>x&&x.sku===sku&&/^KIT/i.test(x.familia||'')&&Array.isArray(x.componentes)&&x.componentes.length);
+  return m||null;
+}
 // Devuelve la regla custom si el producto X es "hijo" de alguna regla
 function buscarReglaBomPorHijo(producto){
   if(!producto)return null;
@@ -11297,6 +11315,7 @@ function _comprometidoSKU(sku){
       const falt=_faltantesDeLineas(o.num,lin);
       lin.forEach((l,i)=>{
         if(!l||l.tipo)return;
+        if(Array.isArray(l.bomPiezas))l.bomPiezas.forEach(pz=>{if(pz&&pz.sku===sku&&pz.faltanteCant>0)c+=Number(pz.faltanteCant);});
         const f=falt[i]; if(!f)return;
         if(l.sku===sku){c+=f;return;}
         if(_nombre&&l.producto&&((''+l.producto).toLowerCase().trim())===_nombre){c+=f;}
@@ -14599,13 +14618,14 @@ function restaurarInventarioDeLineas(lineas, refNum){
     const cant=parseFloat(l.cantidad)||0;
     if(!cant||!l.producto)return;
     // Marco/panel/bom-custom/góndola: restaurar componentes (mismo matching robusto que la rama directa)
-    if((l.esMarco||l.esPanel||l.esBomCustom||l._esGondolaAgrupada)&&l.bomPiezas&&l.bomPiezas.length){
+    if((l.esMarco||l.esPanel||l.esBomCustom||l._esGondolaAgrupada||l.esModulo)&&l.bomPiezas&&l.bomPiezas.length){
       l.bomPiezas.forEach(p=>{
         if(p.faltante){noEncontrados.push((p.nombre||p.sku||'?')+' ('+p.cantidad+') [marcado faltante al vender]');return;}
         const prod=_buscaProd(p.sku,p.nombre);
         if(prod){
           const prev=prod.cantidad||0;
-          const c=parseFloat(p.cantidad)||0;
+          const c=(parseFloat(p.cantidad)||0)-(Number(p.faltanteCant)||0);
+          if(!c)return;
           prod.cantidad=prev+c;
           if(typeof cloudSyncInventario==='function')cloudSyncInventario(prod);
           try{_kardexRegistrar({sku:prod.sku,producto:prod.producto,tipo:'reintegro',cantidad:c,ref_tipo:'venta',ref_num:refNum||null,nota:'Reversa a Presupuesto (componente BOM)'});}catch(_ke){}
