@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.09.07';
+const APP_VERSION='2026.11.09.08';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -7110,14 +7110,22 @@ function _matSolItems(o){
     if(!l||l.tipo)return;
     const cant=parseFloat(l.cantidad)||0;if(cant<=0)return;
     let sku=l.sku||'';
-    if(!sku&&l.producto){const n=(''+l.producto).toLowerCase().trim();const p=(inventario||[]).find(x=>x&&x.producto&&(''+x.producto).toLowerCase().trim()===n);if(p)sku=p.sku||'';}
-    if(!_MAT_SOL_RE.test(_SKU_VIEJO[sku]||sku))return; // regla con los SKU de antes (accesorios ahora ACC-)
+    const n=(''+(l.producto||'')).toLowerCase().trim();
+    const p=(inventario||[]).find(x=>x&&((sku&&x.sku===sku)||(!sku&&n&&x.producto&&(''+x.producto).toLowerCase().trim()===n)));
+    if(p&&!sku)sku=p.sku||'';
+    // Solo se solicita lo marcado "🛒 Bajo pedido" en el inventario (Isaac, 9 nov 2026).
+    // Antes era una lista fija de SKUs (_MAT_SOL_RE) y pedía también lo que hay en
+    // existencia, p. ej. BOTA PROTECTORA REFORZADA 16" de fábrica con 41 piezas.
+    if(!p||!p.bajoPedido)return;
     if(!por[sku])por[sku]={sku,producto:l.producto||sku,cant:0};
     por[sku].cant+=cant;
   });
   return Object.values(por).sort((a,b)=>a.sku.localeCompare(b.sku));
 }
 function _matSolFirma(items){return items.map(i=>i.sku+':'+i.cant).join('|');}
+// Firma con los SKU de antes del 9 nov (SEL-/DRI-): lo que se marcó "Ya lo pedí" antes del
+// cambio a ACC- se reconoce y no sale como "cambió la cantidad".
+function _matSolFirmaVieja(items){return items.map(i=>(_SKU_VIEJO[i.sku]||i.sku)+':'+i.cant).sort().join('|');}
 function _matSolPendientes(){
   const lista=(typeof _pedidosVisibles==='function')?_pedidosVisibles():(orders||[]);
   const out=[];
@@ -7125,7 +7133,7 @@ function _matSolPendientes(){
     if(!o||o.estatus==='Cancelado'||o.estatus==='Completado')return;
     const items=_matSolItems(o);if(!items.length)return;
     const firma=_matSolFirma(items);
-    if(o.matSolicitado&&o.matSolicitado.firma===firma)return;
+    if(o.matSolicitado&&(o.matSolicitado.firma===firma||o.matSolicitado.firma===_matSolFirmaVieja(items)))return;
     out.push({o,items,firma,cambio:!!(o.matSolicitado&&o.matSolicitado.firma)});
   });
   return out.sort((a,b)=>_tsVentaOrden(a.o)-_tsVentaOrden(b.o));
