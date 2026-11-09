@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.09.02';
+const APP_VERSION='2026.11.09.03';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -9481,9 +9481,11 @@ function guardarReglaBom(idEdit){
 // Al vender un módulo se descuentan los componentes del inventario.
 let _moduloEditId=null;
 let _moduloBuscadorTimer=null;
-const MODULO_FAMILIAS=['MECANO','GONDOLAS','DRIVING','SELECTIVO','PICKING','APLIC','OTRO'];
+// KIT = receta de un producto del inventario (mismo SKU): se descuenta por componentes (_kitDeSku).
+// OTRO se cambió por ACCESORIOS (Isaac, 9 nov 2026); un módulo viejo con OTRO lo conserva (ver mod-familia).
+const MODULO_FAMILIAS=['KIT','MECANO','GONDOLAS','DRIVING','SELECTIVO','PICKING','APLIC','ACCESORIOS'];
 function _modFamiliaColor(f){
-  const map={MECANO:'#FAEEDA;color:#854F0B',GONDOLAS:'#EAF3DE;color:#3B6D11',DRIVING:'#E6F1FB;color:#0C447C',SELECTIVO:'#F0E6FA;color:#5B3399',PICKING:'#FCE6E6;color:#A32D2D',APLIC:'#FFF4E0;color:#A8650E',OTRO:'#EFEFEF;color:#555'};
+  const map={MECANO:'#FAEEDA;color:#854F0B',GONDOLAS:'#EAF3DE;color:#3B6D11',DRIVING:'#E6F1FB;color:#0C447C',SELECTIVO:'#F0E6FA;color:#5B3399',PICKING:'#FCE6E6;color:#A32D2D',APLIC:'#FFF4E0;color:#A8650E',KIT:'#FBEAE3;color:#B4471C',ACCESORIOS:'#E8F4F2;color:#1F6B5C',OTRO:'#EFEFEF;color:#555'};
   return map[f]||map.OTRO;
 }
 function abrirModalModulos(){
@@ -9611,7 +9613,7 @@ function renderModuloForm(m){
 <div>
 <label style="font-size:11px;color:#888;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Familia</label>
 <select id="mod-familia" style="width:240px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-${MODULO_FAMILIAS.map(f=>`<option value="${f}" ${m.familia===f?'selected':''}>${f}</option>`).join('')}
+${(m.familia&&!MODULO_FAMILIAS.includes(m.familia)?[m.familia]:[]).concat(MODULO_FAMILIAS).map(f=>`<option value="${f}" ${m.familia===f?'selected':''}>${f}</option>`).join('')}
 </select>
 </div>
 </div>
