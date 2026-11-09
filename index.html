@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.09.06';
+const APP_VERSION='2026.11.09.07';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -5349,7 +5349,7 @@ function _instPedModal(){
 //  - Lunes a viernes, sin festivos oficiales. Orden: fecha de confirmación.
 //  - No se programan: pedidos con material faltante (⏳) ni sin movimiento +60 días (💤).
 var PROG={cfg:null,cargado:false};
-var _PROG_DEF={maxEquipo:5,arranque:2.5,pesos:{marco:0.05,viga:0.02,rejilla:0.008,ancla:0.015,proteccion:0.03,malla:0.03,tope:0.01},incluir:[],excluir:[],gente:{}};
+var _PROG_DEF={maxEquipo:5,arranque:2.5,pesos:{marco:0.05,viga:0.02,rejilla:0.008,ancla:0.015,proteccion:0.03,malla:0.03,tope:0.01},incluir:[],excluir:[],conInst:[],soloEnt:[],gente:{}};
 function _progCfg(){var c=PROG.cfg||{};var d=JSON.parse(JSON.stringify(_PROG_DEF));for(var k in c)d[k]=c[k];d.pesos=Object.assign({},_PROG_DEF.pesos,c.pesos||{});return d;}
 async function _progCargarCfg(){
   if(PROG.cargado)return;PROG.cargado=true;
@@ -5405,14 +5405,34 @@ function _progAprender(){
   return {f:f,n:rs.length,err:errs[Math.floor(errs.length/2)],obras:rs};
 }
 // ── ¿Lleva instalación? ──
+// La instalación se cobra con varios nombres: "Servicio de instalación", "Desmontaje y
+// montaje" (BROAN), "Armado", "Mano de obra".
+var _PROG_SERV_RE=/INSTALACI|MONTAJE|ARMADO|MANO DE OBRA/i;
+function _progLineaInst(l){return l&&!l.tipo&&_PROG_SERV_RE.test(l.producto||'')&&!/^FLETE|MANIOBRA/i.test(l.producto||'')&&(parseFloat(l.precio)||0)>0;}
 function _progCobraInst(num){
   var v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(function(x){return x&&x.num===num;}):null;
   if(v&&(''+(v.instalacion||'')).toUpperCase()==='SI')return true;
-  return _progLineas(num).some(function(l){return l&&!l.tipo&&/INSTALACI/i.test(l.producto||'')&&(parseFloat(l.precio)||0)>0;});
+  return _progLineas(num).some(_progLineaInst);
 }
-function _progLlevaInst(o,L,rec){
+// Instalación cobrada en OTRA venta o cotización que menciona el folio del pedido de
+// material (p. ej. S07614 JABIL "instalación del S07589"), aunque no esté ligada con
+// "Cobro de" ni confirmada. Devuelve {folioMaterial: folioQueLaCobra}.
+function _progCobrosPorMencion(){
+  var m={};
+  ((typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas:[]).forEach(function(v){
+    if(!v||!v.num||!Array.isArray(v.lineas)||!v.lineas.some(_progLineaInst))return;
+    // Sin las notas "📄 Origen: presupuesto Odoo S0XXXX": ese folio es el viejo de Odoo, no otro pedido
+    var txt=v.lineas.filter(function(l){return l&&!/Origen:\s*presupuesto/i.test(l.texto||'');}).map(function(l){return [l.producto,l.desc,l.texto].join(' ');}).join(' ');
+    (txt.match(/\b(S0\d{4}|[RGP]W-\d{5})\b/gi)||[]).forEach(function(f){f=f.toUpperCase();if(f!==v.num&&!m[f])m[f]=v.num;});
+  });
+  return m;
+}
+function _progLlevaInst(o,L,rec,cfg,menc){
+  if(cfg&&cfg.conInst.indexOf(o.num)>=0)return true;   // marcado a mano
+  if(cfg&&cfg.soloEnt.indexOf(o.num)>=0)return false;
   if(rec&&(_instMiembros(rec).length||_progPersonaDias(rec)>0))return true; // ya tiene cuadrilla o lista: es obra (S07589 JABIL P4)
   if(_esSoloEntrega(o.repse))return false;
+  if(menc&&menc[o.num])return true;
   if(_progCobraInst(o.num))return true;
   return ((L&&L.en&&L.en[o.num])||[]).some(_progCobraInst);
 }
@@ -5449,7 +5469,7 @@ function _progCalcular(){
   var cfg=_progCfg(),apr=_progAprender(),f=apr.f,L=(typeof _ligasCobro==='function')?_ligasCobro():{de:{},en:{}};
   var dias=_progDias(260),hoy=dias[0],cuads=_progCuadrillas(cfg);
   var limite=Date.now()-60*864e5,res={hoy:hoy,dias:dias,cuads:cuads,apr:apr,trab:[],entrega:[],espera:[],viejos:[],sinDato:[],excl:[]};
-  var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[];
+  var ords=(typeof orders!=='undefined'&&Array.isArray(orders))?orders:[],menc=_progCobrosPorMencion();
   ords.forEach(function(o){
     if(!o||!o.num||o.archivadoCotizacion||/complet|cancel/i.test(o.estatus||''))return;
     if(typeof _pedidoVendido==='function'&&!_pedidoVendido(o.num))return;
@@ -5458,7 +5478,8 @@ function _progCalcular(){
     var lin=_progLineas(o.num),m=_progMaterial(lin),base=_progBase(m,cfg),pdHechos=_progPersonaDias(rec);
     var x={o:o,folio:o.num,cliente:o.cliente||'',rec:rec,mat:m,ts:_tsVentaOrden(o),pd:Math.round(base*f*10)/10,pdHechos:pdHechos};
     if(cfg.excluir.indexOf(o.num)>=0){res.excl.push(x);return;}
-    if(!_progLlevaInst(o,L,rec)){res.entrega.push(x);return;}
+    x.cobraEn=menc[o.num]||((L.en&&L.en[o.num])||[]).join(', ');
+    if(!_progLlevaInst(o,L,rec,cfg,menc)){res.entrega.push(x);return;}
     var fi=rec&&rec.fecha_inicio?(''+rec.fecha_inicio).slice(0,10):'',empezo=pdHechos>0;
     // Fecha de inicio que ya pasó y nadie pasó lista: no se tomó como empezada (S07306 del 3 oct)
     if(fi&&fi<hoy&&!empezo){x.fechaPasada=fi;fi='';}
@@ -5522,16 +5543,19 @@ function _progView(){
   // Tabla
   var fila=function(x){var est=x.empezo?'<span style="color:#DA6635">🔧 En curso</span>':(x.fi?'📌 Fecha fija':(x.fechaPasada?'<span title="La obra tenía inicio el '+x.fechaPasada+' pero nadie ha pasado lista" style="color:#B8431C">⚠ Fecha pasada</span>':'🤖 Estimado'));
     var pdTxt=x.sinMat?'<span title="Sin material reconocible: se usa el arranque" style="color:#B8431C">'+x.pd+' ?</span>':x.pd;
-    return '<tr style="border-top:1px solid #f1efec"><td style="padding:6px 8px;font-family:monospace;color:#DA6635;cursor:pointer" onclick="_instObra(\''+_ie(x.folio)+'\')">'+_ie(x.folio)+'</td><td style="padding:6px 8px">'+_ie((x.cliente||'').slice(0,34))+'</td><td style="padding:6px 8px;color:#777;font-size:11px">'+_progMatTxt(x.mat)+'</td><td style="padding:6px 8px;text-align:right">'+pdTxt+(x.pdHechos?'<div style="font-size:10px;color:'+(x.pdHechos>x.pd?'#B8431C':'#999')+'" title="'+(x.pdHechos>x.pd?'Ya se trabajó más de lo estimado: pon la fecha fin en la obra para que el programa la respete':'')+'">hechos '+x.pdHechos+(x.pdHechos>x.pd?' ⚠':'')+'</div>':'')+'</td><td style="padding:6px 8px">'+(x.c?_ie(x.c.nombre):'—')+'</td><td style="padding:6px 8px;white-space:nowrap"><b>'+(x.ini!=null?_progCorta(D[x.ini]):'—')+'</b> → '+(x.fin!=null?_progCorta(D[x.fin-1]):'—')+'</td><td style="padding:6px 8px;font-size:11px">'+est+'</td><td style="padding:6px 8px"><button onclick="_progToggle(\'excluir\',\''+_ie(x.folio)+'\')" title="Sacar del programa" style="border:none;background:none;color:#bbb;cursor:pointer">✕</button></td></tr>';};
+    return '<tr style="border-top:1px solid #f1efec"><td style="padding:6px 8px;font-family:monospace;color:#DA6635;cursor:pointer" onclick="_instObra(\''+_ie(x.folio)+'\')">'+_ie(x.folio)+'</td><td style="padding:6px 8px">'+_ie((x.cliente||'').slice(0,34))+(x.cobraEn?'<div style="font-size:10px;color:#7c5cbf">💲 instalación en '+_ie(x.cobraEn)+'</div>':'')+(_progCfg().conInst.indexOf(x.folio)>=0?'<div style="font-size:10px;color:#999">🔧 marcado a mano <a href="#" onclick="_progQuitarMarca(\''+_ie(x.folio)+'\');return false" style="color:#999">quitar</a></div>':'')+'</td><td style="padding:6px 8px;color:#777;font-size:11px">'+_progMatTxt(x.mat)+'</td><td style="padding:6px 8px;text-align:right">'+pdTxt+(x.pdHechos?'<div style="font-size:10px;color:'+(x.pdHechos>x.pd?'#B8431C':'#999')+'" title="'+(x.pdHechos>x.pd?'Ya se trabajó más de lo estimado: pon la fecha fin en la obra para que el programa la respete':'')+'">hechos '+x.pdHechos+(x.pdHechos>x.pd?' ⚠':'')+'</div>':'')+'</td><td style="padding:6px 8px">'+(x.c?_ie(x.c.nombre):'—')+'</td><td style="padding:6px 8px;white-space:nowrap"><b>'+(x.ini!=null?_progCorta(D[x.ini]):'—')+'</b> → '+(x.fin!=null?_progCorta(D[x.fin-1]):'—')+'</td><td style="padding:6px 8px;font-size:11px">'+est+'</td><td style="padding:6px 8px;white-space:nowrap"><button onclick="_progMarcar(\''+_ie(x.folio)+'\',\'soloEnt\')" title="Es solo entrega (no lleva instalación)" style="border:none;background:none;cursor:pointer;opacity:.5">🚚</button><button onclick="_progToggle(\'excluir\',\''+_ie(x.folio)+'\')" title="Sacar del programa" style="border:none;background:none;color:#bbb;cursor:pointer">✕</button></td></tr>';};
   h+='<div style="background:#fff;border:1px solid #e7e4df;border-radius:12px;overflow-x:auto;margin-bottom:14px"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px"><thead><tr style="text-align:left;font-size:10.5px;color:#999;text-transform:uppercase"><th style="padding:8px">Pedido</th><th style="padding:8px">Cliente</th><th style="padding:8px">Material</th><th style="padding:8px;text-align:right">Días-persona</th><th style="padding:8px">Cuadrilla</th><th style="padding:8px">Inicio → Fin</th><th style="padding:8px"></th><th></th></tr></thead><tbody>'+(R.trab.map(fila).join('')||'<tr><td colspan="8" style="padding:20px;text-align:center;color:#999">No hay instalaciones por programar.</td></tr>')+'</tbody></table></div>';
   // Listas aparte
   var lista=function(tit,arr,nota,btn){if(!arr.length)return '';return '<details style="background:#fff;border:1px solid #e7e4df;border-radius:12px;padding:10px 14px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">'+tit+' ('+arr.length+')</summary><div style="font-size:11.5px;color:#888;margin:6px 0">'+nota+'</div>'+arr.map(function(x){return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid #f4f2ef;font-size:12px"><span><span style="font-family:monospace;color:#DA6635">'+_ie(x.folio)+'</span> '+_ie((x.cliente||'').slice(0,40))+(x.falta?' <span style="color:#B8431C">· faltan '+x.falta+' pzas</span>':'')+(x.pd?' <span style="color:#999">· '+x.pd+' d-p</span>':'')+'</span>'+(btn?btn(x):'')+'</div>';}).join('')+'</details>';};
   h+=lista('⏳ Esperan material',R.espera,'Les falta material (Por comprar). Se programan solos cuando se complete.');
-  h+=lista('🚚 Solo entrega',R.entrega,'La venta no cobra instalación: no ocupan cuadrilla.');
+  h+=lista('🚚 Solo entrega',R.entrega,'Ni su venta ni otra cotización que mencione su folio cobran instalación (o los marcaste a mano). Si alguno sí se instala, dale 🔧.',function(x){return '<button onclick="_progMarcar(\''+_ie(x.folio)+'\',\'conInst\')" style="border:1px solid #DA6635;color:#DA6635;background:#fff;border-radius:8px;font-size:11px;padding:2px 8px;cursor:pointer;white-space:nowrap">🔧 Sí lleva instalación</button>';});
   h+=lista('💤 Sin movimiento +60 días',R.viejos,'No se programan. Si alguno sí va, dale Programar.',function(x){return '<button onclick="_progToggle(\'incluir\',\''+_ie(x.folio)+'\')" style="border:1px solid #DA6635;color:#DA6635;background:#fff;border-radius:8px;font-size:11px;padding:2px 8px;cursor:pointer">Programar</button>';});
   h+=lista('✕ Sacados del programa',R.excl,'Los quitaste a mano.',function(x){return '<button onclick="_progToggle(\'excluir\',\''+_ie(x.folio)+'\')" style="border:1px solid #ccc;background:#fff;border-radius:8px;font-size:11px;padding:2px 8px;cursor:pointer">Regresar</button>';});
   return h;
 }
+// Marcar a mano si un pedido lleva instalación o es solo entrega (quita la marca contraria)
+function _progMarcar(folio,lista){var cfg=_progCfg();var otra=lista==='conInst'?'soloEnt':'conInst';cfg[otra]=(cfg[otra]||[]).filter(function(f){return f!==folio;});var a=cfg[lista]||[];if(a.indexOf(folio)<0)a.push(folio);cfg[lista]=a;PROG.cfg=cfg;_progGuardarCfg();_instPintar();}
+function _progQuitarMarca(folio){var cfg=_progCfg();['conInst','soloEnt'].forEach(function(k){cfg[k]=(cfg[k]||[]).filter(function(f){return f!==folio;});});PROG.cfg=cfg;_progGuardarCfg();_instPintar();}
 function _progToggle(lista,folio){var cfg=_progCfg();var a=cfg[lista]||[];var i=a.indexOf(folio);if(i>=0)a.splice(i,1);else a.push(folio);cfg[lista]=a;PROG.cfg=cfg;_progGuardarCfg();_instPintar();}
 function _progGente(cuad,d){var cfg=_progCfg();var c=(PROG.ultimo&&PROG.ultimo.cuads||[]).find(function(x){return x.base===cuad;});var n=Math.max(1,(c?c.total:1)+d);cfg.gente=cfg.gente||{};if(c&&n===c.auto)delete cfg.gente[cuad];else cfg.gente[cuad]=n;PROG.cfg=cfg;_progGuardarCfg();_instPintar();}
 // Pista en Ventas: si se confirma hoy, ¿cuándo se instalaría? Usa el último programa calculado.
