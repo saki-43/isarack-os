@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.07';
+const APP_VERSION='2026.11.09.02';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -14605,6 +14605,7 @@ function _esLineaServicio(l){
   if(/^MANIOBRA(\s|$)/.test(p))return true;
   if(/^ETIQUETADO\s+CAP/.test(p))return true;
   if(/^DESMONTAJE(\s|$)/.test(p))return true;
+  if(/^INSTALACI[OÓ]N(\s|$)/.test(p))return true;
   return false;
 }
 // Renglón que NO mueve inventario: servicio por nombre (_esLineaServicio) o producto del
@@ -15255,11 +15256,16 @@ function sincronizarInstalacionVenta(){
   if(idxInstManual>=0){
     return;
   }
-  for(let k=vtaLineas.length-1;k>=0;k--){const l=vtaLineas[k];if(l&&!l.tipo&&(l._instAuto||/^SERVICIO DE INSTALACION/i.test(((l.producto||'')+'').trim())))vtaLineas.splice(k,1);}
-  const incInst=(document.getElementById('vf-instalacion')?.value||'NO');
-  if(incInst!=='SI')return;
   let base=0;
   vtaLineas.forEach(l=>{const esServ=(typeof _esLineaServicio==='function')?_esLineaServicio(l):(!l||l.tipo);if(!esServ)base+=(l.cantidad||0)*(l.precio||0)*(1-(l.descuento||0)/100);});
+  // SOLO INSTALACIÓN (cliente pone su material, sin productos): se respeta el renglón de
+  // instalación capturado a mano y solo se quita el automático. Antes se borraba cualquier
+  // "SERVICIO DE INSTALACION" y no había forma de cobrar solo la instalación (Isaac, 9 nov 2026).
+  // CON PRODUCTOS: igual que siempre — se recalcula el 5 % del material si Instalación = SI.
+  const _esInst=l=>l&&!l.tipo&&(l._instAuto||/^SERVICIO DE INSTALACION/i.test(((l.producto||'')+'').trim()));
+  for(let k=vtaLineas.length-1;k>=0;k--){const l=vtaLineas[k];if(base>0?_esInst(l):(l&&!l.tipo&&l._instAuto))vtaLineas.splice(k,1);}
+  const incInst=(document.getElementById('vf-instalacion')?.value||'NO');
+  if(incInst!=='SI')return;
   if(base<=0)return;
   const monto=Math.round(base*0.05*100)/100;
   if(monto<=0)return;
