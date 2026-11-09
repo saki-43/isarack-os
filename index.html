@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.09.04';
+const APP_VERSION='2026.11.09.05';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -9185,10 +9185,11 @@ function _bomTipoChip(r){return _bomTipo(r)==='fabricar'
   :'<span style="background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">🔧 Trabajar</span>';}
 function _bomNum(n){n=Number(n)||0;return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);}
 
-// Receta (kit) de un producto del inventario: modulo con el mismo SKU y familia KIT.
+// Receta (kit) de un producto del inventario: modulo con el mismo SKU y familia KIT o
+// ACCESORIOS (los kits de accesorios —topes, protectores doble bota— van en ACCESORIOS, Isaac 9 nov 2026).
 function _kitDeSku(sku){
   if(!sku||typeof modulos==='undefined'||!Array.isArray(modulos))return null;
-  const m=modulos.find(x=>x&&x.sku===sku&&/^KIT/i.test(x.familia||'')&&Array.isArray(x.componentes)&&x.componentes.length);
+  const m=modulos.find(x=>x&&x.sku===sku&&/^(KIT|ACCESORIOS)/i.test(x.familia||'')&&Array.isArray(x.componentes)&&x.componentes.length);
   return m||null;
 }
 // Devuelve la regla custom si el producto X es "hijo" de alguna regla
@@ -9506,7 +9507,7 @@ function guardarReglaBom(idEdit){
 // Al vender un módulo se descuentan los componentes del inventario.
 let _moduloEditId=null;
 let _moduloBuscadorTimer=null;
-// KIT = receta de un producto del inventario (mismo SKU): se descuenta por componentes (_kitDeSku).
+// KIT o ACCESORIOS con el mismo SKU que un producto del inventario = receta: se descuenta por componentes (_kitDeSku).
 // OTRO se cambió por ACCESORIOS (Isaac, 9 nov 2026); un módulo viejo con OTRO lo conserva (ver mod-familia).
 const MODULO_FAMILIAS=['KIT','MECANO','GONDOLAS','DRIVING','SELECTIVO','PICKING','APLIC','ACCESORIOS'];
 function _modFamiliaColor(f){
