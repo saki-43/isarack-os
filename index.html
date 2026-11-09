@@ -1503,7 +1503,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.10.29.07';
+const APP_VERSION='2026.11.09.01';
 // ── Registro automatico de errores (21 oct 2026) ──
 // Todo error de JavaScript que nadie atrapa (como el modal de PW-98485 que no abria)
 // se guarda en la tabla errores_app y sale en Diagnostico, sin esperar a que alguien
@@ -14605,6 +14605,7 @@ function _esLineaServicio(l){
   if(/^MANIOBRA(\s|$)/.test(p))return true;
   if(/^ETIQUETADO\s+CAP/.test(p))return true;
   if(/^DESMONTAJE(\s|$)/.test(p))return true;
+  if(/^INSTALACI[OÓ]N(\s|$)/.test(p))return true;
   return false;
 }
 // Renglón que NO mueve inventario: servicio por nombre (_esLineaServicio) o producto del
@@ -15255,7 +15256,12 @@ function sincronizarInstalacionVenta(){
   if(idxInstManual>=0){
     return;
   }
-  for(let k=vtaLineas.length-1;k>=0;k--){const l=vtaLineas[k];if(l&&!l.tipo&&(l._instAuto||/^SERVICIO DE INSTALACION/i.test(((l.producto||'')+'').trim())))vtaLineas.splice(k,1);}
+  // Solo se quita el renglón que puso el sistema (_instAuto). Antes también se borraba cualquier
+  // "SERVICIO DE INSTALACION" capturado a mano, y como sin material la base es $0, NO había forma
+  // de cobrar solo la instalación (cliente que pone su material). Isaac, 9 nov 2026.
+  for(let k=vtaLineas.length-1;k>=0;k--){const l=vtaLineas[k];if(l&&!l.tipo&&l._instAuto)vtaLineas.splice(k,1);}
+  // Si ya hay instalación capturada a mano, se respeta y no se agrega la automática (no cobrar doble).
+  if(vtaLineas.some(l=>l&&!l.tipo&&!l._instAuto&&/^(SERVICIO DE )?INSTALACI[OÓ]N/i.test(((l.producto||'')+'').trim())))return;
   const incInst=(document.getElementById('vf-instalacion')?.value||'NO');
   if(incInst!=='SI')return;
   let base=0;
