@@ -361,6 +361,28 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 .al-tj .c{font-size:12.5px;font-weight:600;color:var(--tx2);margin:2px 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .al-tj .m{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--tx3);margin-top:5px}
 .al-vacio{text-align:center;color:var(--tx3);padding:44px 10px;font-size:14px}
+/* Inicio de Almacén y pasos del pedido (10 nov 2026): para quien no conoce el sistema,
+   un botón con lo que toca y en qué paso va cada pedido. */
+.al-ini{display:grid;gap:10px;max-width:620px;margin:0 auto}
+.al-hola{font-size:13px;color:var(--tx3)}
+.al-hola b{display:block;font-size:20px;color:var(--tx)}
+.al-sig{border:0;border-radius:16px;padding:18px 20px;text-align:left;font:inherit;color:#fff;background:#D85A30;cursor:pointer;display:grid;gap:3px;box-shadow:0 8px 20px rgba(216,90,48,.25)}
+.al-sig b{font-size:19px}.al-sig span{font-size:13px;opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-sig.ok{background:#3B6D11;box-shadow:0 8px 20px rgba(59,109,17,.22)}
+.al-sig.no{background:var(--bg2);color:var(--tx2);box-shadow:none;cursor:default}
+.al-kpi{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--c);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;cursor:pointer;font:inherit;text-align:left;color:var(--tx);width:100%}
+.al-kpi .t{font-weight:600;font-size:15px;display:block}.al-kpi .s{font-size:12.5px;color:var(--tx3);display:block}
+.al-kpi .n{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;flex:none}
+.al-kpi .n.cr{color:#c0392b}.al-kpi .n.ok{color:#3B6D11}.al-kpi .n.go{color:#D85A30}
+.al-hoy{display:grid;gap:6px;margin-top:-4px}
+.al-hoy button{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--ln);background:var(--bg2);color:var(--tx);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.al-hoy button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.al-pasos{display:grid;gap:4px;margin:8px 0 2px;max-width:420px}
+.al-pasos .b{display:flex;gap:4px}.al-pasos .b i{flex:1;height:6px;border-radius:3px;background:var(--ln)}
+.al-pasos .b i.d{background:#3B6D11}.al-pasos .b i.c{background:#D85A30}
+.al-pasos .l{display:flex;justify-content:space-between;gap:4px;font-size:11px;color:var(--tx3)}
+.al-pasos .l b{color:var(--tx)}
+.al-sigue{font-size:12.5px;color:var(--tx2);margin-top:2px}
 @media(max-width:900px){.al-dg{grid-template-columns:1fr}.al-tab{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){
   /* Celular: el nombre largo del cliente estiraba la columna del tablero y todo se salía
@@ -887,11 +909,12 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
           <h2 class="al-t">🏭 Almacén — Preparación</h2>
         </div>
         <div class="al-vista">
+          <button id="al-v-inicio" aria-pressed="false" onclick="setAlmVista('inicio')">Inicio</button>
           <button id="al-v-lista" aria-pressed="true" onclick="setAlmVista('lista')">Lista</button>
           <button id="al-v-tablero" aria-pressed="false" onclick="setAlmVista('tablero')">Tablero</button>
         </div>
       </div>
-      <div class="al-estados">
+      <div class="al-estados" id="al-estados">
         <button class="al-est al-e-falta" id="alm-tab-falta" aria-pressed="true" onclick="setAlmTab('falta')">
           <span class="n" id="alm-cnt-falta">0</span>
           <span class="t">Falta armar<small>material por juntar</small></span>
@@ -905,7 +928,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
           <span class="t">Entregados<small>historial</small></span>
         </button>
       </div>
-      <div class="al-busca">
+      <div class="al-busca" id="al-busca">
         <input id="alm-buscar" placeholder="🔍 Buscar pedido o cliente..." oninput="renderAlmacen()">
       </div>
       <div id="alm-lista" style="overflow-y:auto;flex:1;min-height:0"></div>
@@ -1528,7 +1551,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.08';
+const APP_VERSION='2026.11.10.09';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -8154,10 +8177,12 @@ function _almEstadoDoc(f,campo,pdfKey){
   return 'falta';
 }
 let _almTab='falta';        // falta | listo | entregado
-let _almVis='lista';        // lista | tablero
+let _almVis='lista';        // inicio | lista | tablero
+let _almVisElegida=false;   // si la persona no ha escogido, Almacén abre en Inicio
 let _almAb={};              // folios con el detalle abierto
 function setAlmTab(t){_almTab=t;renderAlmacen();}
-function setAlmVista(v){_almVis=v;renderAlmacen();}
+function setAlmVista(v){_almVis=v;_almVisElegida=true;renderAlmacen();}
+function _almIr(tab){_almVis='lista';_almVisElegida=true;_almTab=tab;renderAlmacen();}
 function asignarChoferAlmacen(num,sel){
   const i=orders.findIndex(o=>o.num===num);if(i<0)return;
   orders[i].choferCel=sel.value;
@@ -8463,9 +8488,17 @@ function renderAlmacen(){
     const n=document.getElementById('alm-cnt-'+k);if(n)n.textContent=cnt[k];
     const b=document.getElementById('alm-tab-'+k);if(b)b.setAttribute('aria-pressed',String(k===_almTab));
   });
-  ['lista','tablero'].forEach(v=>{
+  if(!_almVisElegida){
+    const _u=(typeof getCurrentUser==='function'&&getCurrentUser())||{};
+    if(_u.rol==='almacen')_almVis='inicio';
+  }
+  ['inicio','lista','tablero'].forEach(v=>{
     const b=document.getElementById('al-v-'+v);if(b)b.setAttribute('aria-pressed',String(v===_almVis));
   });
+  {const ve=_almVis!=='inicio'?'':'none';
+   const e1=document.getElementById('al-estados');if(e1)e1.style.display=ve;
+   const e2=document.getElementById('al-busca');if(e2)e2.style.display=ve;}
+  if(_almVis==='inicio'){cont.innerHTML='<div id="alm-wrap" data-no-invert>'+_almInicio(items)+'</div>';return;}
 
   // ── Vista Tablero: las tres columnas de un jalón, para la tableta del piso ──
   if(_almVis==='tablero'){
@@ -8502,6 +8535,57 @@ function renderAlmacen(){
   cont.innerHTML='<div id="alm-wrap" data-no-invert>'+cuerpo+'</div>';
 }
 
+// ── Inicio de Almacén (10 nov 2026) ──
+// Lo primero que ve el almacén: un botón con lo que toca ahora y tres números.
+// Solo lee; no cambia nada de los pedidos.
+function _almHoyISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _almInicio(items){
+  const esc=_almEsc;
+  const falta=_almOrdenar(items.filter(it=>it._estado==='falta'),'falta');
+  const listo=_almOrdenar(items.filter(it=>it._estado==='listo'),'listo');
+  const viejos=falta.filter(it=>_almDias(it.o)>30).length;
+  const sinChofer=listo.filter(it=>!it.o.choferNombre).length;
+  const hoy=_almHoyISO();
+  const salenHoy=items.filter(it=>it._estado!=='entregado'&&it.o.entrega===hoy);
+  const h=new Date().getHours();
+  const saludo=h<12?'Buenos días':(h<19?'Buenas tardes':'Buenas noches');
+  const u=(typeof getCurrentUser==='function'&&getCurrentUser())||{};
+  const nom=u.rol==='almacen'?'Almacén':String(u.nombre||'').split(' ')[0];
+  let sig;
+  if(falta.length){const o=falta[0].o;
+    sig='<button class="al-sig" onclick="verListaSurtido(\''+esc(o.num)+'\')"><b>📦 Armar el siguiente</b><span>'+esc(o.num)+' · '+esc(o.cliente||'')+'</span></button>';
+  }else if(listo.length){const o=listo[0].o;
+    sig='<button class="al-sig ok" onclick="openModal('+o.id+')"><b>🚚 Entregar el siguiente</b><span>'+esc(o.num)+' · '+esc(o.cliente||'')+'</span></button>';
+  }else sig='<div class="al-sig no"><b>🎉 No hay nada pendiente</b><span>Todos los pedidos están armados y entregados.</span></div>';
+  const kpi=(t,s2,n,cls,fn)=>'<button class="al-kpi" onclick="'+fn+'"><span><span class="t">'+t+'</span><span class="s">'+s2+'</span></span><span class="n '+cls+'">'+n+'</span></button>';
+  const hoyLista=salenHoy.length?'<div class="al-hoy">'+salenHoy.slice(0,6).map(it=>
+    '<button onclick="_almDesdeTablero(\''+esc(it.o.num)+'\')"><span><b>'+esc(it.o.num)+'</b> · '+esc(it.o.cliente||'')+'</span><span>'+(it._estado==='falta'?'Falta armar':'Listo')+'</span></button>').join('')+'</div>':'';
+  return '<div class="al-ini">'+
+    '<div class="al-hola">'+saludo+'<b>'+esc(nom||'Almacén')+'</b></div>'+
+    sig+
+    kpi('Falta armar',viejos?(viejos+(viejos===1?' lleva':' llevan')+' más de un mes'):'material por juntar',falta.length,falta.length?'cr':'',"_almIr('falta')")+
+    kpi('Listos para salir',sinChofer?(sinChofer+' sin chofer asignado'):'ya se pueden entregar',listo.length,'ok',"_almIr('listo')")+
+    kpi('Salen hoy','con fecha de entrega hoy',salenHoy.length,'go',"_almIr('listo')")+
+    hoyLista+
+  '</div>';
+}
+// En qué paso va el pedido: Venta → Armar → Entregar → Facturar → Cobrar.
+function _almPasos(it,faltan){
+  const f=it.f;
+  const fac=!!(f&&(f.factura||f.factura_na||(typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura)))));
+  const hecho=[true,it._estado!=='falta',it._estado==='entregado',fac,!!(f&&f.pagado)];
+  const cur=hecho.indexOf(false);
+  const nombres=['Venta','Armar','Entregar','Facturar','Cobrar'];
+  const barra='<div class="b">'+hecho.map((h,i)=>'<i class="'+(h?'d':(i===cur?'c':''))+'"></i>').join('')+'</div>';
+  const etq='<div class="l">'+nombres.map((n,i)=>i===cur?'<b>'+n+'</b>':'<span>'+n+'</span>').join('')+'</div>';
+  let txt='';
+  if(cur===1)txt=faltan>0?(faltan===1?'Falta 1 partida por juntar.':('Faltan '+faltan+' partidas por juntar.')):'Ya está todo juntado: dale "Ya quedó armado".';
+  else if(cur===2)txt=it.o.choferNombre?('Lo entrega '+_almEsc(it.o.choferNombre)+'.'):'Falta decir quién lo entrega.';
+  else if(cur===3)txt='Siguiente: facturar. Le toca a <b>Adrián</b>.';
+  else if(cur===4)txt='Siguiente: cobrar. Le toca a <b>administración</b>.';
+  else if(cur===-1)txt='✅ Terminado.';
+  return '<div class="al-pasos">'+barra+etq+'</div>'+(txt?'<div class="al-sigue">'+txt+'</div>':'');
+}
 // Días esperando: sirve para que lo viejo no se hunda al fondo de la lista.
 function _almDias(o){
   const s=o&&o.fecha;if(!s)return 0;
@@ -8579,8 +8663,8 @@ function _almFila(it){
 
   // Un solo botón principal, el que aplica en ese momento.
   let bPri='';
-  if(it._estado==='falta')bPri='<button class="al-b go" onclick="event.stopPropagation();verListaSurtido(\''+esc(o.num)+'\')">Armar</button>';
-  else if(it._estado==='listo')bPri='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">Entregar</button>';
+  if(it._estado==='falta')bPri='<button class="al-b go" onclick="event.stopPropagation();verListaSurtido(\''+esc(o.num)+'\')">📦 Armar material</button>';
+  else if(it._estado==='listo')bPri='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">🚚 Entregar</button>';
   else bPri='<button class="al-b gh" onclick="event.stopPropagation();openModal('+o.id+')">Abrir pedido</button>';
 
   let com=(o.comercial||'').trim(),fLarga='';
@@ -8595,6 +8679,7 @@ function _almFila(it){
       '<div class="al-cuerpo">'+
         '<div class="al-id"><div class="al-folio">'+esc(o.num)+'</div>'+
           '<div class="al-cli">'+esc(o.cliente||(f&&f.cliente)||'')+'</div>'+ctx+'</div>'+
+        _almPasos(it,total-hechas)+
         (total?'<div class="al-prog"><div class="al-pt"><span>Juntadas</span><b>'+hechas+' de '+total+'</b></div>'+
           '<div class="al-barra"><i style="width:'+pct+'%"></i></div></div>':'')+
         '<div class="al-chips">'+chips.join('')+'</div>'+
