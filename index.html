@@ -349,8 +349,8 @@ html.dark-mode #alm-wrap .al-pf{color:#EE9080}
 html.dark-mode #alm-wrap .al-nota{background:#3A2C10;border-color:#5c4718}
 html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 .al-dacc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:13px;border-top:1px solid var(--ln)}
-.al-tab{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
-.al-col{background:var(--bg2);border:1px solid var(--ln);border-radius:11px;padding:10px}
+.al-tab{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.al-col{background:var(--bg2);border:1px solid var(--ln);border-radius:11px;padding:10px;min-width:0}
 .al-colh{display:flex;justify-content:space-between;align-items:center;margin:0 3px 9px}
 .al-colh b{font-size:15px;color:var(--tx)}
 .al-colh span{font-size:12px;font-weight:700;color:var(--tx3)}
@@ -361,8 +361,12 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 .al-tj .c{font-size:12.5px;font-weight:600;color:var(--tx2);margin:2px 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .al-tj .m{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--tx3);margin-top:5px}
 .al-vacio{text-align:center;color:var(--tx3);padding:44px 10px;font-size:14px}
-@media(max-width:900px){.al-dg{grid-template-columns:1fr}.al-tab{grid-template-columns:1fr}}
+@media(max-width:900px){.al-dg{grid-template-columns:1fr}.al-tab{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){
+  /* Celular: el nombre largo del cliente estiraba la columna del tablero y todo se salía
+     a la derecha (10 nov 2026). minmax(0,1fr) + min-width:0 lo corta con '…'. */
+  #alm-wrap{padding:12px 10px}
+  .al-col{padding:8px}
   .al-estados{grid-template-columns:1fr}
   .al-cab{grid-template-columns:6px 1fr}
   .al-acc{grid-column:2;padding:0 14px 12px}
@@ -1518,7 +1522,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.04';
+const APP_VERSION='2026.11.10.05';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
