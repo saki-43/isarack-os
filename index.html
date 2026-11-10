@@ -366,8 +366,14 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
   /* Celular: el nombre largo del cliente estiraba la columna del tablero y todo se salía
      a la derecha (10 nov 2026). minmax(0,1fr) + min-width:0 lo corta con '…'. */
   #alm-wrap{padding:12px 10px}
+  #notif-panel{left:10px!important;right:10px!important;width:auto!important;top:70px!important;max-height:70vh!important}
   .al-col{padding:8px}
-  .al-estados{grid-template-columns:1fr}
+  /* KPIs compactos en el celular (10 nov 2026): los 3 en un renglón, número arriba y nombre abajo */
+  .al-estados{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:10px}
+  .al-est{flex-direction:column;align-items:flex-start;gap:3px;padding:7px 9px;border-left-width:4px;min-width:0}
+  .al-est .n{font-size:21px}
+  .al-est .t{font-size:11px;line-height:1.2}
+  .al-est .t small{display:none}
   .al-cab{grid-template-columns:6px 1fr}
   .al-acc{grid-column:2;padding:0 14px 12px}
   .al-b{flex:1}
@@ -1522,7 +1528,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.05';
+const APP_VERSION='2026.11.10.07';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -14176,10 +14182,24 @@ async function cargarNotificaciones(){
   }catch(e){}
 }
 function _escNotif(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// v2026.11.10.06: en el celular el panel tapaba la campana y no había cómo cerrarlo.
+// Ahora trae ✕ en el encabezado y se cierra al tocar fuera.
+function _notifCab(){
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 8px 8px 14px;border-bottom:2px solid #D85A30;font-size:13px;font-weight:700;color:#1a1a1a;position:sticky;top:0;background:#fff;z-index:1">'
+    +'<span>🔔 Notificaciones</span>'
+    +'<button onclick="cerrarNotifPanel()" title="Cerrar" style="width:36px;height:36px;border:none;border-radius:8px;background:#f1f1ef;color:#444;font-size:18px;line-height:1;cursor:pointer">✕</button></div>';
+}
+function cerrarNotifPanel(){const p=document.getElementById('notif-panel');if(p)p.style.display='none';}
+document.addEventListener('click',function(e){
+  const p=document.getElementById('notif-panel');
+  if(!p||p.style.display!=='block')return;
+  if(p.contains(e.target)||e.target.closest('#notif-bell'))return;
+  p.style.display='none';
+},true);
 function renderNotifPanel(){
   const p=document.getElementById('notif-panel');if(!p)return;
-  if(!_notifs.length){p.innerHTML='<div style="padding:20px;text-align:center;color:#999;font-size:12px">Sin notificaciones</div>';return;}
-  p.innerHTML='<div style="padding:10px 14px;border-bottom:2px solid #D85A30;font-size:12px;font-weight:700;color:#1a1a1a;position:sticky;top:0;background:#fff">🔔 Notificaciones</div>'+_notifs.map(n=>
+  if(!_notifs.length){p.innerHTML=_notifCab()+'<div style="padding:20px;text-align:center;color:#999;font-size:12px">Sin notificaciones</div>';return;}
+  p.innerHTML=_notifCab()+_notifs.map(n=>
     '<div style="padding:10px 14px;border-bottom:1px solid #f0f0ee;'+(n.leida?'opacity:.55':'')+'">'
     +'<div style="font-size:12px;font-weight:700;color:#1a1a1a">'+_escNotif(n.titulo)+'</div>'
     +(n.mensaje?'<div style="font-size:11px;color:#666;margin-top:2px">'+_escNotif(n.mensaje)+'</div>':'')
