@@ -1518,7 +1518,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.03';
+const APP_VERSION='2026.11.10.04';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -14724,7 +14724,7 @@ function habilitarEdicionTCParaAdmin(){
 }
 function filtrarVtaTipo(t){vtaFiltroTipo=t;[['vf-todos',''],['vf-cot','Cotización'],['vf-vta','Venta'],['vf-web','Web']].forEach(p=>{const el=document.getElementById(p[0]);if(el)el.classList.toggle('active',t===p[1]);});renderVentas();}
 // Cotización hecha por la app de cotizaciones web (folios PW-/GW-, comercial 'Web' o estatus Web*)
-function _esVentaWeb(v){if(!v)return false;if(/^[A-Z]{2}-\d/i.test(String(v.num||'')))return true;if((v.comercial||'')==='Web')return true;if(/^Web/i.test(v.estatus||''))return true;return false;}
+function _esVentaWeb(v){if(!v)return false;if(/^Distribuidor:/i.test(v.comercial||''))return false; /* las de distribuidor son cotización normal (Isaac, 10 nov 2026) */if(/^[A-Z]{2}-\d/i.test(String(v.num||'')))return true;if((v.comercial||'')==='Web')return true;if(/^Web/i.test(v.estatus||''))return true;return false;}
 function cerrarRowMenu(){document.querySelectorAll('.row-menu').forEach(m=>m.remove());}
 function menuVenta(ev,ri){
   ev.stopPropagation();cerrarRowMenu();
