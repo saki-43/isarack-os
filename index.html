@@ -1528,7 +1528,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.07';
+const APP_VERSION='2026.11.10.08';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -8325,7 +8325,25 @@ function verListaSurtido(num){
     .surt-btn-inci{flex:none;background:#fbf0d6;color:#9a6a12;border:1.5px solid #ecd39a}
     .surt-btn-inci:hover{border-color:#d9b45a}
     .surt-note{text-align:center;font-size:11px;color:#a99e8f;margin-top:10px}
-    .surt-note b{color:#9c3c1a}`;
+    .surt-note b{color:#9c3c1a}
+    /* Celular (10 nov 2026): el nombre quedaba de 1 palabra por renglón y la cantidad
+       se encimaba. Foto chica + nombre a lo ancho + cantidad; el botón va abajo. */
+    @media(max-width:640px){
+      .surt-overlay{padding:8px}
+      .surt-modal{padding:16px 12px;border-radius:14px}
+      .surt-folio{font-size:24px}
+      .surt-item{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:6px 10px;padding:10px 12px}
+      .surt-thumb{width:44px;height:44px;border-radius:10px}
+      .surt-thumb svg{width:26px;height:26px}
+      .surt-iname{font-size:15px;overflow-wrap:anywhere}
+      .surt-isku{font-size:11px}
+      .surt-qty{min-width:40px}
+      .surt-qty b{font-size:22px}
+      .surt-toggle{grid-column:1/-1;width:100%;height:44px}
+      .surt-toggle-na{display:none}
+      .surt-actions{flex-direction:column}
+      .surt-btn{width:100%;height:52px;font-size:15px;flex:none}
+    }`;
     document.head.appendChild(st);
   }
   // Meter el modal en el DOM
