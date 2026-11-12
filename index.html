@@ -1568,7 +1568,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.13.01';
+const APP_VERSION='2026.11.13.02';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -8500,6 +8500,11 @@ function renderAlmacen(){
     if(String(o.estatus||'').trim()==='Cancelado')return false;
     const v=(typeof ventas!=='undefined'&&Array.isArray(ventas))?ventas.find(x=>x&&x.num===o.num):null;
     if(v&&v._historica)return false;
+    // Pedido de puro servicio (instalación, desmontaje, flete…): no hay nada que
+    // preparar en el almacén, así que no sale aquí (Isaac, 13 nov 2026, S07164).
+    // Si no tiene renglones capturados sí sale, para que alguien lo revise.
+    const _lin=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas.filter(Boolean):[];
+    if(_lin.length&&!_almPartidas(o).length)return false;
     return true;
   }).map(o=>({o,f:facturas.find(x=>x.pedido===o.num)||null}));
   if(q)items=items.filter(({o,f})=>(o.num||'').toLowerCase().includes(q)||(o.cliente||'').toLowerCase().includes(q)||(f&&(f.cliente||'').toLowerCase().includes(q)));
