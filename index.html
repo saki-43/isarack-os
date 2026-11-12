@@ -1568,7 +1568,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.13.02';
+const APP_VERSION='2026.11.13.03';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -8249,7 +8249,7 @@ function verListaSurtido(num){
   // apartarlo), así que cuenta como algo que juntar. El resto de servicios -flete,
   // instalación, maniobras- no llevan material y se omiten del conteo, pero se
   // muestran abajo con una etiqueta para que el almacén vea el panorama completo.
-  const esMontacargas=l=>/montacarga/i.test((l&&l.producto)||'');
+  const esMontacargas=l=>_almEsEquipo(l);
   const esServ=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!esMontacargas(l);
   const arts=[];const servs=[];
   lineas.forEach((l,i)=>{ if(!l)return; if(esServ(l)) servs.push({...l,_idx:i}); else if(l.producto||l.sku) arts.push({...l,_idx:i}); });
@@ -8632,6 +8632,10 @@ function _almPasos(it,faltan){
   else if(cur===-1)txt='✅ Terminado.';
   return '<div class="al-pasos">'+barra+etq+'</div>'+(txt?'<div class="al-sigue">'+txt+'</div>':'');
 }
+// Equipo que se renta o se lleva a la obra para la supervisión (montacargas,
+// plataformas de elevación, tijeras, manlift, andamios). Aunque se cobre como
+// servicio, el almacén SÍ lo tiene que preparar (Isaac, 13 nov 2026).
+function _almEsEquipo(l){return /montacarga|plataforma|elevador|tijera|manlift|genie|andamio/i.test((l&&l.producto)||'');}
 // Días esperando: sirve para que lo viejo no se hunda al fondo de la lista.
 function _almDias(o){
   const s=o&&o.fecha;if(!s)return 0;
@@ -8658,7 +8662,7 @@ function _almSeccion(titulo,pista,lista){
 // montacargas cuenta (hay que apartarlo), el resto de servicios no.
 function _almPartidas(o){
   const lineas=(o.cotData&&Array.isArray(o.cotData.lineas))?o.cotData.lineas:[];
-  const esMont=l=>/montacarga/i.test((l&&l.producto)||'');
+  const esMont=l=>_almEsEquipo(l);
   const esServ=l=>((typeof _esLineaServicio==='function')?_esLineaServicio(l):!!(l&&l.tipo))&&!esMont(l);
   const arts=[];
   lineas.forEach((l,i)=>{if(!l||esServ(l))return;if(l.producto||l.sku)arts.push(Object.assign({},l,{_idx:i}));});
