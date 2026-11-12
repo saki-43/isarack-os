@@ -922,7 +922,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <div class="al-head">
         <div>
           <div class="al-fecha" id="al-fecha"></div>
-          <h2 class="al-t">🏭 Almacén — Preparación</h2>
+          <h2 class="al-t">🏭 Almacén</h2>
         </div>
         <div class="al-vista">
           <button id="al-v-inicio" aria-pressed="false" onclick="setAlmVista('inicio')">Inicio</button>
@@ -933,15 +933,15 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
       <div class="al-estados" id="al-estados">
         <button class="al-est al-e-falta" id="alm-tab-falta" aria-pressed="true" onclick="setAlmTab('falta')">
           <span class="n" id="alm-cnt-falta">0</span>
-          <span class="t">Falta armar<small>material por juntar</small></span>
+          <span class="t">Por preparar<small>pedidos con material pendiente</small></span>
         </button>
         <button class="al-est al-e-listo" id="alm-tab-listo" aria-pressed="false" onclick="setAlmTab('listo')">
           <span class="n" id="alm-cnt-listo">0</span>
-          <span class="t">Armados, esperando salida<small>ya se pueden entregar</small></span>
+          <span class="t">Listos para entregar<small>ya está todo el material</small></span>
         </button>
         <button class="al-est al-e-ent" id="alm-tab-entregado" aria-pressed="false" onclick="setAlmTab('entregado')">
           <span class="n" id="alm-cnt-entregado">0</span>
-          <span class="t">Entregados<small>historial</small></span>
+          <span class="t">Entregados<small>ya salieron</small></span>
         </button>
       </div>
       <div class="al-busca" id="al-busca">
@@ -1568,7 +1568,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.12.02';
+const APP_VERSION='2026.11.13.01';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -8278,8 +8278,8 @@ function verListaSurtido(num){
   let filas='';
   if(!arts.length){
     filas=soloServicios
-      ?'<div class="surt-empty ok">Este pedido es solo de servicio.<br><small>No hay material que juntar en el almacén.</small></div>'
-      :'<div class="surt-empty">Este pedido no tiene partidas capturadas.<br><small>Ábrelo en Seguimiento para revisarlo.</small></div>';
+      ?'<div class="surt-empty ok">Este pedido es solo de servicio.<br><small>No hay material que preparar en el almacén.</small></div>'
+      :'<div class="surt-empty">Este pedido no tiene productos capturados.<br><small>Ábrelo en Seguimiento para revisarlo.</small></div>';
   }else{
     arts.forEach(l=>{
       const done=!!o.surtidoChecks[l._idx];
@@ -8287,19 +8287,19 @@ function verListaSurtido(num){
         ${_thumb(l)}
         <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}${(typeof _almNotaPartida==='function')?_almNotaPartida(l):''}</div>
         <div class="surt-qty"><b>${esc(l.cantidad||0)}</b><span>pz</span></div>
-        <button class="surt-toggle" type="button" tabindex="-1">${done?_checkSvg+' Surtido':'Surtir'}</button>
+        <button class="surt-toggle" type="button" tabindex="-1">${done?_checkSvg+' Preparado':'Preparar'}</button>
       </div>`;
     });
   }
   let filasServ='';
   if(servs.length){
-    filasServ='<div class="surt-servs-t">Servicios (no se juntan)</div><div class="surt-list">';
+    filasServ='<div class="surt-servs-t">Servicios (no se preparan, solo para que sepas)</div><div class="surt-list">';
     servs.forEach(l=>{
       filasServ+=`<div class="surt-item surt-serv">
         <div class="surt-thumb surt-thumb-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M17 7l2-2M5 19l2-2"/></svg></div>
         <div class="surt-idesc"><div class="surt-iname">${esc(l.producto||'')}</div>${l.sku?`<div class="surt-isku">${esc(l.sku)}</div>`:''}</div>
         <div class="surt-qty"><b>${esc(l.cantidad||0)}</b><span>serv</span></div>
-        <div class="surt-toggle surt-toggle-na">N/A</div>
+        <div class="surt-toggle surt-toggle-na">No aplica</div>
       </div>`;
     });
     filasServ+='</div>';
@@ -8309,28 +8309,27 @@ function verListaSurtido(num){
     <div class="surt-modal">
       <button class="surt-close" onclick="_cerrarSurtido()">×</button>
       <div class="surt-h">
-        <div class="surt-lbl">Surtido</div>
+        <div class="surt-lbl">Preparar pedido</div>
         <div class="surt-folio">${esc(o.num)}</div>
         <div class="surt-cli">${esc(o.cliente||'')}</div>
         <div class="surt-tags">
           <span class="surt-tag${dias>10?' bad':''}">${dias===0?'De hoy':(dias===1?'1 día esperando':dias+' días esperando')}</span>
           ${ub?`<span class="surt-tag${recoge?' hi':''}">📍 ${esc(ub.length>50?ub.slice(0,48)+'…':ub)}</span>`:''}
-          ${total?`<span class="surt-tag">${total} ${total===1?'partida':'partidas'}</span>`:''}
+          ${total?`<span class="surt-tag">${total} ${total===1?'producto':'productos'}</span>`:''}
         </div>
       </div>
       ${total>0?`
-        <div class="surt-prog-t"><span><b class="surt-done-n">${juntadas}</b> de ${total} surtidos</span><span>${pct}%</span></div>
+        <div class="surt-prog-t"><span><b class="surt-done-n">${juntadas}</b> de ${total} productos preparados</span><span>${pct}%</span></div>
         <div class="surt-prog"><div class="surt-prog-b" style="width:${pct}%"></div></div>
       `:''}
-      ${o.incidencia?`<div class="surt-inci-note">⚠ Incidencia: ${esc(o.incidencia)}</div>`:''}
-      <div class="surt-seclabel">Lista de surtido</div>
+      ${o.incidencia?`<div class="surt-inci-note">⚠ Problema: ${esc(o.incidencia)}</div>`:''}
+      <div class="surt-seclabel">Productos por preparar</div>
       <div class="surt-list">${filas}</div>
       ${filasServ}
       <div class="surt-actions">
-        ${total>0?`<button class="surt-btn ${todoJuntado?'surt-btn-done':'surt-btn-wait'}" ${todoJuntado?`onclick="_marcarListoDesdeSurtido('${esc(num)}')"`:'disabled'}>${todoJuntado?_checkSvg+' Todo surtido — Pasar a empaque':'Falta surtir '+(total-juntadas)+' partida(s)'}</button>`:''}
-        <button class="surt-btn surt-btn-inci" onclick="_reportarIncidenciaSurtido('${esc(num)}')">⚠ Falta stock / Incidencia</button>
+        ${total>0?`<button class="surt-btn ${todoJuntado?'surt-btn-done':'surt-btn-wait'}" ${todoJuntado?`onclick="_marcarListoDesdeSurtido('${esc(num)}')"`:'disabled'}>${todoJuntado?_checkSvg+' Ya preparé todo: listo para entregar':((total-juntadas)===1?'Falta preparar 1 producto':'Faltan '+(total-juntadas)+' productos por preparar')}</button>`:''}
+        <button class="surt-btn surt-btn-inci" onclick="_reportarIncidenciaSurtido('${esc(num)}')">⚠ Falta algo / hay un problema</button>
       </div>
-      <div class="surt-note">Escaneo QR / código de barras y ubicación por rack — <b>próximamente</b>.</div>
     </div>
   </div>`;
 
@@ -8442,7 +8441,7 @@ function _reportarIncidenciaSurtido(num){
   const t=(txt||'').trim(); if(!t)return;
   o.incidencia=t; o.incidenciaFecha=new Date().toISOString(); o.updated=Date.now();
   saveOrders(); if(typeof cloudSyncOrder==='function')cloudSyncOrder(o);
-  showToast('⚠ Incidencia guardada — oficina la verá','#BA7517');
+  showToast('⚠ Problema guardado — la oficina lo verá','#BA7517');
   verListaSurtido(num);
 }
 function _guardarAvanceSurtido(num){
@@ -8475,12 +8474,12 @@ function _cerrarSurtido(){
 function marcarArmadoListo(num){
   const o=orders.find(x=>x&&x.num===num);
   if(!o)return showToast('Pedido no encontrado','#c62828');
-  if(o.armado==='Listo')return showToast('Ese pedido ya estaba armado','#BA7517');
-  if(!confirm('¿'+num+' ya quedó armado?\n\n'+(o.cliente||'')+'\n\nPasa a "Ya armados, esperando salida".'))return;
+  if(o.armado==='Listo')return showToast('Ese pedido ya estaba preparado','#BA7517');
+  if(!confirm('¿Ya preparaste todo el pedido '+num+'?\n\n'+(o.cliente||'')+'\n\nPasa a "Listos para entregar".'))return;
   o.armado='Listo';
   o.updated=Date.now();
   saveOrders();   // guarda en el equipo Y sube a la nube (cloudSyncTodosLosPedidos)
-  showToast('✓ '+num+' armado · listo para salir','#3B6D11');
+  showToast('✓ '+num+' preparado · listo para entregar','#3B6D11');
   if(typeof renderAlmacen==='function')renderAlmacen();
   if(typeof render==='function')render();
 }
@@ -8550,14 +8549,14 @@ function renderAlmacen(){
         (l.length?l.map(_almTarjeta).join(''):'<div class="al-vacio" style="padding:22px 6px">Nada aquí</div>')+'</div>';
     };
     cont.innerHTML='<div id="alm-wrap" data-no-invert><div class="al-tab">'+
-      col('Falta armar','falta')+col('Esperando salida','listo')+col('Entregados','entregado')+'</div></div>';
+      col('Por preparar','falta')+col('Listos para entregar','listo')+col('Entregados','entregado')+'</div></div>';
     return;
   }
 
   // ── Vista Lista ──
   const visibles=_almOrdenar(items.filter(it=>it._estado===_almTab),_almTab);
   if(!visibles.length){
-    const txt=_almTab==='entregado'?'Aún no hay pedidos entregados.':(_almTab==='listo'?'Ningún pedido esperando salida.':'No hay pedidos por armar. 🎉');
+    const txt=_almTab==='entregado'?'Aún no hay pedidos entregados.':(_almTab==='listo'?'Ningún pedido listo para entregar.':'No hay pedidos por preparar. 🎉');
     cont.innerHTML='<div id="alm-wrap" data-no-invert><div class="al-vacio">'+txt+(q?'<br><small>Con el texto que buscaste.</small>':'')+'</div></div>';
     return;
   }
@@ -8567,10 +8566,10 @@ function renderAlmacen(){
     // veía igual que uno de hoy y se quedaba hundido.
     const viejos=visibles.filter(it=>_almDias(it.o)>30);
     const resto=visibles.filter(it=>_almDias(it.o)<=30);
-    cuerpo=_almSeccion('Atrasados','llevan más de un mes esperando',viejos)
-          +_almSeccion('En tiempo','por orden de llegada',resto);
+    cuerpo=_almSeccion('Urgentes','llevan más de un mes esperando',viejos)
+          +_almSeccion('Siguientes','el más viejo primero',resto);
   }else if(_almTab==='listo'){
-    cuerpo=_almSeccion('Listos para salir','solo falta cargarlos',visibles);
+    cuerpo=_almSeccion('Listos para entregar','solo falta subirlos al camión',visibles);
   }else{
     cuerpo=_almSeccion('Entregados','lo más reciente primero',visibles);
   }
@@ -8595,19 +8594,19 @@ function _almInicio(items){
   const nom=u.rol==='almacen'?'Almacén':String(u.nombre||'').split(' ')[0];
   let sig;
   if(falta.length){const o=falta[0].o;
-    sig='<button class="al-sig" onclick="verListaSurtido(\''+esc(o.num)+'\')"><b>📦 Armar el siguiente</b><span>'+esc(o.num)+' · '+esc(o.cliente||'')+'</span></button>';
+    sig='<button class="al-sig" onclick="verListaSurtido(\''+esc(o.num)+'\')"><b>📦 Preparar el siguiente pedido</b><span>'+esc(o.num)+' · '+esc(o.cliente||'')+'</span></button>';
   }else if(listo.length){const o=listo[0].o;
     sig='<button class="al-sig ok" onclick="openModal('+o.id+')"><b>🚚 Entregar el siguiente</b><span>'+esc(o.num)+' · '+esc(o.cliente||'')+'</span></button>';
-  }else sig='<div class="al-sig no"><b>🎉 No hay nada pendiente</b><span>Todos los pedidos están armados y entregados.</span></div>';
+  }else sig='<div class="al-sig no"><b>🎉 No hay nada pendiente</b><span>Todos los pedidos están preparados y entregados.</span></div>';
   const kpi=(t,s2,n,cls,fn)=>'<button class="al-kpi" onclick="'+fn+'"><span><span class="t">'+t+'</span><span class="s">'+s2+'</span></span><span class="n '+cls+'">'+n+'</span></button>';
   const hoyLista=salenHoy.length?'<div class="al-hoy">'+salenHoy.slice(0,6).map(it=>
-    '<button onclick="_almDesdeTablero(\''+esc(it.o.num)+'\')"><span><b>'+esc(it.o.num)+'</b> · '+esc(it.o.cliente||'')+'</span><span>'+(it._estado==='falta'?'Falta armar':'Listo')+'</span></button>').join('')+'</div>':'';
+    '<button onclick="_almDesdeTablero(\''+esc(it.o.num)+'\')"><span><b>'+esc(it.o.num)+'</b> · '+esc(it.o.cliente||'')+'</span><span>'+(it._estado==='falta'?'Por preparar':'Listo para entregar')+'</span></button>').join('')+'</div>':'';
   return '<div class="al-ini">'+
     '<div class="al-hola">'+saludo+'<b>'+esc(nom||'Almacén')+'</b></div>'+
     sig+
-    kpi('Falta armar',viejos?(viejos+(viejos===1?' lleva':' llevan')+' más de un mes'):'material por juntar',falta.length,falta.length?'cr':'',"_almIr('falta')")+
-    kpi('Listos para salir',sinChofer?(sinChofer+' sin chofer asignado'):'ya se pueden entregar',listo.length,'ok',"_almIr('listo')")+
-    kpi('Salen hoy','con fecha de entrega hoy',salenHoy.length,'go',"_almIr('listo')")+
+    kpi('Por preparar',viejos?(viejos+(viejos===1?' lleva':' llevan')+' más de un mes'):'pedidos con material pendiente',falta.length,falta.length?'cr':'',"_almIr('falta')")+
+    kpi('Listos para entregar',sinChofer?(sinChofer+' sin escoger quién lo lleva'):'ya está todo el material',listo.length,'ok',"_almIr('listo')")+
+    kpi('Se entregan hoy','con fecha de entrega de hoy',salenHoy.length,'go',"_almIr('listo')")+
     hoyLista+
   '</div>';
 }
@@ -8617,12 +8616,12 @@ function _almPasos(it,faltan){
   const fac=!!(f&&(f.factura||f.factura_na||(typeof _hayAdj==='function'&&(_hayAdj(f.pdfFactNum)||_hayAdj(f.pdfFactura)))));
   const hecho=[true,it._estado!=='falta',it._estado==='entregado',fac,!!(f&&f.pagado)];
   const cur=hecho.indexOf(false);
-  const nombres=['Venta','Armar','Entregar','Facturar','Cobrar'];
+  const nombres=['Venta','Preparar','Entregar','Facturar','Cobrar'];
   const barra='<div class="b">'+hecho.map((h,i)=>'<i class="'+(h?'d':(i===cur?'c':''))+'"></i>').join('')+'</div>';
   const etq='<div class="l">'+nombres.map((n,i)=>i===cur?'<b>'+n+'</b>':'<span>'+n+'</span>').join('')+'</div>';
   let txt='';
-  if(cur===1)txt=faltan>0?(faltan===1?'Falta 1 partida por juntar.':('Faltan '+faltan+' partidas por juntar.')):'Ya está todo juntado: dale "Ya quedó armado".';
-  else if(cur===2)txt=it.o.choferNombre?('Lo entrega '+_almEsc(it.o.choferNombre)+'.'):'Falta decir quién lo entrega.';
+  if(cur===1)txt=faltan>0?(faltan===1?'Falta preparar 1 producto.':('Faltan '+faltan+' productos por preparar.')):'Ya está todo: dale "Ya preparé todo".';
+  else if(cur===2)txt=it.o.choferNombre?('Lo entrega '+_almEsc(it.o.choferNombre)+'.'):'Falta escoger quién lo lleva.';
   else if(cur===3)txt='Siguiente: facturar. Le toca a <b>Adrián</b>.';
   else if(cur===4)txt='Siguiente: cobrar. Le toca a <b>administración</b>.';
   else if(cur===-1)txt='✅ Terminado.';
@@ -8695,17 +8694,17 @@ function _almFila(it){
   else chips.push('<span class="al-chip '+(d>30?'cr':(d>10?'wr':''))+'">'+(d===0?'De hoy':(d===1?'1 día esperando':d+' días esperando'))+'</span>');
   if(it._estado!=='entregado'){
     const sinStock=arts.filter(l=>{const s=_almStock(l);return s&&s.falta>0;}).length;
-    if(sinStock)chips.push('<span class="al-chip cr">'+sinStock+(sinStock===1?' sin existencia':' sin existencia')+'</span>');
+    if(sinStock)chips.push('<span class="al-chip cr">No hay '+sinStock+(sinStock===1?' producto':' productos')+' en inventario</span>');
   }
   const ub=(o.ubicacion||'').trim();
   const recoge=/recoge|recoger|paqueter/i.test(ub);
   if(ub)chips.push('<span class="al-chip'+(recoge?' ok':'')+'">'+esc(ub.length>34?ub.slice(0,32)+'…':ub)+'</span>');
   if(o.choferNombre)chips.push('<span class="al-chip ok">'+esc(o.choferNombre)+'</span>');
-  else if(it._estado==='listo')chips.push('<span class="al-chip wr">Sin chofer asignado</span>');
+  else if(it._estado==='listo')chips.push('<span class="al-chip wr">Falta escoger quién lo lleva</span>');
 
   // Un solo botón principal, el que aplica en ese momento.
   let bPri='';
-  if(it._estado==='falta')bPri='<button class="al-b go" onclick="event.stopPropagation();verListaSurtido(\''+esc(o.num)+'\')">📦 Armar material</button>';
+  if(it._estado==='falta')bPri='<button class="al-b go" onclick="event.stopPropagation();verListaSurtido(\''+esc(o.num)+'\')">📦 Preparar</button>';
   else if(it._estado==='listo')bPri='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">🚚 Entregar</button>';
   else bPri='<button class="al-b gh" onclick="event.stopPropagation();openModal('+o.id+')">Abrir pedido</button>';
 
@@ -8722,7 +8721,7 @@ function _almFila(it){
         '<div class="al-id"><div class="al-folio">'+esc(o.num)+'</div>'+
           '<div class="al-cli">'+esc(o.cliente||(f&&f.cliente)||'')+'</div>'+ctx+'</div>'+
         _almPasos(it,total-hechas)+
-        (total?'<div class="al-prog"><div class="al-pt"><span>Juntadas</span><b>'+hechas+' de '+total+'</b></div>'+
+        (total?'<div class="al-prog"><div class="al-pt"><span>Preparado</span><b>'+hechas+' de '+total+'</b></div>'+
           '<div class="al-barra"><i style="width:'+pct+'%"></i></div></div>':'')+
         '<div class="al-chips">'+chips.join('')+'</div>'+
       '</div>'+
@@ -8777,7 +8776,7 @@ function _almDetalle(it,arts,checks){
   const nota=(nt&&!/^Moneda:/i.test(nt))?'<div class="al-nota"><b>Nota:</b> '+esc(nt.length>300?nt.slice(0,298)+'…':nt)+'</div>':'';
 
   let accs='';
-  if(it._estado==='falta')accs='<button class="al-b ok" onclick="event.stopPropagation();marcarArmadoListo(\''+esc(o.num)+'\')">Ya quedó armado</button>';
+  if(it._estado==='falta')accs='<button class="al-b ok" onclick="event.stopPropagation();marcarArmadoListo(\''+esc(o.num)+'\')">✅ Ya preparé todo</button>';
   else if(it._estado==='listo')accs='<button class="al-b ok" onclick="event.stopPropagation();openModal('+o.id+')">Marcar como entregado</button>';
   accs+='<button class="al-b gh" onclick="event.stopPropagation();imprimirTodoAlmacen(\''+esc(o.num)+'\')">Imprimir papeles</button>';
   if((o.ubicacion||'').trim()&&!/recoge|recoger|paqueter/i.test(o.ubicacion))
@@ -8785,7 +8784,7 @@ function _almDetalle(it,arts,checks){
 
   return '<div class="al-det" onclick="event.stopPropagation()">'+
     '<div class="al-dg">'+
-      '<div><h4>Material que hay que juntar</h4>'+parts+'</div>'+
+      '<div><h4>Material por preparar</h4>'+parts+'</div>'+
       '<div><h4>Papeles del pedido</h4>'+docs+
         '<div class="al-campo"><label>Quién lo entrega</label>'+
           '<select onchange="asignarChoferAlmacen(\''+esc(o.num)+'\',this)"><option value="">Sin asignar</option>'+opts+'</select></div>'+
@@ -8805,7 +8804,7 @@ function _almTarjeta(it){
     '<div class="f">'+esc(o.num)+'</div>'+
     '<div class="c">'+esc(o.cliente||'')+'</div>'+
     (total?'<div class="al-barra"><i style="width:'+Math.round(hechas/total*100)+'%"></i></div>':'')+
-    '<div class="m"><span>'+(total?hechas+' de '+total+' juntadas':'sin partidas')+'</span><span>'+_almDias(o)+' d</span></div>'+
+    '<div class="m"><span>'+(total?hechas+' de '+total+' preparados':'sin productos')+'</span><span>'+_almDias(o)+' d</span></div>'+
   '</div>';
 }
 // Abrir/cerrar el detalle sin repintar la lista: no se pierde el scroll.
