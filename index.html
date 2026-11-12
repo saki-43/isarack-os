@@ -1568,7 +1568,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.10.10';
+const APP_VERSION='2026.11.12.01';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -7114,9 +7114,12 @@ function setFilterKpi(f){filter=f;renderStats();renderTable();}
 var segFiltroEjec,vtaFiltroEjec;
 // Abre el configurador avisándole quién es el comercial: así sus cotizaciones RW-/GW-/PW-
 // llegan con su nombre en vez de 'Web'. Si el usuario no es comercial, se abre sin nombre. (14 oct 2026)
+// El Cotizador 3D solo deja entrar con clave (12 nov 2026): desde ISA-OS ya pasaron su
+// login, así que el botón manda el pase del equipo (el configurador lo quita de la barra).
+const CFG_PASE='isa-equipo-k7m2';
 function _urlConfiguradorConComercial(){
-  const base='https://isarack-web.vercel.app/configurador.html';
-  try{const c=_miComercialDefault();return (c&&c!=='todos')?base+'?com='+encodeURIComponent(c):base;}catch(e){return base;}
+  const base='https://isarack-web.vercel.app/configurador.html?pase='+CFG_PASE;
+  try{const c=_miComercialDefault();return (c&&c!=='todos')?base+'&com='+encodeURIComponent(c):base;}catch(e){return base;}
 }
 // Filtro de ejecutivo al entrar a Seguimiento, Ventas y Facturacion: el admin
 // (Isaac) ve a todos; los vendedores, lo suyo (22 oct 2026).
@@ -14933,7 +14936,7 @@ async function modificarEnConfigurador(ri){
   }
   const cod=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const datos={cliente:v.cliente||'',razon:v.razon||'',rfc:v.rfc||'',contacto:v.contacto||'',tel:v.cel||v.tel||'',email:v.email||'',dir:v.dir||''};
-  const url='https://isarack-web.vercel.app/configurador.html?editar='+encodeURIComponent(v.num)+'&d='+cod(st)+'&c='+cod(datos);
+  const url='https://isarack-web.vercel.app/configurador.html?pase='+CFG_PASE+'&editar='+encodeURIComponent(v.num)+'&d='+cod(st)+'&c='+cod(datos);
   if(w)w.location.href=url;else window.open(url,'_blank');
 }
 async function duplicarVenta(i){
