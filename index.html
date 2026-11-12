@@ -1568,7 +1568,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.12.01';
+const APP_VERSION='2026.11.12.02';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -12125,6 +12125,7 @@ async function testCloudConnection(){
     setTimeout(()=>{publicarVersion();checarVersion();},2500);
     // Cargar permisos de pestañas sincronizados
     setTimeout(()=>{if(typeof cargarPermisosPestanasNube==='function')cargarPermisosPestanasNube();},3000);
+    setTimeout(()=>{if(typeof cargarInstaladoresNube==='function')cargarInstaladoresNube();},3100);
     // Cargar lista de pedidos eliminados (para que no resuciten)
     setTimeout(()=>{if(typeof cargarPedidosEliminadosNube==='function')cargarPedidosEliminadosNube();},3200);
     setTimeout(()=>{if(typeof cargarFacturasExcluidas==='function')cargarFacturasExcluidas();},3600);
@@ -16943,6 +16944,27 @@ function guardarEmpresaConfig(c){
   }
 }
 let empresaCfg=cargarEmpresaConfig();
+// La lista de instaladores/choferes se SUBIA a la nube al guardarla, pero ningun equipo
+// la BAJABA: cada uno se quedaba con la suya. En el celular de Isaac seguian los 7 de
+// la lista original y no salia Jesus Mendez para entregar (12 nov 2026).
+// Ahora al conectarse se baja la de la nube, que es la que tambien usa la PWA.
+async function cargarInstaladoresNube(){
+  if(typeof supabaseClient==='undefined'||!supabaseClient)return;
+  try{
+    const {data,error}=await supabaseClient.from('empresa_config').select('valor').eq('clave','instaladores').maybeSingle();
+    if(error||!data||data.valor==null)return;
+    let v=data.valor;
+    for(let i=0;i<3&&typeof v==='string';i++){try{v=JSON.parse(v);}catch(e){break;}}
+    if(!Array.isArray(v)||!v.length)return;   // nunca dejar la lista vacia por una lectura rara
+    if(JSON.stringify(v)===JSON.stringify(empresaCfg.instaladores||[]))return;
+    empresaCfg.instaladores=v;
+    try{localStorage.setItem(CFG_EMPRESA_KEY,JSON.stringify(empresaCfg));}catch(e){}
+    if(typeof refrescarSelectInstalador==='function')refrescarSelectInstalador();
+    if(typeof refrescarSelectChofer==='function')refrescarSelectChofer();
+    try{if(document.querySelector('[data-cfg-tab="instaladores"]')&&typeof cfgRenderTabla==='function')cfgRenderTabla('instaladores');}catch(e){}
+    try{if(typeof renderAlmacen==='function')renderAlmacen();}catch(e){}
+  }catch(e){console.warn('cargarInstaladoresNube:',e);}
+}
 // ── SEED ÚNICO: migrar los instaladores originales a Configuración (una sola vez) ──
 // Desde esta versión, Configuración → Instaladores es la ÚNICA fuente de la lista.
 // Este seed evita perder a los que ya existían. Corre una sola vez (bandera en localStorage);
