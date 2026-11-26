@@ -1569,7 +1569,7 @@ html.dark-mode #alm-wrap .al-nota b{color:#F0C878}
 const STORAGE_KEY='isarack-v3',ESTATUS_OPTS=['Pendiente','En proceso','Completado','Cancelado'],REPSE_OPTS=['C/ REPSE','S/ REPSE','S/ IMSS','Solo Entrega'],ARMADO_OPTS=['Pendiente','En proceso','Listo'],SISTEMAS_OPTS=['Selectivo','Picking','Aplic','Cantilever','Mecano','Mezzanine','Entrega'];
 // ── VERSIÓN DE LA APP (para auto-actualización) ──
 // Sube este número cada vez que publiques cambios. La app avisa a los usuarios cuando hay una versión más nueva.
-const APP_VERSION='2026.11.24.01';
+const APP_VERSION='2026.11.26.01';
 // ══ ACCESORIOS CON SKU PROPIO (Isaac, 9 nov 2026) ══
 // Botas, protectores (pasillo, laterales, puntal, carril drive-in), topes de tarima, mallas
 // anticaida y sus sujeciones pasaron de SEL-/DRI- a ACC-0001…0061, sistema ACCESORIOS.
@@ -7344,9 +7344,64 @@ function _matSolBadge(){
   document.getElementById('mat-sol-n').textContent=n;
   btn.style.display=n?'inline-flex':'none';
 }
+// ── Recetas de lo que se FABRICA: qué material se compra, en tramos enteros de 6 m (26 nov 2026).
+// Isaac: "cuando me aparezca lo de solicitar que me den lo que ocupo pedir, porque si no cuando
+// lo mande a Blanquita ella no sabrá qué hacer". Dos formas:
+//  piezas: lista de cortes por unidad (pulgadas); se juntan las del pedido por material y se
+//          acomodan en tramos de 6 m (236.2"), así nunca se pide un pedazo.
+//  tramos: tramos completos por unidad (la escalera, tal como sale en escaleras.html).
+const _MAT_TRAMO_IN=236.22; // 6 m
+const _MAT_RECETAS={
+  'SEL-0008':{unidad:'ml de barandal',piezas:[{mat:'Tubo galvanizado para barandal × 6 m',largo:39.37,cant:4}]}, // 4 tubos de 1 m por metro lineal
+  'SEL-0239':{unidad:'postes de barandal',piezas:[{mat:'PTR 2" × 2" cal. 14 × 6 m',largo:38.5,cant:1}]},
+  'SEL-0454':{unidad:'vigas de pasarela 96"',piezas:[{mat:'Ángulo 2" × 2" × 1/8" × 6 m',largo:99,cant:1}]},
+  'SEL-0054':{unidad:'escaleras de 12 steps',tramos:[
+    {mat:'Montén 6" cal. 12 × 6 m',cant:4},{mat:'Ángulo 1½" × 1/8" × 6 m',cant:2},
+    {mat:'Solera 2" × ¼" × 6 m',cant:3},{mat:'Tubo 1½" céd. 30 × 6 m',cant:6}]},
+};
+// Acomoda los cortes en tramos (el más largo primero, en el primer tramo donde quepa).
+function _matTramosNecesarios(cortes){
+  const libres=[];
+  cortes.slice().sort((a,b)=>b-a).forEach(c=>{
+    if(c>_MAT_TRAMO_IN){libres.push(0);return;}
+    const i=libres.findIndex(r=>r>=c-0.01); // tolerancia: 6 tubos de 1 m = 6 m exactos
+    if(i>=0)libres[i]-=c;else libres.push(_MAT_TRAMO_IN-c);
+  });
+  return libres.length;
+}
+// Material a comprar del pedido: [{mat, tramos, detalle}] + lo que no tiene receta.
+function _matSolMateriales(items){
+  const porMat={},sinReceta=[];
+  items.forEach(i=>{
+    const sku=(typeof _SKU_VIEJO!=='undefined'&&_SKU_VIEJO[i.sku])||i.sku;
+    const rc=_MAT_RECETAS[sku]||_MAT_RECETAS[i.sku];
+    if(!rc){sinReceta.push(i);return;}
+    (rc.piezas||[]).forEach(pz=>{
+      const m=porMat[pz.mat]=porMat[pz.mat]||{mat:pz.mat,cortes:[],tramos:0,det:[]};
+      const n=Math.ceil(pz.cant*i.cant);
+      for(let k=0;k<n;k++)m.cortes.push(pz.largo);
+      m.det.push(n+' pzas de '+pz.largo+'" ('+i.cant+' '+rc.unidad+')');
+    });
+    (rc.tramos||[]).forEach(t=>{
+      const m=porMat[t.mat]=porMat[t.mat]||{mat:t.mat,cortes:[],tramos:0,det:[]};
+      m.tramos+=t.cant*i.cant;
+      m.det.push(i.cant+' '+rc.unidad);
+    });
+  });
+  const mats=Object.values(porMat).map(m=>({mat:m.mat,tramos:m.tramos+_matTramosNecesarios(m.cortes),detalle:m.det.join(' + ')}));
+  return {mats,sinReceta};
+}
 function _matSolMensaje(r){
-  const o=r.o;
-  return 'Solicitud de material – Pedido '+(o.num||'')+(o.cliente?' ('+o.cliente+')':'')+':\n'+r.items.map(i=>'• '+i.cant+' × '+i.producto).join('\n')+'\nGracias.';
+  const o=r.o;const {mats,sinReceta}=_matSolMateriales(r.items);
+  let t='Solicitud de material – Pedido '+(o.num||'')+(o.cliente?' ('+o.cliente+')':'')+':\n';
+  if(mats.length){
+    t+='\nMaterial a pedir (tramos completos de 6 m):\n'+mats.map(m=>'• '+m.tramos+' × '+m.mat+'  — para '+m.detalle).join('\n')+'\n';
+    t+='\nEs para fabricar: '+r.items.filter(i=>!sinReceta.includes(i)).map(i=>i.cant+' × '+i.producto).join(', ')+'\n';
+  }
+  // Lo que no tiene receta NO va en el mensaje (Isaac, 26 nov 2026: "mejor quítala si no la
+  // tienes"): Blanquita solo recibe material que sabe comprar. En la ventana sale marcado aparte.
+  if(!mats.length)t+='\n(Sin material registrado para estos productos)\n';
+  return t+'\nGracias.';
 }
 function matSolWhats(num){
   const r=_matSolPendientes().find(x=>x.o.num===num);if(!r)return;
@@ -7371,7 +7426,8 @@ function abrirMatSolicitar(refrescar){
         <div><b style="color:#DA6635">${E(o.num)}</b> · <b>${E(o.cliente||'—')}</b> <span style="color:#888;font-size:12px">${E(o.comercial||'')} · ${E(o.estatus||'Pendiente')}</span></div>
         ${r.cambio?'<span style="font-size:11px;background:#FFF4D6;color:#8a6200;padding:2px 8px;border-radius:10px">cambió la cantidad</span>':''}
       </div>
-      <ul style="margin:8px 0 10px 18px;font-size:13px;color:#333">${r.items.map(i=>`<li><b>${i.cant}</b> × ${E(i.producto)}</li>`).join('')}</ul>
+      <ul style="margin:8px 0 6px 18px;font-size:13px;color:#333">${r.items.map(i=>`<li><b>${i.cant}</b> × ${E(i.producto)}</li>`).join('')}</ul>
+      ${(()=>{const _MS=_matSolMateriales(r.items),M=_MS.mats;const _sr=_MS.sinReceta.length?`<div style="font-size:11.5px;color:#8a6200;background:#FFF8E6;border-radius:6px;padding:5px 8px;margin:0 0 8px">Sin receta (no va en el WhatsApp): ${_MS.sinReceta.map(i=>E(i.producto)).join(', ')}</div>`:'';return _sr+(M.length?`<div style="background:#F6F9F2;border:1px solid #d7e6c4;border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:12.5px"><div style="font-weight:700;color:#3B6D11;margin-bottom:4px">🧾 Material a pedir (tramos de 6 m)</div>${M.map(m=>`<div><b>${m.tramos}</b> × ${E(m.mat)} <span style="color:#888">— ${E(m.detalle)}</span></div>`).join('')}</div>`:'');})()}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="matSolWhats('${E(o.num)}')" style="padding:7px 12px;background:#25D366;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">💬 WhatsApp</button>
         <button onclick="matSolYaPedi('${E(o.num)}')" style="padding:7px 12px;background:#fff;color:#3B6D11;border:1.5px solid #3B6D11;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">✅ Ya lo pedí</button>
